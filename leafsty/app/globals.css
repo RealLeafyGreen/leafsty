@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Smooth Circle-to-Squircle Morph */
+.rounded-icon {
+  border-radius: 50%;
+  transition: border-radius 0.2s ease-in-out, background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.rounded-icon:hover,
+.selected-icon .rounded-icon {
+  border-radius: 1rem;
+}
+
+/* Server Sidebar Button + Sliding Pill Indicator */
+.sidebar-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.sidebar-icon::before {
+  --content-height: 0rem;
+  --content-width: 0rem;
+  --offset: -0.4rem;
+  content: "";
+  display: block;
+  position: absolute;
+  left: var(--offset);
+  height: var(--content-height);
+  width: var(--content-width);
+  background-color: #ffffff;
+  border-radius: 0 4px 4px 0;
+  transition: all 0.3s ease-in-out;
+}
+
+.sidebar-icon:hover::before {
+  --content-height: 1.5rem;
+  --content-width: 0.35rem;
+  --offset: 0rem;
+}
+
+.selected-icon::before {
+  --content-height: 2.5rem;
+  --content-width: 0.35rem;
+  --offset: 0rem;
+}
