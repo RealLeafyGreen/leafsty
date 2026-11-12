@@ -5,6 +5,10 @@ import { DiscordContextProvider } from "../types/DiscordContext";
 export const metadata: Metadata = {
   title: "Leafsty",
   description: "End-to-End Encrypted Chat",
+  icons: {
+    icon: "/favicon.ico?v=2",
+    shortcut: "/favicon.ico?v=2",
+  },
 };
 
 export default function RootLayout({
