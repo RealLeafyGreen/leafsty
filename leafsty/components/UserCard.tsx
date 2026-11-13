@@ -12,9 +12,10 @@ const BANNERS = [
 interface UserCardProps {
   user: any;
   isCurrentUser?: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   onSaveProfile?: (data: any) => Promise<void> | void;
 }
+
 
 export default function UserCard({
   user,
