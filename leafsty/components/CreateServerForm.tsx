@@ -35,6 +35,10 @@ export default function CreateServerForm({ onClose }: CreateServerFormProps) {
           server: trimmedServer,
           image: serverImage.trim() || undefined,
           members: [client.userID],
+          custom: {
+            server: trimmedServer,
+            category: "TEXT CHANNELS",
+          },
         } as any
       );
 
