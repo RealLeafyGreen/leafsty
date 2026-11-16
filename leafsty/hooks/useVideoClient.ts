@@ -1,8 +1,13 @@
-use client;
+"use client";
 
 import { useEffect, useState } from "react";
 import { StreamVideoClient, User } from "@stream-io/video-react-sdk";
 
+export interface UseClientOptions {
+  apiKey: string;
+  user: User;
+  tokenOrProvider: string | (() => Promise<string>);
+}
 
 export const useVideoClient = ({
   apiKey,
@@ -12,30 +17,30 @@ export const useVideoClient = ({
   const [videoClient, setVideoClient] = useState<StreamVideoClient>();
 
   useEffect(() => {
-    const streamVideoClient = new StreamVideoClient({ apiKey });
-    // prevents application from setting stale client (user changed, for example)
+    if (!apiKey || !user?.id || !tokenOrProvider) return;
+
+    const client = new StreamVideoClient({ apiKey });
     let didUserConnectInterrupt = false;
 
-    const videoConnectionPromise = streamVideoClient
+    const connectionPromise = client
       .connectUser(user, tokenOrProvider)
       .then(() => {
         if (!didUserConnectInterrupt) {
-          setVideoClient(streamVideoClient);
+          setVideoClient(client);
         }
+      })
+      .catch((err) => {
+        console.error("Failed to connect StreamVideoClient:", err);
       });
 
     return () => {
       didUserConnectInterrupt = true;
       setVideoClient(undefined);
-      // wait for connection to finish before initiating closing sequence
-      videoConnectionPromise
-        .then(() => streamVideoClient.disconnectUser())
-        .then(() => {
-          console.log("video connection closed");
-        });
+      connectionPromise
+        .then(() => client.disconnectUser())
+        .catch(() => {});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- should re-run only if user.id changes
-  }, [apiKey, user.id, tokenOrProvider]);
+  }, [apiKey, user?.id, tokenOrProvider]);
 
   return videoClient;
 };
