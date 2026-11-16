@@ -1,3 +1,9 @@
+use client;
+
+import { useEffect, useState } from "react";
+import { StreamVideoClient, User } from "@stream-io/video-react-sdk";
+
+
 export const useVideoClient = ({
   apiKey,
   user,
