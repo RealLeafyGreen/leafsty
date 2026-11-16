@@ -10,7 +10,6 @@ import {
   Lock,
   Settings,
   X,
-  Users,
   MessageSquare,
 } from "lucide-react";
 
@@ -20,7 +19,7 @@ interface CustomChannelListProps {
   onOpenSettings?: () => void;
 }
 
-export default function CustomChannelList({
+export function CustomChannelList({
   onOpenNewDm,
   onOpenCreateChannel,
   onOpenSettings,
@@ -313,3 +312,5 @@ export default function CustomChannelList({
     </aside>
   );
 }
+
+export default CustomChannelList;
