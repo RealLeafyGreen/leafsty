@@ -48,3 +48,98 @@
   --content-width: 0.35rem;
   --offset: 0rem;
 }
+
+/* Leafsty Global Emerald Obsidian Dark Mode Normalization */
+html.dark body {
+  background-color: #07110d;
+  color: #f4f4f5;
+}
+
+/* Primary Chat & Empty Stage Surfaces */
+html.dark .bg-white,
+html.dark .bg-white\/95,
+html.dark .bg-white\/90,
+html.dark .bg-white\/80 {
+  background-color: #0d1c16 !important;
+  color: #f4f4f5 !important;
+}
+
+/* Sidebar & Roster Sage Surfaces */
+html.dark .bg-\[\#f4f8f6\],
+html.dark .bg-\[\#f3f8f5\],
+html.dark .bg-\[\#f6faf8\],
+html.dark .bg-\[\#fafdfb\] {
+  background-color: #091510 !important;
+  color: #f4f4f5 !important;
+}
+
+html.dark .bg-\[\#eef6f2\] {
+  background-color: #0a1712 !important;
+}
+
+html.dark .bg-\[\#e3efe9\] {
+  background-color: #07110d !important;
+}
+
+/* Gradient Backgrounds in Empty State & Chat Feed */
+html.dark .from-\[\#fafdfb\],
+html.dark .from-\[\#f6faf8\] {
+  --tw-gradient-from: #0d1c16 !important;
+}
+
+html.dark .to-white,
+html.dark .to-\[\#eef6f2\] {
+  --tw-gradient-to: #091510 !important;
+}
+
+/* Borders */
+html.dark .border-emerald-100,
+html.dark .border-emerald-100\/80,
+html.dark .border-emerald-200,
+html.dark .border-emerald-200\/70,
+html.dark .border-emerald-200\/80,
+html.dark .border-zinc-200 {
+  border-color: rgba(16, 185, 129, 0.16) !important;
+}
+
+/* Typography Contrast */
+html.dark .text-zinc-900,
+html.dark .text-zinc-950,
+html.dark .text-zinc-800 {
+  color: #f4f4f5 !important;
+}
+
+html.dark .text-zinc-700,
+html.dark .text-zinc-600 {
+  color: #d4d4d8 !important;
+}
+
+html.dark .text-zinc-500 {
+  color: #a1a1aa !important;
+}
+
+html.dark .text-emerald-700,
+html.dark .text-emerald-800,
+html.dark .text-emerald-900 {
+  color: #6ee7b7 !important;
+}
+
+/* Inputs & Hover Pills */
+html.dark input,
+html.dark textarea {
+  background-color: #07110d !important;
+  color: #f4f4f5 !important;
+}
+
+html.dark .hover\:bg-emerald-100\/80:hover,
+html.dark .hover\:bg-emerald-100\/70:hover,
+html.dark .hover\:bg-white\/70:hover,
+html.dark .hover\:bg-emerald-50:hover {
+  
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+html.dark .via-white {
+  --tw-gradient-via: #091510 !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #091510, var(--tw-gradient-to) !important;
+}
+

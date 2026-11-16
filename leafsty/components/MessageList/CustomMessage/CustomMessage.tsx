@@ -1,99 +1,298 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
-import { decryptE2EEText } from "@/lib/e2ee";
+import {
+  Reply,
+  Copy,
+  Check,
+  Trash2,
+  ShieldCheck,
+  FileText,
+  CornerUpLeft,
+} from "lucide-react";
 
+export interface ReplyTarget {
+  id: string;
+  userName?: string;
+  user?: string;
+  text?: string;
+  preview?: string;
+}
+
+interface CustomMessageProps {
+  message: any;
+  onReply?: (target: ReplyTarget) => void;
+  onSelectUser?: (user: { id: string; name: string; image?: string }) => void;
+}
+
+async function decryptRoomText(rawText: string, roomId: string): Promise<string> {
+  if (!rawText) return "";
+  if (!rawText.startsWith("leafsty_e2ee:")) return rawText;
+  try {
+    const parts = rawText.split(":");
+    const ivB64 = parts[1];
+    const cipherB64 = parts[2];
+    if (!ivB64 || !cipherB64 || typeof window === "undefined" || !window.crypto?.subtle) {
+      return rawText;
+    }
+    const enc = new TextEncoder();
+    const keyMaterial = await window.crypto.subtle.importKey(
+      "raw",
+      enc.encode(roomId.padEnd(32, "0").slice(0, 32)),
+      { name: "AES-GCM" },
+      false,
+      ["decrypt"]
+    );
+    const iv = Uint8Array.from(atob(ivB64), (c) => c.charCodeAt(0));
+    const cipherBytes = Uint8Array.from(atob(cipherB64), (c) => c.charCodeAt(0));
+    const plainBuf = await window.crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      keyMaterial,
+      cipherBytes
+    );
+    return new TextDecoder().decode(plainBuf);
+  } catch (err) {
+    console.error("Failed to decrypt message:", err);
+    return rawText;
+  }
+}
+
+function renderTextWithMentions(text: string) {
+  const parts = text.split(/(@[a-zA-Z0-9_.-]+)/g);
+  return parts.map((part, idx) =>
+    part.startsWith("@") && part.length > 1 ? (
+      <span
+        key={idx}
+        className="px-1.5 py-0.5 rounded-md bg-emerald-500/25 text-emerald-300 font-bold"
+      >
+        {part}
+      </span>
+    ) : (
+      <React.Fragment key={idx}>{part}</React.Fragment>
+    )
+  );
+}
 export default function CustomMessage({
-  msg,
-  isMine,
-}: {
-  msg: any;
-  isMine: boolean;
-}) {
-  const { activeChannel } = useDiscordContext();
-  const [decryptedText, setDecryptedText] = useState<string>("");
+  message,
+  onReply,
+  onSelectUser,
+}: CustomMessageProps) {
+  const { client } = useChatContext();
+  const { activeChannel } = useDiscordContext() as any;
 
-  const rawText = msg?.text || "";
-  const isEncrypted = rawText.startsWith("E2EE:");
+  const [decryptedText, setDecryptedText] = useState<string>(message?.text || "");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    let active = true;
+    let cancelled = false;
+    const raw = String(message?.text || "");
+    const roomId =
+      activeChannel?.id ||
+      (typeof message?.cid === "string" ? message.cid.split(":")[1] : "") ||
+      "leafsty-default-room";
 
-    async function runDecrypt() {
-      if (!rawText) {
-        setDecryptedText("");
-        return;
-      }
-      if (!isEncrypted) {
-        setDecryptedText(rawText);
-        return;
-      }
-      try {
-        const plain = await decryptE2EEText(
-          rawText,
-          activeChannel?.id || "leafsty"
-        );
-        if (active) setDecryptedText(plain);
-      } catch (err) {
-        console.warn("Skipping legacy encrypted message:", err);
-        if (active) setDecryptedText("🔒 Encrypted with an earlier key");
-      }
+    if (!raw.startsWith("leafsty_e2ee:")) {
+      setDecryptedText(raw);
+      return;
     }
 
-    runDecrypt();
+    decryptRoomText(raw, roomId).then((plain) => {
+      if (!cancelled) setDecryptedText(plain);
+    });
+
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [rawText, isEncrypted, activeChannel?.id]);
+  }, [message?.text, message?.cid, activeChannel?.id]);
 
-  const senderName = msg?.user?.name || msg?.user?.id || "User";
-  const initial = senderName.charAt(0).toUpperCase();
+  if (!message) return null;
 
+  const sender = message.user || {};
+  const senderId = sender.id || message.user_id || "user";
+  const senderName = sender.name || senderId;
+  const senderAvatar = sender.image || "";
+  const isOwn =
+    String(senderId).toLowerCase() === String(client?.userID || "").toLowerCase();
+
+  const myId = String(client?.userID || "").toLowerCase();
+  const myName = String((client?.user as any)?.name || myId).toLowerCase();
+  const lowerText = decryptedText.toLowerCase();
+  const mentionsMe =
+    Boolean(myId) &&
+    !isOwn &&
+    (lowerText.includes(`@${myId}`) ||
+      lowerText.includes(`@${myName}`) ||
+      lowerText.includes("@everyone"));
+
+  const isEncrypted =
+    Boolean(message?.custom?.encrypted) ||
+    String(message?.text || "").startsWith("leafsty_e2ee:");
+
+  const replyMeta = message?.custom?.replyTo;
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+
+  const formattedTime = message.created_at
+    ? new Date(message.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
+  const handleCopy = () => {
+    navigator.clipboard?.writeText(decryptedText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
+  const handleDelete = async () => {
+    if (!client || !message.id) return;
+    try {
+      await (client as any).deleteMessage?.(message.id);
+    } catch (err) {
+      console.error("Failed to delete message:", err);
+    }
+  };
   return (
     <div
-      className={`flex items-start gap-3 px-4 py-2 hover:bg-emerald-50/40 transition ${
-        isMine ? "flex-row-reverse" : ""
+      className={`group relative flex items-start gap-3 px-4 py-2 rounded-2xl transition ${
+        mentionsMe
+          ? "bg-amber-500/12 border-l-2 border-amber-400"
+          : "hover:bg-emerald-500/5"
       }`}
     >
-      {msg?.user?.image ? (
-        <img
-          src={msg.user.image}
-          alt={senderName}
-          className="w-9 h-9 rounded-full object-cover shrink-0 mt-0.5"
-        />
-      ) : (
-        <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold text-sm flex items-center justify-center shrink-0 mt-0.5">
-          {initial}
-        </div>
-      )}
-
-      <div
-        className={`max-w-[70%] flex flex-col ${
-          isMine ? "items-end" : "items-start"
-        }`}
+      <button
+        type="button"
+        onClick={() =>
+          onSelectUser?.({
+            id: senderId,
+            name: senderName,
+            image: senderAvatar || undefined,
+          })
+        }
+        className="w-9 h-9 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0 mt-0.5 cursor-pointer"
       >
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-bold text-zinc-800">{senderName}</span>
+        {senderAvatar ? (
+          <img
+            src={senderAvatar}
+            alt={senderName}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          senderName.charAt(0).toUpperCase()
+        )}
+      </button>
+
+      <div className="min-w-0 flex-1">
+        {replyMeta && (
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] text-emerald-300/75 bg-emerald-950/60 border border-emerald-500/20 rounded-lg px-2.5 py-1 max-w-md">
+            <CornerUpLeft className="w-3 h-3 text-emerald-400 shrink-0" />
+            <span className="font-bold text-emerald-300 shrink-0">
+              {replyMeta.userName}:
+            </span>
+            <span className="truncate text-zinc-300">{replyMeta.text}</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onSelectUser?.({
+                id: senderId,
+                name: senderName,
+                image: senderAvatar || undefined,
+              })
+            }
+            className="text-xs font-extrabold text-emerald-200 hover:underline cursor-pointer"
+          >
+            {senderName}
+          </button>
+          {formattedTime && (
+            <span className="text-[10px] text-emerald-300/50">{formattedTime}</span>
+          )}
           {isEncrypted && (
             <span
-              title="End-to-End Encrypted"
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium"
+              title="256-bit AES-GCM Encrypted"
+              className="inline-flex items-center gap-0.5 text-[10px] text-emerald-400/80"
             >
-              🔒 E2EE
+              <ShieldCheck className="w-3 h-3" />
             </span>
           )}
         </div>
 
-        <div
-          className={`rounded-2xl px-3.5 py-2 text-sm shadow-2xs ${
-            isMine
-              ? "bg-emerald-600 text-white rounded-tr-xs"
-              : "bg-[#f4f7f5] text-zinc-900 border border-emerald-100 rounded-tl-xs"
-          }`}
+        {decryptedText && (
+          <div className="mt-0.5 text-sm text-zinc-100 whitespace-pre-wrap break-words leading-relaxed">
+            {renderTextWithMentions(decryptedText)}
+          </div>
+        )}
+
+        {attachments.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {attachments.map((att: any, idx: number) =>
+              att.type === "image" && att.image_url ? (
+                <img
+                  key={idx}
+                  src={att.image_url}
+                  alt={att.fallback || "attachment"}
+                  className="max-h-60 rounded-xl border border-emerald-500/25 object-cover"
+                />
+              ) : (
+                <a
+                  key={idx}
+                  href={att.asset_url || att.image_url || "#"}
+                  download={att.title || "file"}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#0b1914] border border-emerald-500/30 text-xs text-emerald-200 hover:bg-emerald-500/15"
+                >
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                  <span>{att.title || "Download File"}</span>
+                </a>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 rounded-xl bg-[#0b1914] border border-emerald-500/30 p-1 shadow-lg transition">
+        <button
+          type="button"
+          onClick={() =>
+            onReply?.({
+              id: message.id,
+              userName: senderName,
+              text: decryptedText,
+            })
+          }
+          title="Reply"
+          className="p-1.5 rounded-lg text-zinc-300 hover:text-emerald-300 hover:bg-white/10 transition cursor-pointer"
         >
-          {decryptedText || (isEncrypted ? "Decrypting..." : "")}
-        </div>
+          <Reply className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCopy}
+          title="Copy Text"
+          className="p-1.5 rounded-lg text-zinc-300 hover:text-emerald-300 hover:bg-white/10 transition cursor-pointer"
+        >
+          {copied ? (
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+          ) : (
+            <Copy className="w-3.5 h-3.5" />
+          )}
+        </button>
+
+        {isOwn && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            title="Delete Message"
+            className="p-1.5 rounded-lg text-zinc-300 hover:text-red-400 hover:bg-red-500/15 transition cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );
