@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { StreamVideoClient, User } from "@stream-io/video-react-sdk";
+import { StreamVideoClient, User } from "@stream-io/video-client";
 
 export interface UseClientOptions {
   apiKey: string;
@@ -29,7 +29,7 @@ export const useVideoClient = ({
           setVideoClient(client);
         }
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error("Failed to connect StreamVideoClient:", err);
       });
 
