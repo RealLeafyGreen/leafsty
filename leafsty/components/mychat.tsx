@@ -20,21 +20,57 @@ import {
 } from "lucide-react";
 
 interface MyChatProps {
-  apiKey: string;
-  user: {
+  apiKey?: string;
+  user?: {
     id: string;
     name?: string;
     image?: string;
   };
-  tokenOrProvider: string | (() => Promise<string>);
+  tokenOrProvider?: string | (() => Promise<string>);
 }
 
-export default function MyChat({ apiKey, user, tokenOrProvider }: MyChatProps) {
-  const { activeChannel, activeServer } = useDiscordContext() as any;
+export default function MyChat(props: MyChatProps = {}) {
+  const discordCtx = useDiscordContext() as any;
+  const { activeChannel, activeServer } = discordCtx || {};
+
+  const resolvedApiKey =
+    props.apiKey || process.env.NEXT_PUBLIC_STREAM_API_KEY || "";
+
+  const resolvedUser = useMemo(() => {
+    if (props.user?.id) return props.user;
+    if (discordCtx?.currentUser?.id) return discordCtx.currentUser;
+    if (typeof window !== "undefined") {
+      try {
+        const saved = JSON.parse(localStorage.getItem("leafsty_user") || "{}");
+        if (saved?.id) {
+          return {
+            id: String(saved.id),
+            name: saved.name || String(saved.id),
+            image: saved.image || undefined,
+          };
+        }
+      } catch {}
+    }
+    return { id: "guest", name: "Guest" };
+  }, [props.user, discordCtx?.currentUser]);
+
+  const resolvedTokenProvider = useMemo(() => {
+    if (props.tokenOrProvider) return props.tokenOrProvider;
+    return async () => {
+      const res = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: resolvedUser.id }),
+      });
+      const data = await res.json();
+      return data.token;
+    };
+  }, [props.tokenOrProvider, resolvedUser.id]);
+
   const client = useCreateChatClient({
-    apiKey,
-    tokenOrProvider,
-    userData: user,
+    apiKey: resolvedApiKey,
+    tokenOrProvider: resolvedTokenProvider,
+    userData: resolvedUser,
   });
 
   const [messages, setMessages] = useState<any[]>([]);
@@ -79,10 +115,10 @@ export default function MyChat({ apiKey, user, tokenOrProvider }: MyChatProps) {
     if (activeChannel.data?.name) return activeChannel.data.name;
     const membersObj = activeChannel.state?.members || {};
     const other: any = Object.values(membersObj).find(
-      (m: any) => String(m?.user?.id || m?.user_id) !== String(user.id)
+      (m: any) => String(m?.user?.id || m?.user_id) !== String(resolvedUser.id)
     );
     return other?.user?.name || other?.user_id || activeChannel.id || "Encrypted Chat";
-  }, [activeChannel, user.id]);
+  }, [activeChannel, resolvedUser.id]);
 
   const membersList = useMemo(() => {
     if (!activeChannel?.state?.members) return [];
