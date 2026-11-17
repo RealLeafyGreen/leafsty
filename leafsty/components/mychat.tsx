@@ -21,51 +21,102 @@ import {
 
 interface MyChatProps {
   apiKey?: string;
-  user?: {
-    id: string;
-    name?: string;
-    image?: string;
-  };
+  user?: { id: string; name?: string; image?: string };
+  userData?: { id: string; name?: string; image?: string };
+  userId?: string;
+  userName?: string;
+  token?: string;
   tokenOrProvider?: string | (() => Promise<string>);
 }
 
 export default function MyChat(props: MyChatProps = {}) {
   const discordCtx = useDiscordContext() as any;
   const { activeChannel, activeServer } = discordCtx || {};
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const resolvedApiKey =
     props.apiKey || process.env.NEXT_PUBLIC_STREAM_API_KEY || "";
 
   const resolvedUser = useMemo(() => {
-    if (props.user?.id) return props.user;
-    if (discordCtx?.currentUser?.id) return discordCtx.currentUser;
-    if (typeof window !== "undefined") {
-      try {
-        const saved = JSON.parse(localStorage.getItem("leafsty_user") || "{}");
-        if (saved?.id) {
-          return {
-            id: String(saved.id),
-            name: saved.name || String(saved.id),
-            image: saved.image || undefined,
-          };
-        }
-      } catch {}
+    const direct = props.user || props.userData;
+    if (direct?.id) return direct;
+    if (props.userId) {
+      return { id: props.userId, name: props.userName || props.userId };
     }
-    return { id: "guest", name: "Guest" };
-  }, [props.user, discordCtx?.currentUser]);
+    if (discordCtx?.currentUser?.id) return discordCtx.currentUser;
+    if (discordCtx?.user?.id) return discordCtx.user;
+
+    if (typeof window !== "undefined") {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw || !raw.startsWith("{")) continue;
+          const parsed = JSON.parse(raw);
+          const uid = parsed?.id || parsed?.userId || parsed?.username;
+          if (uid && typeof uid === "string") {
+            return {
+              id: uid,
+              name: parsed.name || parsed.username || uid,
+              image: parsed.image || parsed.avatar || undefined,
+            };
+          }
+        } catch {}
+      }
+    }
+    return { id: "leafygreen", name: "LeafyGreen" };
+  }, [
+    props.user,
+    props.userData,
+    props.userId,
+    props.userName,
+    discordCtx?.currentUser,
+    discordCtx?.user,
+  ]);
 
   const resolvedTokenProvider = useMemo(() => {
     if (props.tokenOrProvider) return props.tokenOrProvider;
+    if (props.token) return props.token;
+
     return async () => {
-      const res = await fetch("/api/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: resolvedUser.id }),
-      });
-      const data = await res.json();
-      return data.token;
+      const endpoints = [
+        "/api/token",
+        "/api/stream-token",
+        "/api/auth/token",
+        "/api/register",
+      ];
+      let lastStatus = "no response";
+
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: resolvedUser.id,
+              id: resolvedUser.id,
+              name: resolvedUser.name,
+            }),
+          });
+          lastStatus = `${url} -> ${res.status}`;
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.token) {
+              setConnectError(null);
+              return data.token;
+            }
+          }
+        } catch (err: any) {
+          lastStatus = `${url} -> ${err?.message || "network error"}`;
+        }
+      }
+
+      const msg = `Token failed (${lastStatus}) for user "${resolvedUser.id}"`;
+      setConnectError(msg);
+      throw new Error(msg);
     };
-  }, [props.tokenOrProvider, resolvedUser.id]);
+  }, [props.tokenOrProvider, props.token, resolvedUser.id, resolvedUser.name]);
 
   const client = useCreateChatClient({
     apiKey: resolvedApiKey,
@@ -117,7 +168,12 @@ export default function MyChat(props: MyChatProps = {}) {
     const other: any = Object.values(membersObj).find(
       (m: any) => String(m?.user?.id || m?.user_id) !== String(resolvedUser.id)
     );
-    return other?.user?.name || other?.user_id || activeChannel.id || "Encrypted Chat";
+    return (
+      other?.user?.name ||
+      other?.user_id ||
+      activeChannel.id ||
+      "Encrypted Chat"
+    );
   }, [activeChannel, resolvedUser.id]);
 
   const membersList = useMemo(() => {
@@ -133,12 +189,29 @@ export default function MyChat(props: MyChatProps = {}) {
     );
   }, [messages, searchQuery]);
 
+  if (!resolvedApiKey) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-100 p-6">
+        <div className="px-5 py-4 rounded-2xl bg-[#0b211a] border border-red-500/40 text-sm">
+          Missing <code className="text-emerald-300">NEXT_PUBLIC_STREAM_API_KEY</code> in Vercel Environment Variables.
+        </div>
+      </div>
+    );
+  }
+
   if (!client) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-100">
-        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#0b211a] border border-emerald-500/20">
-          <div className="w-4 h-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-          <span className="text-sm font-semibold">Connecting to Leafsty...</span>
+      <div className="h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-100 p-6">
+        <div className="flex flex-col items-center gap-2 px-6 py-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 max-w-md text-center">
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+            <span className="text-sm font-semibold">
+              Connecting as {resolvedUser.name}...
+            </span>
+          </div>
+          {connectError && (
+            <p className="text-xs text-red-400 mt-1 break-all">{connectError}</p>
+          )}
         </div>
       </div>
     );
@@ -153,9 +226,7 @@ export default function MyChat(props: MyChatProps = {}) {
       <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
         <ServerList />
 
-        <CustomChannelList
-          onOpenSettings={() => setShowSettings(true)}
-        />
+        <CustomChannelList onOpenSettings={() => setShowSettings(true)} />
 
         <main className="flex-1 h-full flex flex-col bg-[#0a1d17] text-emerald-50 min-w-0">
           {!activeChannel ? (
