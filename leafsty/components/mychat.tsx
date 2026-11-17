@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Chat, useChatContext } from "stream-chat-react";
+import { useChatContext } from "stream-chat-react";
 import ServerList from "./ServerList";
 import { CustomChannelList } from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
@@ -274,9 +274,6 @@ export default function MyChat(props: MyChatProps = {}) {
     </div>
   );
 
-  if (client) {
-    return <Chat client={client}>{layout}</Chat>;
-  }
-
-  return layout;
+    return layout;
 }
+

@@ -34,7 +34,6 @@ export function CustomChannelList({
   const [channels, setChannels] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [, setUnreadTick] = useState(0);
 
   const currentUserId = String(client?.userID || (client?.user as any)?.id || "");
   const currentUserName =
@@ -91,20 +90,15 @@ export function CustomChannelList({
 
     loadChannels();
 
-    const handleRefresh = () => {
+    const handleManualRefresh = () => {
       loadChannels();
-      setUnreadTick((t) => t + 1);
     };
 
-    window.addEventListener("leafsty:channels-updated", handleRefresh);
-    client.on?.("message.new", handleRefresh);
-    client.on?.("notification.added_to_channel", handleRefresh);
+    window.addEventListener("leafsty:channels-updated", handleManualRefresh);
 
     return () => {
       cancelled = true;
-      window.removeEventListener("leafsty:channels-updated", handleRefresh);
-      client.off?.("message.new", handleRefresh);
-      client.off?.("notification.added_to_channel", handleRefresh);
+      window.removeEventListener("leafsty:channels-updated", handleManualRefresh);
     };
   }, [client, currentUserId, activeServer?.id]);
   const handleSelectChannel = async (ch: any) => {
@@ -114,7 +108,6 @@ export function CustomChannelList({
       await liveChannel.watch({ state: true, presence: true });
       await liveChannel.markRead?.();
       setActiveChannel?.(liveChannel);
-      setUnreadTick((t) => t + 1);
     } catch (error) {
       console.error("Failed to open channel:", error);
       setActiveChannel?.(ch);
