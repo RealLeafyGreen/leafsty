@@ -117,7 +117,11 @@ export default function MyChat(props: MyChatProps = {}) {
     <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
       <ServerList />
 
-      <CustomChannelList onOpenSettings={() => setShowSettings(true)} />
+      {client ? (
+        <CustomChannelList onOpenSettings={() => setShowSettings(true)} />
+      ) : (
+        <aside className="w-64 h-full bg-[#081914] border-r border-emerald-500/15 shrink-0" />
+      )}
 
       <main className="flex-1 h-full flex flex-col bg-[#0a1d17] text-emerald-50 min-w-0">
         {!activeChannel ? (
@@ -270,7 +274,7 @@ export default function MyChat(props: MyChatProps = {}) {
     </div>
   );
 
-  if (client && !chatCtx?.client) {
+  if (client) {
     return <Chat client={client}>{layout}</Chat>;
   }
 
