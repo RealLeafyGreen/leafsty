@@ -1,441 +1,275 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Chat, useCreateChatClient } from "stream-chat-react";
 import ServerList from "./ServerList";
 import { CustomChannelList } from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
 import CustomMessageComposer from "./MessageList/MessageComposer/MessageComposer";
-import CreateServerForm from "./CreateServerForm";
-import LeafstyCallStage from "./LeafstyCallStage";
-import IncomingCallBanner from "./IncomingCallBanner";
-import InviteJoinModal from "./InviteJoinModal";
-import LeafstyLoader from "./LeafstyLoader";
-import UnreadFaviconUpdater from "./UnreadFaviconUpdater";
-import UserContextMenu, { ContextTargetUser } from "./UserContextMenu";
-import { DiscordContextProvider, useDiscordContext } from "../types/DiscordContext";
-import { Hash, AtSign, Phone, Video, Users, Search, LogOut, UserPlus, Check } from "lucide-react";
+import UserSettingsModal from "./UserSettingsModal";
+import { useDiscordContext } from "../types/DiscordContext";
+import {
+  AtSign,
+  Hash,
+  Lock,
+  Phone,
+  Search,
+  Users,
+  Video,
+  X,
+} from "lucide-react";
 
-const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || "mmhfdzb5evj2";
+interface MyChatProps {
+  apiKey: string;
+  user: {
+    id: string;
+    name?: string;
+    image?: string;
+  };
+  tokenOrProvider: string | (() => Promise<string>);
+}
 
-function ChatContent({ chatClient }: { chatClient: any }) {
-  const { activeChannel, setActiveChannel, activeServer } = useDiscordContext() as any;
-  const [, setChatRenderTick] = useState(0);
-
-  useEffect(() => {
-    const refreshChat = () => setChatRenderTick((t) => t + 1);
-    window.addEventListener("leafsty:message-sent", refreshChat);
-    activeChannel?.on?.("message.new", refreshChat);
-    return () => {
-      window.removeEventListener("leafsty:message-sent", refreshChat);
-      activeChannel?.off?.("message.new", refreshChat);
-    };
-  }, [activeChannel]);
+export default function MyChat({ apiKey, user, tokenOrProvider }: MyChatProps) {
+  const { activeChannel, activeServer } = useDiscordContext() as any;
+  const client = useCreateChatClient({
+    apiKey,
+    tokenOrProvider,
+    userData: user,
+  });
 
   const [messages, setMessages] = useState<any[]>([]);
-  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
-  const [messageSearch, setMessageSearch] = useState("");
-  const [showMemberList, setShowMemberList] = useState(true);
-  const [callMode, setCallMode] = useState<"voice" | "video" | null>(null);
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
-
-  const [inviteServer, setInviteServer] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("invite");
-  });
-  const [copiedInvite, setCopiedInvite] = useState(false);
-
-  const [ctxUser, setCtxUser] = useState<ContextTargetUser | null>(null);
-  const [ctxPos, setCtxPos] = useState<{ x: number; y: number } | null>(null);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const showCreateServer =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("createServer") === "true";
-
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showMembers, setShowMembers] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    setCallMode(null);
-    setReplyTo(null);
-    setTypingUsers({});
     if (!activeChannel) {
       setMessages([]);
       return;
     }
 
     const syncMessages = () => {
-      setMessages([...(activeChannel.state?.messages || [])]);
+      const list = activeChannel.state?.messages || [];
+      setMessages([...list]);
     };
 
     syncMessages();
-
-    const subNew = activeChannel.on("message.new", syncMessages);
-    const subUpd = activeChannel.on("message.updated", syncMessages);
-    const subDel = activeChannel.on("message.deleted", syncMessages);
-    const subReactNew = activeChannel.on("reaction.new", syncMessages);
-    const subReactDel = activeChannel.on("reaction.deleted", syncMessages);
-
-    const subTypeStart = activeChannel.on("typing.start", (e: any) => {
-      const uid = e?.user?.id;
-      if (!uid || uid === chatClient?.userID || e?.signalType === "webrtc") return;
-      setTypingUsers((prev) => ({ ...prev, [uid]: e.user?.name || uid }));
-    });
-
-    const subTypeStop = activeChannel.on("typing.stop", (e: any) => {
-      const uid = e?.user?.id;
-      if (!uid) return;
-      setTypingUsers((prev) => {
-        const next = { ...prev };
-        delete next[uid];
-        return next;
-      });
-    });
+    activeChannel.on?.("message.new", syncMessages);
+    activeChannel.on?.("message.updated", syncMessages);
+    activeChannel.on?.("message.deleted", syncMessages);
+    activeChannel.on?.("reaction.new", syncMessages);
+    activeChannel.on?.("reaction.deleted", syncMessages);
 
     return () => {
-      subNew?.unsubscribe?.();
-      subUpd?.unsubscribe?.();
-      subDel?.unsubscribe?.();
-      subReactNew?.unsubscribe?.();
-      subReactDel?.unsubscribe?.();
-      subTypeStart?.unsubscribe?.();
-      subTypeStop?.unsubscribe?.();
+      activeChannel.off?.("message.new", syncMessages);
+      activeChannel.off?.("message.updated", syncMessages);
+      activeChannel.off?.("message.deleted", syncMessages);
+      activeChannel.off?.("reaction.new", syncMessages);
+      activeChannel.off?.("reaction.deleted", syncMessages);
     };
-  }, [activeChannel, chatClient?.userID]);
+  }, [activeChannel]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
-  const isDM =
-    String(activeChannel?.id || "").startsWith("dm-") ||
-    String(activeChannel?.id || "").startsWith("!members-") ||
-    Boolean((activeChannel?.data as any)?.custom?.is_dm);
 
-  const otherDmMember = isDM
-    ? (Object.values(activeChannel?.state?.members || {}) as any[]).find(
-        (m: any) =>
-          (m?.user_id || m?.user?.id || "").toLowerCase() !==
-          (chatClient?.userID || "").toLowerCase()
-      )
-    : null;
+  const channelTitle = useMemo(() => {
+    if (!activeChannel) return "";
+    if (activeChannel.data?.name) return activeChannel.data.name;
+    const membersObj = activeChannel.state?.members || {};
+    const other: any = Object.values(membersObj).find(
+      (m: any) => String(m?.user?.id || m?.user_id) !== String(user.id)
+    );
+    return other?.user?.name || other?.user_id || activeChannel.id || "Encrypted Chat";
+  }, [activeChannel, user.id]);
 
-  const cleanChannelName = isDM
-    ? otherDmMember?.user?.name || otherDmMember?.user_id || "Direct Message"
-    : (activeChannel?.data as any)?.custom?.name ||
-      (activeChannel?.data as any)?.name ||
-      activeChannel?.id ||
-      "general";
+  const membersList = useMemo(() => {
+    if (!activeChannel?.state?.members) return [];
+    return Object.values(activeChannel.state.members);
+  }, [activeChannel]);
 
-  const currentServerName =
-    activeServer?.name || (activeChannel?.data as any)?.custom?.server || "";
+  const displayedMessages = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return messages;
+    return messages.filter((m: any) =>
+      String(m?.text || "").toLowerCase().includes(q)
+    );
+  }, [messages, searchQuery]);
 
-  const channelMembers = Object.values(activeChannel?.state?.members || {}) as any[];
-  const activeTypers = Object.values(typingUsers);
-  const typingBannerText =
-    activeTypers.length === 1
-      ? `${activeTypers} is typing...`
-      : activeTypers.length > 1
-      ? `${activeTypers.join(", ")} are typing...`
-      : "";
-
-  const startQuickDM = async (targetUserId: string) => {
-    if (!chatClient?.userID || !targetUserId || targetUserId === chatClient.userID) return;
-    const pair = [chatClient.userID.toLowerCase(), targetUserId.toLowerCase()].sort();
-    const dmChannel = chatClient.channel("messaging", `dm-${pair.join("-")}`, {
-      members: [chatClient.userID, targetUserId],
-      custom: { is_dm: true },
-    });
-    await dmChannel.watch();
-    setActiveChannel?.(dmChannel);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("stream_user");
-    localStorage.removeItem("stream_token");
-    window.location.href = "/";
-  };
-
-  if (showCreateServer) {
+  if (!client) {
     return (
-      <CreateServerForm
-        onClose={() => {
-          window.history.replaceState({}, "", "/");
-          window.location.reload();
-        }}
-      />
+      <div className="h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-100">
+        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#0b211a] border border-emerald-500/20">
+          <div className="w-4 h-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+          <span className="text-sm font-semibold">Connecting to Leafsty...</span>
+        </div>
+      </div>
     );
   }
-  return (
-    <section className="flex h-screen w-screen overflow-hidden bg-[#f6faf8] text-zinc-900">
-      <ServerList />
-      <CustomChannelList />
 
-      <div className="flex-1 flex h-full min-w-0">
-        {activeChannel ? (
-          <>
-            <div className="flex-1 flex flex-col h-full min-w-0 bg-white">
-              <header className="h-14 px-4 border-b border-emerald-100 flex items-center justify-between gap-3 bg-white shrink-0">
+  const isDm =
+    !activeServer?.id &&
+    !activeChannel?.data?.serverId &&
+    !activeChannel?.data?.server;
+  return (
+    <Chat client={client}>
+      <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
+        <ServerList />
+
+        <CustomChannelList
+          onOpenSettings={() => setShowSettings(true)}
+        />
+
+        <main className="flex-1 h-full flex flex-col bg-[#0a1d17] text-emerald-50 min-w-0">
+          {!activeChannel ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0a1d17]">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center shadow-lg shadow-emerald-950/60 mb-4">
+                L
+              </div>
+              <h1 className="text-xl font-extrabold text-emerald-50">
+                Your Leafsty Space
+              </h1>
+              <p className="text-sm text-emerald-300/70 mt-1 max-w-sm">
+                Pick a channel or DM from the sidebar to start chatting.
+              </p>
+            </div>
+          ) : (
+            <>
+              <header className="h-14 px-4 border-b border-emerald-500/15 bg-[#081914] flex items-center justify-between gap-3 shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
-                    {isDM ? <AtSign className="w-4 h-4" /> : <Hash className="w-4 h-4" />}
-                  </span>
-                  <h2 className="font-extrabold text-sm text-zinc-900 truncate">
-                    {cleanChannelName}
+                  {isDm ? (
+                    <AtSign className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <Hash className="w-4 h-4 text-emerald-400 shrink-0" />
+                  )}
+                  <h2 className="text-sm font-extrabold text-emerald-50 truncate">
+                    {channelTitle}
                   </h2>
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-bold">
+                    <Lock className="w-2.5 h-2.5" /> E2EE
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {!isDM && currentServerName && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = `${window.location.origin}/?invite=${encodeURIComponent(currentServerName)}`;
-                        navigator.clipboard?.writeText(url);
-                        setCopiedInvite(true);
-                        setTimeout(() => setCopiedInvite(false), 2000);
-                      }}
-                      title="Copy Shareable Server Invite Link"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-extrabold transition cursor-pointer"
-                    >
-                      {copiedInvite ? <Check className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-                      <span>{copiedInvite ? "Copied!" : "Invite"}</span>
-                    </button>
-                  )}
-
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setCallMode(callMode === "voice" ? null : "voice")}
                     title="Voice Call"
-                    className={`p-2 rounded-xl transition cursor-pointer ${
-                      callMode === "voice"
-                        ? "bg-emerald-600 text-white"
-                        : "text-zinc-500 hover:text-emerald-700 hover:bg-emerald-50"
-                    }`}
+                    className="p-2 rounded-lg text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer"
                   >
                     <Phone className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCallMode(callMode === "video" ? null : "video")}
                     title="Video Call"
-                    className={`p-2 rounded-xl transition cursor-pointer ${
-                      callMode === "video"
-                        ? "bg-emerald-600 text-white"
-                        : "text-zinc-500 hover:text-emerald-700 hover:bg-emerald-50"
-                    }`}
+                    className="p-2 rounded-lg text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer"
                   >
                     <Video className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowMemberList((s) => !s)}
+                    onClick={() => setShowMembers((v) => !v)}
                     title="Toggle Members"
-                    className={`p-2 rounded-xl transition cursor-pointer ${
-                      showMemberList
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "text-zinc-500 hover:bg-zinc-100"
+                    className={`p-2 rounded-lg transition cursor-pointer ${
+                      showMembers
+                        ? "bg-emerald-500/20 text-emerald-200"
+                        : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
                     }`}
                   >
                     <Users className="w-4 h-4" />
                   </button>
-                  <div className="hidden sm:flex items-center gap-1.5 rounded-xl bg-[#f3f8f5] border border-emerald-100 px-2.5 py-1.5">
-                    <Search className="w-3.5 h-3.5 text-zinc-400" />
+
+                  <div className="relative hidden md:block w-44">
+                    <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      value={messageSearch}
-                      onChange={(e) => setMessageSearch(e.target.value)}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search..."
-                      className="w-28 bg-transparent text-xs outline-none"
+                      className="w-full pl-8 pr-6 py-1 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
                     />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    title="Sign Out"
-                    className="p-2 rounded-xl text-zinc-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
                 </div>
               </header>
 
-              {callMode ? (
-                <LeafstyCallStage
-                  channel={activeChannel}
-                  currentUserId={chatClient?.userID || "user"}
-                  currentUserImage={chatClient?.user?.image || ""}
-                  peerName={isDM ? cleanChannelName : undefined}
-                  peerImage={otherDmMember?.user?.image || ""}
-                  roomLabel={isDM ? `@ ${cleanChannelName}` : `# ${cleanChannelName}`}
-                  startWithVideo={callMode === "video"}
-                  onLeave={() => setCallMode(null)}
-                />
-              ) : (
-                <>
-                              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-              {messages.map((msg: any) => (
-                <CustomMessage
-                  key={msg.id}
-                  message={msg}
-                  onReply={setReplyTo}
-                />
-              ))}
-            </div>
+              <div className="flex-1 flex min-h-0">
+                <div className="flex-1 flex flex-col min-w-0 bg-[#0a1d17]">
+                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                    {displayedMessages.map((msg: any) => (
+                      <CustomMessage
+                        key={msg.id}
+                        message={msg}
+                        onReply={setReplyTo}
+                      />
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
 
-                  {typingBannerText && (
-                    <div className="px-5 py-1.5 bg-white border-t border-emerald-50 flex items-center gap-2 text-xs font-semibold text-emerald-700 shrink-0">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" />
-                      </span>
-                      <span>{typingBannerText}</span>
+                  <CustomMessageComposer
+                    replyTarget={replyTo}
+                    onCancelReply={() => setReplyTo(null)}
+                  />
+                </div>
+
+                {showMembers && (
+                  <aside className="w-60 h-full border-l border-emerald-500/15 bg-[#081914] p-3 overflow-y-auto shrink-0 hidden lg:block">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-300/70 mb-3 px-1">
+                      Room Members — {membersList.length}
                     </div>
-                  )}
+                    <div className="space-y-1.5">
+                      {membersList.map((member: any, idx: number) => {
+                        const mUser = member?.user || {};
+                        const mName = mUser.name || member?.user_id || "Member";
+                        const mImg = mUser.image || "";
 
-                 <CustomMessageComposer
-  replyTarget={replyTo}
-  onCancelReply={() => setReplyTo(null)}
-/>
-                </>
-              )}
-            </div>
-            {showMemberList && (
-              <aside className="hidden lg:flex w-60 h-full bg-[#f3f8f5] border-l border-emerald-100 flex-col p-3 overflow-y-auto shrink-0 select-none">
-                <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-900/60">
-                  Room Members — {channelMembers.length}
-                </div>
-                <div className="space-y-1 mt-1">
-                  {channelMembers.map((member: any) => {
-                    const u = member.user || {};
-                    const uid = member.user_id || u.id || "member";
-                    const displayName = u.name || uid;
-                    return (
-                      <button
-                        key={uid}
-                        type="button"
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setCtxUser({ id: uid, name: displayName, image: u.image });
-                          setCtxPos({ x: e.clientX, y: e.clientY });
-                        }}
-                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-emerald-100/70 transition text-left cursor-pointer"
-                      >
-                        {u.image ? (
-                          <img src={u.image} alt={displayName} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                            {displayName.charAt(0).toUpperCase()}
+                        return (
+                          <div
+                            key={mUser.id || member?.user_id || idx}
+                            className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-emerald-500/10 transition"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
+                              {mImg ? (
+                                <img
+                                  src={mImg}
+                                  alt={mName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                mName.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-emerald-50 truncate">
+                                {mName}
+                              </div>
+                              <div className="text-[10px] text-emerald-400/75 truncate">
+                                E2EE verified
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-bold text-zinc-800 truncate">{displayName}</div>
-                          <div className="text-[10px] text-emerald-700 truncate">
-                            {typingUsers[uid] ? "Typing..." : u.custom?.status || "E2EE Verified"}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </aside>
-            )}
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-[#f6faf8] via-white to-[#eef6f2]">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white font-extrabold text-xl flex items-center justify-center shadow-md mb-4">
-              L
-            </div>
-            <h2 className="text-xl font-extrabold text-zinc-900 mb-1.5">
-              {activeServer?.name ? `Welcome to ${activeServer.name}` : "Your Leafsty Space"}
-            </h2>
-            <p className="text-sm text-zinc-500 max-w-sm">
-              Pick a channel or DM from the sidebar to start chatting.
-            </p>
-          </div>
+                        );
+                      })}
+                    </div>
+                  </aside>
+                )}
+              </div>
+            </>
+          )}
+        </main>
+
+        {showSettings && (
+          <UserSettingsModal onClose={() => setShowSettings(false)} />
         )}
       </div>
-
-      <UserContextMenu
-        user={ctxUser}
-        position={ctxPos}
-        onClose={() => { setCtxUser(null); setCtxPos(null); }}
-        onViewProfile={(u) => alert(`${u.name} (@${u.id}) • E2EE Verified`)}
-        onMention={(u) => navigator.clipboard?.writeText(`@${u.id} `)}
-        onMessage={(u) => startQuickDM(u.id)}
-        onPoke={(u) => alert(`🌿 You sent a Leaf Poke to ${u.name}!`)}
-      />
-
-      <IncomingCallBanner
-        currentUserId={chatClient?.userID || "user"}
-        activeCallChannelId={callMode ? activeChannel?.id : null}
-        onAccept={async (alert) => {
-          const ch = chatClient?.channel("messaging", alert.channelId);
-          if (ch) {
-            await ch.watch();
-            setActiveChannel?.(ch);
-            setCallMode(alert.withVideo ? "video" : "voice");
-          }
-        }}
-      />
-
-      {inviteServer && chatClient?.userID && (
-        <InviteJoinModal
-          serverName={inviteServer}
-          userId={chatClient.userID}
-          onDismiss={() => {
-            setInviteServer(null);
-            window.history.replaceState({}, "", "/");
-          }}
-          onJoined={async (channelId) => {
-            setInviteServer(null);
-            window.history.replaceState({}, "", "/");
-            if (channelId) {
-              const ch = chatClient.channel("messaging", channelId);
-              await ch.watch();
-              setActiveChannel?.(ch);
-            }
-            window.location.reload();
-          }}
-        />
-      )}
-    </section>
-  );
-}
-
-export default function MyChat() {
-  const { user, token } = React.useMemo(() => {
-    if (typeof window === "undefined") return { user: undefined, token: "" };
-    const rawUser = localStorage.getItem("stream_user");
-    return {
-      user: rawUser ? JSON.parse(rawUser) : undefined,
-      token: localStorage.getItem("stream_token") || "",
-    };
-  }, []);
-
-  const [minDelayDone, setMinDelayDone] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const prefs = JSON.parse(localStorage.getItem("leafsty_app_prefs") || "{}");
-    return prefs.loadingAnimation === false;
-  });
-
-  useEffect(() => {
-    if (minDelayDone) return;
-    const timer = setTimeout(() => setMinDelayDone(true), 1800);
-    return () => clearTimeout(timer);
-  }, [minDelayDone]);
-
-  const chatClient = useCreateChatClient({ apiKey, tokenOrProvider: token, userData: user });
-
-  if (!chatClient || !minDelayDone) {
-    return <LeafstyLoader src="/loadingLeafsty.mp4" label="Connecting to Leafsty..." loop={false} />;
-  }
-
-  return (
-    <DiscordContextProvider>
-      <Chat client={chatClient}>
-        <UnreadFaviconUpdater baseIconSrc="/logo-hover.png" baseTitle="Leafsty" />
-        <ChatContent chatClient={chatClient} />
-      </Chat>
-    </DiscordContextProvider>
+    </Chat>
   );
 }

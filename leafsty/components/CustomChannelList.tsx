@@ -40,6 +40,7 @@ export function CustomChannelList({
   const currentUserName =
     (client?.user as any)?.name || currentUserId || "LeafyUser";
   const currentUserImage = (client?.user as any)?.image || "";
+
   useEffect(() => {
     if (!client || !currentUserId) return;
     let cancelled = false;
@@ -59,8 +60,14 @@ export function CustomChannelList({
         const data = await res.json().catch(() => ({}));
         const rawList = Array.isArray(data?.channels) ? data.channels : [];
 
-        const hydrated = rawList.map((item: any) => {
-          const cid = item.id || item.channel?.id;
+        const seenIds = new Set<string>();
+        const hydrated: any[] = [];
+
+        for (const item of rawList) {
+          const cid = String(item.id || item.channel?.id || "");
+          if (!cid || seenIds.has(cid)) continue;
+          seenIds.add(cid);
+
           const ctype = item.type || item.channel?.type || "messaging";
           const ch = client.channel(ctype, cid);
           if (item.channel) {
@@ -69,8 +76,8 @@ export function CustomChannelList({
           if (item.members && ch.state) {
             ch.state.members = item.members;
           }
-          return ch;
-        });
+          hydrated.push(ch);
+        }
 
         if (!cancelled) {
           setChannels(hydrated);
@@ -100,7 +107,6 @@ export function CustomChannelList({
       client.off?.("notification.added_to_channel", handleRefresh);
     };
   }, [client, currentUserId, activeServer?.id]);
-
   const handleSelectChannel = async (ch: any) => {
     if (!client || !ch) return;
     try {
@@ -129,14 +135,21 @@ export function CustomChannelList({
   const filteredChannels = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return channels.filter((ch) => {
-      const isServerCh = Boolean(ch?.data?.serverId || ch?.data?.server_id);
+      const chServerId =
+        ch?.data?.serverId || ch?.data?.server_id || ch?.data?.server;
+      const isServerCh =
+        Boolean(chServerId) ||
+        ch?.type === "team" ||
+        String(ch?.id || "").startsWith("general-");
+
       if (activeServer?.id) {
-        if (String(ch?.data?.serverId || ch?.data?.server_id) !== String(activeServer.id)) {
+        if (String(chServerId || "") !== String(activeServer.id)) {
           return false;
         }
       } else if (isServerCh) {
         return false;
       }
+
       if (!q) return true;
       return getChannelDisplayName(ch).toLowerCase().includes(q);
     });
@@ -145,7 +158,6 @@ export function CustomChannelList({
 
   return (
     <aside className="w-64 h-full flex flex-col bg-[#081914] border-r border-emerald-500/15 text-emerald-50 select-none shrink-0">
-      {/* Top Header / Search */}
       <div className="p-3 border-b border-emerald-500/15 bg-[#061410]">
         {isServerView ? (
           <div className="flex items-center justify-between px-1 py-1">
@@ -191,7 +203,6 @@ export function CustomChannelList({
         )}
       </div>
 
-      {/* Section Title */}
       <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
         <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
           {isServerView ? "Text Channels" : "Direct Messages"}
@@ -208,7 +219,6 @@ export function CustomChannelList({
         )}
       </div>
 
-      {/* Channel / DM List */}
       <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
         {loading && filteredChannels.length === 0 ? (
           <div className="px-3 py-4 text-xs text-emerald-300/50">
@@ -272,7 +282,6 @@ export function CustomChannelList({
         )}
       </div>
 
-      {/* Bottom Profile Dock */}
       <div className="p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
