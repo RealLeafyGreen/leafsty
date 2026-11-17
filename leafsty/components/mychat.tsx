@@ -113,7 +113,7 @@ export default function MyChat(props: MyChatProps = {}) {
     !activeServer?.id &&
     !activeChannel?.data?.serverId &&
     !activeChannel?.data?.server;
-  const layout = (
+  return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
       <ServerList />
 
@@ -273,7 +273,4 @@ export default function MyChat(props: MyChatProps = {}) {
       )}
     </div>
   );
-
-    return layout;
 }
-
