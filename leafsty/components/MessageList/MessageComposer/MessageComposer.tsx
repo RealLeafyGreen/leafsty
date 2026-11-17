@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
+import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
 import {
   Paperclip,
   Send,
