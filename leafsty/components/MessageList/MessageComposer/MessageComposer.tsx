@@ -75,16 +75,16 @@ export default function CustomMessageComposer({
         }
       } catch {}
 
-      if (!sentViaApi) {
-        const msgPayload: any = {
+           if (!sentViaApi) {
+        const innerMessage: any = {
           text: trimmed || "GIF",
           attachments: Array.isArray(attachments) ? attachments : [],
         };
         if (replyTarget?.id) {
-          msgPayload.parent_id = replyTarget.id;
-          msgPayload.quoted_message_id = replyTarget.id;
+          innerMessage.parent_id = replyTarget.id;
+          innerMessage.quoted_message_id = replyTarget.id;
         }
-        await liveChannel.sendMessage(msgPayload);
+        await (liveChannel as any).sendMessage({ message: innerMessage });
       }
 
       window.dispatchEvent(new Event("leafsty:message-sent"));
