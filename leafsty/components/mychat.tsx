@@ -37,6 +37,7 @@ export default function MyChat() {
     if (!activeChannel) return;
 
     const bump = () => setMsgTick((t) => t + 1);
+    window.addEventListener("leafsty:message-sent", bump);
     activeChannel.on?.("message.new", bump);
     activeChannel.on?.("message.updated", bump);
     activeChannel.on?.("message.deleted", bump);
@@ -44,6 +45,7 @@ export default function MyChat() {
     activeChannel.on?.("reaction.deleted", bump);
 
     return () => {
+      window.removeEventListener("leafsty:message-sent", bump);
       activeChannel.off?.("message.new", bump);
       activeChannel.off?.("message.updated", bump);
       activeChannel.off?.("message.deleted", bump);

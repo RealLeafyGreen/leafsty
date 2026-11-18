@@ -23,10 +23,12 @@ export default function CustomMessageComposer({
   onCancelReply,
 }: CustomMessageComposerProps) {
   const { client } = useChatContext();
-  const { activeChannel: channel } = useDiscordContext() as any;
+  const discordCtx = useDiscordContext() as any;
+  const channel = discordCtx?.activeChannel || null;
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -43,21 +45,33 @@ export default function CustomMessageComposer({
 
     try {
       setSending(true);
-      const res = await fetch("/api/messages/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          channelType: channel.type || "messaging",
-          channelId: channel.id,
-          userId: currentUserId,
-          text: trimmed || (attachments.length > 0 ? "GIF" : ""),
-          attachments,
-          parentId: replyTarget?.id || undefined,
-          quotedMessageId: replyTarget?.id || undefined,
-        }),
-      });
+      setSendError(null);
 
-      if (!res.ok) {
+      let sentViaApi = false;
+      try {
+        const res = await fetch("/api/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cid: channel.cid,
+            channelType: channel.type || "messaging",
+            channelId: channel.id,
+            userId: currentUserId,
+            text: trimmed || (attachments.length > 0 ? "GIF" : ""),
+            attachments,
+            parentId: replyTarget?.id || undefined,
+            quotedMessageId: replyTarget?.id || undefined,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data?.message || data?.ok) {
+            sentViaApi = true;
+          }
+        }
+      } catch {}
+
+      if (!sentViaApi) {
         await channel.sendMessage({
           text: trimmed || "GIF",
           attachments,
@@ -66,11 +80,13 @@ export default function CustomMessageComposer({
         });
       }
 
+      window.dispatchEvent(new Event("leafsty:message-sent"));
       setText("");
       onCancelReply?.();
       inputRef.current?.focus();
-    } catch (err) {
-      console.error("Failed to send encrypted message:", err);
+    } catch (err: any) {
+      console.error("Failed to send message:", err);
+      setSendError(err?.message || "Could not send message");
     } finally {
       setSending(false);
     }
@@ -105,6 +121,19 @@ export default function CustomMessageComposer({
         </div>
       )}
 
+      {sendError && (
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-between text-xs text-red-300">
+          <span>{sendError}</span>
+          <button
+            type="button"
+            onClick={() => setSendError(null)}
+            className="p-0.5 text-red-300 hover:text-red-100 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {replyTarget && (
         <div className="mb-2 px-3 py-1.5 rounded-xl bg-[#0d261e] border border-emerald-500/20 flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 min-w-0">
@@ -112,7 +141,7 @@ export default function CustomMessageComposer({
             <span className="text-emerald-300/80 shrink-0">
               Replying to{" "}
               <strong className="text-emerald-100">
-      {replyTarget.userName || "message"}
+                {replyTarget.userName || "message"}
               </strong>
               :
             </span>
