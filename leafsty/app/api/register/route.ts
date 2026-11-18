@@ -1,47 +1,111 @@
 import { NextResponse } from "next/server";
+import { StreamClient } from "@stream-io/node-sdk";
 import crypto from "crypto";
 
-const apiSecret = process.env.STREAM_API_SECRET!;
-
-function signJwt(payloadObj: Record<string, unknown>, secret: string): string {
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const payload = Buffer.from(JSON.stringify(payloadObj)).toString("base64url");
-  const signature = crypto
-    .createHmac("sha256", secret)
-    .update(`${header}.${payload}`)
-    .digest("base64url");
-
-  return `${header}.${payload}.${signature}`;
+function hashPassword(pw: string): string {
+  return crypto.createHash("sha256").update(pw).digest("hex");
 }
 
 export async function POST(request: Request) {
   try {
-    const { userId, userName, password } = await request.json();
+    const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
+    const apiSecret = process.env.STREAM_API_SECRET;
+    if (!apiKey || !apiSecret) {
+      return NextResponse.json(
+        { error: "Missing Stream API credentials" },
+        { status: 500 }
+      );
+    }
 
-    if (!userId || !userName || !password) {
+    const body = await request.json();
+    const rawUsername = body.username || body.userId || body.id || "";
+    const cleanId = String(rawUsername)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "");
+    const password = String(body.password || "").trim();
+    const displayName = String(body.name || rawUsername || cleanId).trim();
+    const mode = body.mode || "login";
+
+    if (!cleanId || !password) {
       return NextResponse.json(
         { error: "Username and password are required" },
         { status: 400 }
       );
     }
 
-    if (!apiSecret) {
+    if (password.length < 4) {
       return NextResponse.json(
-        { error: "Server secret is missing from .env.local" },
-        { status: 500 }
+        { error: "Password must be at least 4 characters" },
+        { status: 400 }
       );
     }
 
-    const defaultImage = `https://getstream.io{userId}&name=${userName}`;
-    const userToken = signJwt({ user_id: userId }, apiSecret);
+    const serverClient = new StreamClient(apiKey, apiSecret);
+    const existing = await serverClient.queryUsers({
+      payload: {
+        filter_conditions: { id: cleanId },
+      },
+    });
+    const existingUser = existing.users?.[0];
+    const storedHash = existingUser?.custom?.passwordHash as string | undefined;
+    const incomingHash = hashPassword(password);
+
+    if (mode === "register") {
+      if (storedHash) {
+        return NextResponse.json(
+          { error: "That username is already taken" },
+          { status: 409 }
+        );
+      }
+
+      await serverClient.upsertUsers([
+        {
+          id: cleanId,
+          name: displayName || cleanId,
+          custom: {
+            ...(existingUser?.custom || {}),
+            passwordHash: incomingHash,
+          },
+        },
+      ]);
+
+      return NextResponse.json({
+        ok: true,
+        user: {
+          id: cleanId,
+          name: displayName || cleanId,
+          image: existingUser?.image,
+        },
+      });
+    }
+
+    // Login mode
+    if (!existingUser || !storedHash) {
+      return NextResponse.json(
+        { error: "Account not found — click 'Create an account' below first!" },
+        { status: 404 }
+      );
+    }
+
+    if (storedHash !== incomingHash) {
+      return NextResponse.json(
+        { error: "Incorrect password" },
+        { status: 401 }
+      );
+    }
 
     return NextResponse.json({
-      user: { id: userId, name: userName, image: defaultImage },
-      token: userToken,
+      ok: true,
+      user: {
+        id: cleanId,
+        name: existingUser.name || displayName || cleanId,
+        image: existingUser.image,
+      },
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error?.message || "Unexpected server error" },
+      { error: error?.message || "Authentication failed" },
       { status: 500 }
     );
   }
