@@ -143,3 +143,11 @@ html.dark .via-white {
   --tw-gradient-stops: var(--tw-gradient-from), #091510, var(--tw-gradient-to) !important;
 }
 
+.str-chat__channel,
+.str-chat__container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  height: 100%;
+  min-width: 0;
+}

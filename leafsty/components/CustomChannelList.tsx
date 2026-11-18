@@ -5,7 +5,6 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
   Hash,
-  Plus,
   Search,
   Lock,
   X,
@@ -14,11 +13,10 @@ import {
 
 export default function CustomChannelList() {
   const { client } = useChatContext();
-  const {
-    activeServer,
-    activeChannel,
-    setActiveChannel,
-  } = useDiscordContext() as any;
+  const discordCtx = useDiscordContext() as any;
+  const activeServer = discordCtx?.activeServer || discordCtx?.server || null;
+  const activeChannel = discordCtx?.activeChannel || null;
+  const setActiveChannel = discordCtx?.setActiveChannel;
 
   const [channels, setChannels] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -103,6 +101,14 @@ export default function CustomChannelList() {
     }
   };
 
+  const getOtherMemberId = (ch: any) => {
+    const membersObj = ch?.state?.members || {};
+    const otherMember: any = Object.values(membersObj).find(
+      (m: any) => String(m?.user?.id || m?.user_id) !== currentUserId
+    );
+    return String(otherMember?.user?.id || otherMember?.user_id || "");
+  };
+
   const getChannelDisplayName = (ch: any) => {
     if (ch?.data?.name) return ch.data.name;
     const membersObj = ch?.state?.members || {};
@@ -116,6 +122,8 @@ export default function CustomChannelList() {
 
   const filteredChannels = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const seenDmPeers = new Set<string>();
+
     return channels.filter((ch) => {
       const chServerId =
         ch?.data?.serverId || ch?.data?.server_id || ch?.data?.server;
@@ -125,11 +133,17 @@ export default function CustomChannelList() {
         String(ch?.id || "").startsWith("general-");
 
       if (activeServer?.id) {
-        if (String(chServerId || "") !== String(activeServer.id)) {
-          return false;
+        const matchesServer =
+          String(chServerId || "") === String(activeServer.id) ||
+          String(ch?.id || "").includes(String(activeServer.id));
+        if (!matchesServer) return false;
+      } else {
+        if (isServerCh) return false;
+        const peerId = getOtherMemberId(ch);
+        if (peerId) {
+          if (seenDmPeers.has(peerId)) return false;
+          seenDmPeers.add(peerId);
         }
-      } else if (isServerCh) {
-        return false;
       }
 
       if (!q) return true;
