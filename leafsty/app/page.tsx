@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Chat, useCreateChatClient } from "stream-chat-react";
 import MyChat from "../components/mychat";
+import CustomMessage from "../components/MessageList/CustomMessage/CustomMessage";
 import { DiscordContextProvider } from "../types/DiscordContext";
 import { Lock, Eye, EyeOff, ArrowRight, RotateCcw } from "lucide-react";
 
@@ -15,14 +16,14 @@ interface SavedUser {
 function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: string }) {
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none">
-      <div className="w-44 h-44 rounded-3xl bg-[#0b211a] border border-emerald-500/25 overflow-hidden flex items-center justify-center shadow-2xl mb-4">
+      <div className="w-36 h-36 rounded-3xl bg-white border border-emerald-500/30 overflow-hidden flex items-center justify-center shadow-2xl shadow-emerald-950/80 mb-5">
         <video
           autoPlay
           loop
           muted
           playsInline
           preload="auto"
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
         >
           <source src="/loadingleafsty.mp4" type="video/mp4" />
         </video>
@@ -36,8 +37,6 @@ function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: str
     </div>
   );
 }
-
-
 function ConnectedWorkspace({
   currentUser,
   onLogout,
@@ -55,30 +54,30 @@ function ConnectedWorkspace({
     }),
     [currentUser.id, currentUser.name, currentUser.image]
   );
-const tokenProvider = useCallback(async () => {
-  const uid = encodeURIComponent(currentUser.id);
-  const postRes = await fetch("/api/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userId: currentUser.id,
-      name: currentUser.name || currentUser.id,
-    }),
-  });
-  if (postRes.ok) {
-    const data = await postRes.json();
-    if (data?.token) return data.token;
-  }
 
-  const getRes = await fetch(`/api/token?userId=${uid}`);
-  if (getRes.ok) {
-    const data = await getRes.json();
-    if (data?.token) return data.token;
-  }
+  const tokenProvider = useCallback(async () => {
+    const uid = encodeURIComponent(currentUser.id);
+    const postRes = await fetch("/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: currentUser.id,
+        name: currentUser.name || currentUser.id,
+      }),
+    });
+    if (postRes.ok) {
+      const data = await postRes.json();
+      if (data?.token) return data.token;
+    }
 
-  throw new Error(`Token request failed (${postRes.status} / ${getRes.status})`);
-}, [currentUser.id, currentUser.name]);
+    const getRes = await fetch(`/api/token?userId=${uid}`);
+    if (getRes.ok) {
+      const data = await getRes.json();
+      if (data?.token) return data.token;
+    }
 
+    throw new Error(`Token request failed (${postRes.status} / ${getRes.status})`);
+  }, [currentUser.id, currentUser.name]);
 
   const client = useCreateChatClient({
     apiKey,
@@ -101,7 +100,7 @@ const tokenProvider = useCallback(async () => {
   }
 
   return (
-    <Chat client={client}>
+    <Chat client={client} componentOverrides={{ Message: CustomMessage }}>
       <DiscordContextProvider>
         <MyChat />
       </DiscordContextProvider>
@@ -169,7 +168,7 @@ export default function HomePage() {
         return;
       }
 
-            const res = await fetch("/api/register", {
+      const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -180,7 +179,6 @@ export default function HomePage() {
           mode,
         }),
       });
-
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.error || "Authentication failed");
