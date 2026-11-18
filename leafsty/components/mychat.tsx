@@ -151,10 +151,18 @@ export default function MyChat() {
             </header>
 
             <div className="flex-1 flex min-h-0">
-                          <Channel channel={activeChannel} Message={CustomMessage as any}>
+                                                         <Channel channel={activeChannel}>
                 <div className="flex-1 flex flex-col min-w-0 bg-[#0a1d17]">
-                  <div className="flex-1 overflow-y-auto px-2 py-2">
-                    <MessageList />
+                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                    {(activeChannel?.state?.messages || [])
+                      .slice(-100)
+                      .map((msg: any) => (
+                        <CustomMessage
+                          key={msg.id}
+                          message={msg}
+                          onReply={setReplyTo}
+                        />
+                      ))}
                   </div>
 
                   <CustomMessageComposer
