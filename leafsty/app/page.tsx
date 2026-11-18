@@ -15,34 +15,14 @@ interface SavedUser {
 function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: string }) {
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none">
-      <style>{`
-        @keyframes leafstyBlink {
-          0%, 44%, 48%, 92%, 96%, 100% { transform: scaleY(1); }
-          46%, 94% { transform: scaleY(0.08); }
-        }
-        @keyframes leafstyLook {
-          0%, 100% { transform: translate(0px, 0px); }
-          25% { transform: translate(4px, -2px); }
-          50% { transform: translate(-4px, 1px); }
-          75% { transform: translate(2px, 2px); }
-        }
-        .leafsty-eye {
-          animation: leafstyBlink 4.2s infinite ease-in-out;
-        }
-        .leafsty-pupil {
-          animation: leafstyLook 3.4s infinite ease-in-out;
-        }
-      `}</style>
-
-      <div className="w-24 h-24 rounded-3xl bg-emerald-600/20 border border-emerald-400/30 flex items-center justify-center gap-3.5 shadow-2xl shadow-emerald-950/80 mb-5">
-        <div className="leafsty-eye w-6 h-8 rounded-full bg-emerald-400 flex items-center justify-center overflow-hidden shadow-inner">
-          <div className="leafsty-pupil w-2.5 h-3.5 rounded-full bg-[#04120e]" />
-        </div>
-        <div className="leafsty-eye w-6 h-8 rounded-full bg-emerald-400 flex items-center justify-center overflow-hidden shadow-inner">
-          <div className="leafsty-pupil w-2.5 h-3.5 rounded-full bg-[#04120e]" />
-        </div>
-      </div>
-
+      <video
+        src="/loadingleafsty.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="w-40 h-40 object-contain rounded-3xl mb-4"
+      />
       <p className="text-sm font-extrabold tracking-wide text-emerald-100">
         {label}
       </p>
@@ -52,6 +32,7 @@ function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: str
     </div>
   );
 }
+
 function ConnectedWorkspace({
   currentUser,
   onLogout,
@@ -69,22 +50,30 @@ function ConnectedWorkspace({
     }),
     [currentUser.id, currentUser.name, currentUser.image]
   );
+const tokenProvider = useCallback(async () => {
+  const uid = encodeURIComponent(currentUser.id);
+  const postRes = await fetch("/api/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId: currentUser.id,
+      name: currentUser.name || currentUser.id,
+    }),
+  });
+  if (postRes.ok) {
+    const data = await postRes.json();
+    if (data?.token) return data.token;
+  }
 
-  const tokenProvider = useCallback(async () => {
-    const res = await fetch("/api/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: currentUser.id,
-        name: currentUser.name || currentUser.id,
-      }),
-    });
-    if (!res.ok) {
-      throw new Error(`Token error (${res.status})`);
-    }
-    const data = await res.json();
-    return data.token;
-  }, [currentUser.id, currentUser.name]);
+  const getRes = await fetch(`/api/token?userId=${uid}`);
+  if (getRes.ok) {
+    const data = await getRes.json();
+    if (data?.token) return data.token;
+  }
+
+  throw new Error(`Token request failed (${postRes.status} / ${getRes.status})`);
+}, [currentUser.id, currentUser.name]);
+
 
   const client = useCreateChatClient({
     apiKey,
