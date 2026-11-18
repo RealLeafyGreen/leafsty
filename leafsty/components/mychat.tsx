@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Channel, MessageList, useChatContext, useMessageContext } from "stream-chat-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Channel, useChatContext } from "stream-chat-react";
 import ServerList from "./ServerList";
 import CustomChannelList from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
@@ -20,17 +20,43 @@ import {
 
 export default function MyChat() {
   const { client } = useChatContext() as any;
-  const { activeChannel, activeServer } = useDiscordContext() as any;
+  const discordCtx = useDiscordContext() as any;
+  const activeChannel = discordCtx?.activeChannel || null;
+  const activeServer = discordCtx?.activeServer || discordCtx?.server || null;
 
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
+  const [, setMsgTick] = useState(0);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
   useEffect(() => {
     setReplyTo(null);
     setSearchQuery("");
-  }, [activeChannel?.id]);
+    if (!activeChannel) return;
+
+    const bump = () => setMsgTick((t) => t + 1);
+    activeChannel.on?.("message.new", bump);
+    activeChannel.on?.("message.updated", bump);
+    activeChannel.on?.("message.deleted", bump);
+    activeChannel.on?.("reaction.new", bump);
+    activeChannel.on?.("reaction.deleted", bump);
+
+    return () => {
+      activeChannel.off?.("message.new", bump);
+      activeChannel.off?.("message.updated", bump);
+      activeChannel.off?.("message.deleted", bump);
+      activeChannel.off?.("reaction.new", bump);
+      activeChannel.off?.("reaction.deleted", bump);
+    };
+  }, [activeChannel]);
+
+  const rawMessages = activeChannel?.state?.messages || [];
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [rawMessages.length, activeChannel?.id]);
 
   const channelTitle = useMemo(() => {
     if (!activeChannel) return "";
@@ -52,18 +78,19 @@ export default function MyChat() {
     return Object.values(activeChannel.state.members);
   }, [activeChannel]);
 
+  const visibleMessages = useMemo(() => {
+    const recent = rawMessages.slice(-100);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return recent;
+    return recent.filter((m: any) =>
+      String(m?.text || "").toLowerCase().includes(q)
+    );
+  }, [rawMessages, searchQuery]);
+
   const isDm =
     !activeServer?.id &&
     !activeChannel?.data?.serverId &&
     !activeChannel?.data?.server;
-
-    const StreamMessageAdapter = useMemo(() => {
-  return function MessageWrapper() {
-    const { message } = useMessageContext();
-    return <CustomMessage message={message} onReply={setReplyTo} />;
-  };
-}, []);
-
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
       <ServerList />
@@ -151,26 +178,51 @@ export default function MyChat() {
             </header>
 
             <div className="flex-1 flex min-h-0">
-                                                         <Channel channel={activeChannel}>
-                <div className="flex-1 flex flex-col min-w-0 bg-[#0a1d17]">
-                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-                    {(activeChannel?.state?.messages || [])
-                      .slice(-100)
-                      .map((msg: any) => (
+              <div className="flex-1 flex flex-col min-w-0 h-full bg-[#0a1d17]">
+                <Channel channel={activeChannel}>
+                  <div className="flex-1 flex flex-col justify-between h-full min-h-0">
+                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                      {/* Channel / DM Welcome Header */}
+                      <div className="pb-4 mb-4 border-b border-emerald-500/15">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-400/25 text-emerald-300 flex items-center justify-center mb-3">
+                          {isDm ? (
+                            <AtSign className="w-6 h-6" />
+                          ) : (
+                            <Hash className="w-6 h-6" />
+                          )}
+                        </div>
+                        <h3 className="text-lg font-extrabold text-emerald-50">
+                          {isDm
+                            ? `Welcome to your DM with ${channelTitle}`
+                            : `Welcome to #${channelTitle}!`}
+                        </h3>
+                        <p className="text-xs text-emerald-300/70 mt-1 flex items-center gap-1.5">
+                          <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>
+                            {isDm
+                              ? `This is the start of your end-to-end encrypted conversation with ${channelTitle}.`
+                              : `This is the start of the #${channelTitle} encrypted channel.`}
+                          </span>
+                        </p>
+                      </div>
+
+                      {visibleMessages.map((msg: any) => (
                         <CustomMessage
                           key={msg.id}
                           message={msg}
                           onReply={setReplyTo}
                         />
                       ))}
-                  </div>
+                      <div ref={bottomRef} />
+                    </div>
 
-                  <CustomMessageComposer
-                    replyTarget={replyTo}
-                    onCancelReply={() => setReplyTo(null)}
-                  />
-                </div>
-              </Channel>
+                    <CustomMessageComposer
+                      replyTarget={replyTo}
+                      onCancelReply={() => setReplyTo(null)}
+                    />
+                  </div>
+                </Channel>
+              </div>
 
               {showMembers && (
                 <aside className="w-60 h-full border-l border-emerald-500/15 bg-[#081914] p-3 overflow-y-auto shrink-0 hidden lg:block">
