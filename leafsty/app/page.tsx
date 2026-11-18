@@ -1,161 +1,240 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Chat, useCreateChatClient } from "stream-chat-react";
 import MyChat from "../components/mychat";
-import LeafstyLoader from "../components/LeafstyLoader";
-import LandingPage from "../components/landingPage";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { DiscordContextProvider } from "../types/DiscordContext";
+import { Lock, Eye, EyeOff, ArrowRight, RotateCcw } from "lucide-react";
 
+interface SavedUser {
+  id: string;
+  name: string;
+  image?: string;
+}
+
+function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: string }) {
+  return (
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none">
+      <style>{`
+        @keyframes leafstyBlink {
+          0%, 44%, 48%, 92%, 96%, 100% { transform: scaleY(1); }
+          46%, 94% { transform: scaleY(0.08); }
+        }
+        @keyframes leafstyLook {
+          0%, 100% { transform: translate(0px, 0px); }
+          25% { transform: translate(4px, -2px); }
+          50% { transform: translate(-4px, 1px); }
+          75% { transform: translate(2px, 2px); }
+        }
+        .leafsty-eye {
+          animation: leafstyBlink 4.2s infinite ease-in-out;
+        }
+        .leafsty-pupil {
+          animation: leafstyLook 3.4s infinite ease-in-out;
+        }
+      `}</style>
+
+      <div className="w-24 h-24 rounded-3xl bg-emerald-600/20 border border-emerald-400/30 flex items-center justify-center gap-3.5 shadow-2xl shadow-emerald-950/80 mb-5">
+        <div className="leafsty-eye w-6 h-8 rounded-full bg-emerald-400 flex items-center justify-center overflow-hidden shadow-inner">
+          <div className="leafsty-pupil w-2.5 h-3.5 rounded-full bg-[#04120e]" />
+        </div>
+        <div className="leafsty-eye w-6 h-8 rounded-full bg-emerald-400 flex items-center justify-center overflow-hidden shadow-inner">
+          <div className="leafsty-pupil w-2.5 h-3.5 rounded-full bg-[#04120e]" />
+        </div>
+      </div>
+
+      <p className="text-sm font-extrabold tracking-wide text-emerald-100">
+        {label}
+      </p>
+      <p className="text-xs text-emerald-400/70 mt-1 flex items-center gap-1">
+        <Lock className="w-3 h-3" /> End-to-End Encrypted Workspace
+      </p>
+    </div>
+  );
+}
+function ConnectedWorkspace({
+  currentUser,
+  onLogout,
+}: {
+  currentUser: SavedUser;
+  onLogout: () => void;
+}) {
+  const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || "";
+
+  const userData = useMemo(
+    () => ({
+      id: currentUser.id,
+      name: currentUser.name || currentUser.id,
+      image: currentUser.image,
+    }),
+    [currentUser.id, currentUser.name, currentUser.image]
+  );
+
+  const tokenProvider = useCallback(async () => {
+    const res = await fetch("/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: currentUser.id,
+        name: currentUser.name || currentUser.id,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Token error (${res.status})`);
+    }
+    const data = await res.json();
+    return data.token;
+  }, [currentUser.id, currentUser.name]);
+
+  const client = useCreateChatClient({
+    apiKey,
+    tokenOrProvider: tokenProvider,
+    userData,
+  });
+
+  if (!apiKey) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-100 p-6">
+        <div className="px-5 py-4 rounded-2xl bg-[#0b211a] border border-red-500/40 text-sm">
+          Missing <code className="text-emerald-300">NEXT_PUBLIC_STREAM_API_KEY</code> in Vercel Environment Variables.
+        </div>
+      </div>
+    );
+  }
+
+  if (!client) {
+    return <LeafstyEyesLoader label={`Waking up Leafsty for ${currentUser.name}...`} />;
+  }
+
+  return (
+    <Chat client={client}>
+      <DiscordContextProvider>
+        <MyChat />
+      </DiscordContextProvider>
+    </Chat>
+  );
+}
 export default function HomePage() {
-  const [isReady, setIsReady] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [hasSavedSession, setHasSavedSession] = useState(false);
-  const [showLanding, setShowLanding] = useState(true);
+  const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
-  const [isRegister, setIsRegister] = useState(false);
+  const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("stream_user");
-    const savedToken = localStorage.getItem("stream_token");
-    if (savedUser && savedToken) {
-      setHasSavedSession(true);
-    }
-    setIsReady(true);
+    try {
+      const raw = localStorage.getItem("leafsty_user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.id) {
+          setSavedUser({
+            id: String(parsed.id),
+            name: parsed.name || String(parsed.id),
+            image: parsed.image,
+          });
+        }
+      }
+    } catch {}
+    setHydrated(true);
   }, []);
-  const handleSubmit = async (e: React.FormEvent) => {
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = username.trim();
-    if (!trimmed) return;
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const cleanId = username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!cleanId || password.trim().length < 4) {
+      setErrorMsg("Enter a valid username and at least 4 characters for password.");
+      return;
+    }
 
     try {
-      setLoading(true);
-      setError("");
+      setSubmitting(true);
 
-      const userId = trimmed.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
-      const endpoint = isRegister ? "/api/register" : "/api/token";
+      if (mode === "reset") {
+        const res = await fetch("/api/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: cleanId,
+            newPassword: password.trim(),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || "Could not reset password");
+        }
+        setSuccessMsg("Password updated! You can now sign in.");
+        setMode("login");
+        return;
+      }
 
-      const res = await fetch(endpoint, {
+      const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
-          username: trimmed,
-          password,
+          userId: cleanId,
+          name: username.trim(),
+          password: password.trim(),
+          mode,
         }),
       });
-
-      const rawText = await res.text();
-      let data: any = {};
-
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        throw new Error(
-          `API Error (${res.status}): Server returned HTML instead of JSON. Check your Terminal.`
-        );
-      }
-
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Authentication failed");
+        throw new Error(data?.error || "Authentication failed");
       }
 
-      const userObj = {
-        id: data.userId || userId,
-        name: data.username || trimmed,
+      const nextUser: SavedUser = {
+        id: cleanId,
+        name: data?.user?.name || username.trim(),
+        image: data?.user?.image,
       };
-
-      localStorage.setItem("stream_user", JSON.stringify(userObj));
-      localStorage.setItem("stream_token", data.token);
-      setIsLoggedIn(true);
+      localStorage.setItem("leafsty_user", JSON.stringify(nextUser));
+      setSavedUser(nextUser);
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      setErrorMsg(err?.message || "Something went wrong");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
-  if (!isReady || loading) {
-    return (
-      <LeafstyLoader
-        src="/loadingLeafsty.mp4"
-        label={loading ? "Signing into Leafsty..." : "Loading Leafsty..."}
-      />
-    );
+
+  const handleLogout = () => {
+    localStorage.removeItem("leafsty_user");
+    setSavedUser(null);
+  };
+
+  if (!hydrated) {
+    return <LeafstyEyesLoader label="Loading Leafsty..." />;
   }
 
-  if (isLoggedIn) {
-    return <MyChat />;
+  if (savedUser) {
+    return <ConnectedWorkspace currentUser={savedUser} onLogout={handleLogout} />;
   }
 
-  if (showLanding) {
-    return (
-      <LandingPage
-        onGetStarted={() => {
-          if (hasSavedSession) {
-            setIsLoggedIn(true);
-          } else {
-            setIsRegister(true);
-            setShowLanding(false);
-          }
-        }}
-        onSignIn={() => {
-          if (hasSavedSession) {
-            setIsLoggedIn(true);
-          } else {
-            setIsRegister(false);
-            setShowLanding(false);
-          }
-        }}
-      />
-    );
-  }
   return (
-    <div className="min-h-screen bg-[#07110d] text-zinc-100 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[360px] rounded-full bg-emerald-500/15 blur-[120px]" />
-      </div>
-
-      <div className="relative z-10 w-full max-w-md rounded-3xl bg-[#0b1914]/90 backdrop-blur-xl border border-emerald-500/20 shadow-2xl p-8">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/logo-hover.png"
-              alt="Leafsty"
-              className="w-8 h-8 object-contain"
-            />
-            <span className="text-xl font-black text-white">Leafsty</span>
+    <div className="min-h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-50 p-4">
+      <div className="w-full max-w-md rounded-3xl bg-[#081914] border border-emerald-500/20 p-7 shadow-2xl">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center shadow-lg">
+            L
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowLanding(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Home</span>
-          </button>
+          <div>
+            <h1 className="text-xl font-extrabold text-emerald-50">Leafsty</h1>
+            <p className="text-xs text-emerald-300/70 flex items-center gap-1">
+              <Lock className="w-3 h-3 text-emerald-400" /> Encrypted Workspace
+            </p>
+          </div>
         </div>
 
-        <h1 className="text-2xl font-black text-white mb-1">
-          {isRegister ? "Create your workspace" : "Welcome back"}
-        </h1>
-        <p className="text-xs text-zinc-400 mb-6 flex items-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>Client-side 256-bit AES-GCM encrypted session</span>
-        </p>
-
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-500/10 border border-red-500/30 px-3.5 py-2.5 text-xs font-semibold text-red-300">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleAuthSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-emerald-300/80 mb-1.5">
               Username
             </label>
             <input
@@ -164,46 +243,89 @@ export default function HomePage() {
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. leafygreen"
               required
-              autoFocus
-              className="w-full rounded-xl bg-black/40 border border-emerald-500/20 px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-400 transition"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-zinc-300 mb-1.5">
-              Password
+            <label className="block text-xs font-bold uppercase tracking-wider text-emerald-300/80 mb-1.5">
+              {mode === "reset" ? "New Password" : "Password"}
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password..."
-              required
-              className="w-full rounded-xl bg-black/40 border border-emerald-500/20 px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-400 transition"
-            />
+            <div className="relative">
+              <input
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
+              >
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
+
+          {errorMsg && (
+            <div className="px-3.5 py-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300">
+              {errorMsg}
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300">
+              {successMsg}
+            </div>
+          )}
 
           <button
             type="submit"
-            disabled={loading || !username.trim()}
-            className="w-full rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 py-3 text-sm font-extrabold text-zinc-950 shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+            disabled={submitting}
+            className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
           >
-            {isRegister ? "Create Free Account" : "Sign In"}
+            <span>
+              {submitting
+                ? "Please wait..."
+                : mode === "login"
+                ? "Sign in to workspace"
+                : mode === "register"
+                ? "Create encrypted account"
+                : "Reset password"}
+            </span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        <div className="mt-6 pt-5 border-t border-white/10 text-center text-xs text-zinc-400">
-          {isRegister ? "Already have an account?" : "New to Leafsty?"}{" "}
+        <div className="mt-5 pt-4 border-t border-emerald-500/15 flex items-center justify-between text-xs text-emerald-300/75">
           <button
             type="button"
             onClick={() => {
-              setIsRegister((r) => !r);
-              setError("");
+              setErrorMsg(null);
+              setSuccessMsg(null);
+              setMode(mode === "login" ? "register" : "login");
             }}
-            className="font-bold text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer"
+            className="hover:text-emerald-100 underline cursor-pointer"
           >
-            {isRegister ? "Sign In" : "Create Account"}
+            {mode === "login" ? "Create an account" : "Back to sign in"}
           </button>
+
+          {mode !== "reset" && (
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMsg(null);
+                setSuccessMsg(null);
+                setMode("reset");
+              }}
+              className="inline-flex items-center gap-1 hover:text-emerald-100 cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" /> Forgot password?
+            </button>
+          )}
         </div>
       </div>
     </div>
