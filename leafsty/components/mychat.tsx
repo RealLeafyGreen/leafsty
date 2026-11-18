@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import ServerList from "./ServerList";
-import { CustomChannelList } from "./CustomChannelList";
+import CustomChannelList  from "./CustomChannelList";
 import UserSettingsModal from "./UserSettingsModal";
 import { useDiscordContext } from "../types/DiscordContext";
 

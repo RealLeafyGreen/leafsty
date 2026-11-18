@@ -1,318 +1,212 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useChatContext } from "stream-chat-react";
+import { Channel, MessageList, useChatContext } from "stream-chat-react";
+import ServerList from "./ServerList";
+import CustomChannelList from "./CustomChannelList";
+import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
+import CustomMessageComposer from "./MessageList/MessageComposer/MessageComposer";
+import UserSettingsModal from "./UserSettingsModal";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
+  AtSign,
   Hash,
-  Plus,
-  Search,
   Lock,
-  Settings,
+  Phone,
+  Search,
+  Users,
+  Video,
   X,
-  MessageSquare,
 } from "lucide-react";
 
-interface CustomChannelListProps {
-  onOpenNewDm?: () => void;
-  onOpenCreateChannel?: () => void;
-  onOpenSettings?: () => void;
-}
+export default function MyChat() {
+  const { client } = useChatContext() as any;
+  const { activeChannel, activeServer } = useDiscordContext() as any;
 
-export function CustomChannelList({
-  onOpenNewDm,
-  onOpenCreateChannel,
-  onOpenSettings,
-}: CustomChannelListProps) {
-  const { client } = useChatContext();
-  const {
-    activeServer,
-    activeChannel,
-    setActiveChannel,
-  } = useDiscordContext() as any;
-
-  const [channels, setChannels] = useState<any[]>([]);
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [showMembers, setShowMembers] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
-  const currentUserId = String(client?.userID || (client?.user as any)?.id || "");
-  const currentUserName =
-    (client?.user as any)?.name || currentUserId || "LeafyUser";
-  const currentUserImage = (client?.user as any)?.image || "";
-
+  const currentUserId = String(client?.user?.id || client?.userID || "");
   useEffect(() => {
-    if (!client || !currentUserId) return;
-    let cancelled = false;
+    setReplyTo(null);
+    setSearchQuery("");
+  }, [activeChannel?.id]);
 
-    const loadChannels = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch("/api/channel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "list",
-            userId: currentUserId,
-            serverId: activeServer?.id || null,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        const rawList = Array.isArray(data?.channels) ? data.channels : [];
-
-        const seenIds = new Set<string>();
-        const hydrated: any[] = [];
-
-        for (const item of rawList) {
-          const cid = String(item.id || item.channel?.id || "");
-          if (!cid || seenIds.has(cid)) continue;
-          seenIds.add(cid);
-
-          const ctype = item.type || item.channel?.type || "messaging";
-          const ch = client.channel(ctype, cid);
-          if (item.channel) {
-            ch.data = { ...ch.data, ...item.channel };
-          }
-          if (item.members && ch.state) {
-            ch.state.members = item.members;
-          }
-          hydrated.push(ch);
-        }
-
-        if (!cancelled) {
-          setChannels(hydrated);
-        }
-      } catch (err) {
-        console.error("Failed to load channels:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    loadChannels();
-
-    const handleManualRefresh = () => {
-      loadChannels();
-    };
-
-    window.addEventListener("leafsty:channels-updated", handleManualRefresh);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener("leafsty:channels-updated", handleManualRefresh);
-    };
-  }, [client, currentUserId, activeServer?.id]);
-  const handleSelectChannel = async (ch: any) => {
-    if (!client || !ch) return;
-    try {
-      const liveChannel = client.channel(ch.type || "messaging", ch.id);
-      await liveChannel.watch({ state: true, presence: true });
-      await liveChannel.markRead?.();
-      setActiveChannel?.(liveChannel);
-    } catch (error) {
-      console.error("Failed to open channel:", error);
-      setActiveChannel?.(ch);
-    }
-  };
-
-  const getChannelDisplayName = (ch: any) => {
-    if (ch?.data?.name) return ch.data.name;
-    const membersObj = ch?.state?.members || {};
-    const otherMember: any = Object.values(membersObj).find(
+  const channelTitle = useMemo(() => {
+    if (!activeChannel) return "";
+    if (activeChannel.data?.name) return activeChannel.data.name;
+    const membersObj = activeChannel.state?.members || {};
+    const other: any = Object.values(membersObj).find(
       (m: any) => String(m?.user?.id || m?.user_id) !== currentUserId
     );
-    if (otherMember?.user?.name) return otherMember.user.name;
-    if (otherMember?.user_id) return otherMember.user_id;
-    return ch?.id || "Encrypted DM";
-  };
+    return (
+      other?.user?.name ||
+      other?.user_id ||
+      activeChannel.id ||
+      "Encrypted Chat"
+    );
+  }, [activeChannel, currentUserId]);
 
-  const filteredChannels = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return channels.filter((ch) => {
-      const chServerId =
-        ch?.data?.serverId || ch?.data?.server_id || ch?.data?.server;
-      const isServerCh =
-        Boolean(chServerId) ||
-        ch?.type === "team" ||
-        String(ch?.id || "").startsWith("general-");
+  const membersList = useMemo(() => {
+    if (!activeChannel?.state?.members) return [];
+    return Object.values(activeChannel.state.members);
+  }, [activeChannel]);
 
-      if (activeServer?.id) {
-        if (String(chServerId || "") !== String(activeServer.id)) {
-          return false;
-        }
-      } else if (isServerCh) {
-        return false;
-      }
-
-      if (!q) return true;
-      return getChannelDisplayName(ch).toLowerCase().includes(q);
-    });
-  }, [channels, activeServer?.id, searchQuery, currentUserId]);
-  const isServerView = Boolean(activeServer?.id);
-
+  const isDm =
+    !activeServer?.id &&
+    !activeChannel?.data?.serverId &&
+    !activeChannel?.data?.server;
   return (
-    <aside className="w-64 h-full flex flex-col bg-[#081914] border-r border-emerald-500/15 text-emerald-50 select-none shrink-0">
-      <div className="p-3 border-b border-emerald-500/15 bg-[#061410]">
-        {isServerView ? (
-          <div className="flex items-center justify-between px-1 py-1">
-            <div className="min-w-0">
-              <h2 className="text-sm font-extrabold text-emerald-50 truncate">
-                {activeServer?.name || "Leafsty Space"}
-              </h2>
-              <p className="text-[11px] text-emerald-400/70 flex items-center gap-1">
-                <Lock className="w-3 h-3" /> Encrypted Space
-              </p>
+    <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
+      <ServerList />
+
+      <CustomChannelList/>
+
+      <main className="flex-1 h-full flex flex-col bg-[#0a1d17] text-emerald-50 min-w-0">
+        {!activeChannel ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0a1d17]">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center shadow-lg shadow-emerald-950/60 mb-4">
+              L
             </div>
-            {onOpenCreateChannel && (
-              <button
-                type="button"
-                onClick={onOpenCreateChannel}
-                title="Create Channel"
-                className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Find or start a conversation"
-              className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
-          {isServerView ? "Text Channels" : "Direct Messages"}
-        </span>
-        {!isServerView && onOpenNewDm && (
-          <button
-            type="button"
-            onClick={onOpenNewDm}
-            title="New Direct Message"
-            className="p-1 rounded-md text-emerald-300/75 hover:text-emerald-100 hover:bg-emerald-500/15 transition cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
-        {loading && filteredChannels.length === 0 ? (
-          <div className="px-3 py-4 text-xs text-emerald-300/50">
-            Loading conversations...
-          </div>
-        ) : filteredChannels.length === 0 ? (
-          <div className="px-3 py-6 text-center rounded-xl bg-[#0b211a] border border-emerald-500/15 mx-1 mt-2">
-            <MessageSquare className="w-5 h-5 text-emerald-400/60 mx-auto mb-1.5" />
-            <p className="text-xs font-semibold text-emerald-100">
-              {isServerView ? "No channels yet" : "No DMs yet"}
-            </p>
-            <p className="text-[11px] text-emerald-300/60 mt-0.5">
-              Click + above to start chatting.
+            <h1 className="text-xl font-extrabold text-emerald-50">
+              Your Leafsty Space
+            </h1>
+            <p className="text-sm text-emerald-300/70 mt-1 max-w-sm">
+              Pick a channel or DM from the sidebar to start chatting.
             </p>
           </div>
         ) : (
-          filteredChannels.map((ch) => {
-            const label = getChannelDisplayName(ch);
-            const isSelected = activeChannel?.id === ch.id;
-            const unreadCount = ch.countUnread?.() || 0;
-
-            return (
-              <button
-                key={ch.id}
-                type="button"
-                onClick={() => handleSelectChannel(ch)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
-                  isSelected
-                    ? "bg-emerald-500/20 text-emerald-50 border border-emerald-400/30 shadow-sm"
-                    : "text-emerald-100/85 hover:bg-emerald-500/10 hover:text-emerald-50 border border-transparent"
-                }`}
-              >
-                {isServerView ? (
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
-                    <Hash className="w-4 h-4" />
-                  </div>
+          <>
+            <header className="h-14 px-4 border-b border-emerald-500/15 bg-[#081914] flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                {isDm ? (
+                  <AtSign className="w-4 h-4 text-emerald-400 shrink-0" />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
-                    {label.charAt(0).toUpperCase()}
-                  </div>
+                  <Hash className="w-4 h-4 text-emerald-400 shrink-0" />
                 )}
+                <h2 className="text-sm font-extrabold text-emerald-50 truncate">
+                  {channelTitle}
+                </h2>
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-bold">
+                  <Lock className="w-2.5 h-2.5" /> E2EE
+                </span>
+              </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-emerald-50 truncate">
-                    {label}
-                  </div>
-                  <div className="text-[10px] text-emerald-300/65 truncate flex items-center gap-1">
-                    <Lock className="w-2.5 h-2.5 text-emerald-400/80 shrink-0" />
-                    <span>{isServerView ? "Encrypted channel" : "Encrypted DM"}</span>
-                  </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  title="Voice Call"
+                  className="p-2 rounded-lg text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer"
+                >
+                  <Phone className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  title="Video Call"
+                  className="p-2 rounded-lg text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer"
+                >
+                  <Video className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMembers((v) => !v)}
+                  title="Toggle Members"
+                  className={`p-2 rounded-lg transition cursor-pointer ${
+                    showMembers
+                      ? "bg-emerald-500/20 text-emerald-200"
+                      : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                </button>
+
+                <div className="relative hidden md:block w-44">
+                  <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search..."
+                    className="w-full pl-8 pr-6 py-1 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
+              </div>
+            </header>
 
-                {unreadCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-[#04120e] font-extrabold text-[10px]">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            );
-          })
-        )}
-      </div>
+            <div className="flex-1 flex min-h-0">
+              <Channel channel={activeChannel} Message={CustomMessage}>
+                <div className="flex-1 flex flex-col min-w-0 bg-[#0a1d17]">
+                  <div className="flex-1 overflow-y-auto px-2 py-2">
+                    <MessageList />
+                  </div>
 
-      <div className="p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
-            {currentUserImage ? (
-              <img
-                src={currentUserImage}
-                alt={currentUserName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              currentUserName.charAt(0).toUpperCase()
-            )}
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#04120e]" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-extrabold text-emerald-50 truncate">
-              {currentUserName}
+                  <CustomMessageComposer
+                    replyTarget={replyTo}
+                    onCancelReply={() => setReplyTo(null)}
+                  />
+                </div>
+              </Channel>
+
+              {showMembers && (
+                <aside className="w-60 h-full border-l border-emerald-500/15 bg-[#081914] p-3 overflow-y-auto shrink-0 hidden lg:block">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-300/70 mb-3 px-1">
+                    Room Members — {membersList.length}
+                  </div>
+                  <div className="space-y-1.5">
+                    {membersList.map((member: any, idx: number) => {
+                      const mUser = member?.user || {};
+                      const mName = mUser.name || member?.user_id || "Member";
+                      const mImg = mUser.image || "";
+
+                      return (
+                        <div
+                          key={mUser.id || member?.user_id || idx}
+                          className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-emerald-500/10 transition"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
+                            {mImg ? (
+                              <img
+                                src={mImg}
+                                alt={mName}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              mName.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-emerald-50 truncate">
+                              {mName}
+                            </div>
+                            <div className="text-[10px] text-emerald-400/75 truncate">
+                              E2EE verified
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </aside>
+              )}
             </div>
-            <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-              <Lock className="w-2.5 h-2.5" />
-              <span>Encrypted · Online</span>
-            </div>
-          </div>
-        </div>
-
-        {onOpenSettings && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            title="User Settings"
-            className="p-1.5 rounded-lg text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          </>
         )}
-      </div>
-    </aside>
+      </main>
+
+      {showSettings && (
+        <UserSettingsModal onClose={() => setShowSettings(false)} />
+      )}
+    </div>
   );
 }
-
-export default CustomChannelList;
