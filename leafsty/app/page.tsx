@@ -15,14 +15,18 @@ interface SavedUser {
 function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: string }) {
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none">
-      <video
-        src="/loadingleafsty.mp4"
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="w-40 h-40 object-contain rounded-3xl mb-4"
-      />
+      <div className="w-44 h-44 rounded-3xl bg-[#0b211a] border border-emerald-500/25 overflow-hidden flex items-center justify-center shadow-2xl mb-4">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="w-full h-full object-cover"
+        >
+          <source src="/loadingleafsty.mp4" type="video/mp4" />
+        </video>
+      </div>
       <p className="text-sm font-extrabold tracking-wide text-emerald-100">
         {label}
       </p>
@@ -32,6 +36,7 @@ function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: str
     </div>
   );
 }
+
 
 function ConnectedWorkspace({
   currentUser,
