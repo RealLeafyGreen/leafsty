@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Channel, MessageList, useChatContext } from "stream-chat-react";
+import { Channel, MessageList, useChatContext, useMessageContext } from "stream-chat-react";
 import ServerList from "./ServerList";
 import CustomChannelList from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
@@ -56,6 +56,14 @@ export default function MyChat() {
     !activeServer?.id &&
     !activeChannel?.data?.serverId &&
     !activeChannel?.data?.server;
+
+    const StreamMessageAdapter = useMemo(() => {
+  return function MessageWrapper() {
+    const { message } = useMessageContext();
+    return <CustomMessage message={message} onReply={setReplyTo} />;
+  };
+}, []);
+
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
       <ServerList />
