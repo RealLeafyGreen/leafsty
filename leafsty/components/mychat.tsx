@@ -22,12 +22,16 @@ export default function MyChat() {
   const { client } = useChatContext() as any;
   const discordCtx = useDiscordContext() as any;
   const activeChannel = discordCtx?.activeChannel || null;
-  const activeServer = discordCtx?.activeServer || discordCtx?.server || null;
+  const activeServer =
+    discordCtx?.activeServer ||
+    discordCtx?.server ||
+    discordCtx?.selectedServer ||
+    null;
 
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
-  const [, setMsgTick] = useState(0);
+  const [msgTick, setMsgTick] = useState(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
@@ -37,20 +41,22 @@ export default function MyChat() {
     if (!activeChannel) return;
 
     const bump = () => setMsgTick((t) => t + 1);
-    window.addEventListener("leafsty:message-sent", bump);
+    activeChannel.watch?.().then(bump).catch(() => {});
+
     activeChannel.on?.("message.new", bump);
     activeChannel.on?.("message.updated", bump);
     activeChannel.on?.("message.deleted", bump);
     activeChannel.on?.("reaction.new", bump);
     activeChannel.on?.("reaction.deleted", bump);
+    window.addEventListener("leafsty:message-sent", bump);
 
     return () => {
-      window.removeEventListener("leafsty:message-sent", bump);
       activeChannel.off?.("message.new", bump);
       activeChannel.off?.("message.updated", bump);
       activeChannel.off?.("message.deleted", bump);
       activeChannel.off?.("reaction.new", bump);
       activeChannel.off?.("reaction.deleted", bump);
+      window.removeEventListener("leafsty:message-sent", bump);
     };
   }, [activeChannel]);
 
@@ -58,7 +64,7 @@ export default function MyChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [rawMessages.length, activeChannel?.id]);
+  }, [rawMessages.length, activeChannel?.id, msgTick]);
 
   const channelTitle = useMemo(() => {
     if (!activeChannel) return "";
@@ -78,7 +84,7 @@ export default function MyChat() {
   const membersList = useMemo(() => {
     if (!activeChannel?.state?.members) return [];
     return Object.values(activeChannel.state.members);
-  }, [activeChannel]);
+  }, [activeChannel, msgTick]);
 
   const visibleMessages = useMemo(() => {
     const recent = rawMessages.slice(-100);
@@ -87,7 +93,7 @@ export default function MyChat() {
     return recent.filter((m: any) =>
       String(m?.text || "").toLowerCase().includes(q)
     );
-  }, [rawMessages, searchQuery]);
+  }, [rawMessages, searchQuery, msgTick]);
 
   const isDm =
     !activeServer?.id &&
@@ -184,7 +190,6 @@ export default function MyChat() {
                 <Channel channel={activeChannel}>
                   <div className="flex-1 flex flex-col justify-between h-full min-h-0">
                     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-                      {/* Channel / DM Welcome Header */}
                       <div className="pb-4 mb-4 border-b border-emerald-500/15">
                         <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-400/25 text-emerald-300 flex items-center justify-center mb-3">
                           {isDm ? (

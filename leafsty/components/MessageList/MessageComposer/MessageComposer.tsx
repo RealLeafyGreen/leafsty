@@ -75,7 +75,8 @@ export default function CustomMessageComposer({
         }
       } catch {}
 
-           if (!sentViaApi) {
+                if (!sentViaApi) {
+        await liveChannel.watch({ state: true });
         const innerMessage: any = {
           text: trimmed || "GIF",
           attachments: Array.isArray(attachments) ? attachments : [],
@@ -85,6 +86,7 @@ export default function CustomMessageComposer({
           innerMessage.quoted_message_id = replyTarget.id;
         }
         await (liveChannel as any).sendMessage({ message: innerMessage });
+        discordCtx?.setActiveChannel?.(liveChannel);
       }
 
       window.dispatchEvent(new Event("leafsty:message-sent"));
