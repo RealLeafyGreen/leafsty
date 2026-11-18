@@ -31,13 +31,12 @@ export default function CustomMessageComposer({
   const [sendError, setSendError] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
   const sendPayload = async (
     rawText: string,
     attachments: any[] = []
   ) => {
     const trimmed = rawText.trim();
-    if ((!trimmed && attachments.length === 0) || !channel || sending) return;
+    if ((!trimmed && attachments.length === 0) || !channel || !client || sending) return;
 
     const currentUserId = String(
       client?.userID || (client?.user as any)?.id || ""
@@ -47,15 +46,20 @@ export default function CustomMessageComposer({
       setSending(true);
       setSendError(null);
 
+      const liveChannel = client.channel(
+        channel.type || "messaging",
+        channel.id
+      );
+
       let sentViaApi = false;
       try {
         const res = await fetch("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            cid: channel.cid,
-            channelType: channel.type || "messaging",
-            channelId: channel.id,
+            cid: liveChannel.cid,
+            channelType: liveChannel.type || "messaging",
+            channelId: liveChannel.id,
             userId: currentUserId,
             text: trimmed || (attachments.length > 0 ? "GIF" : ""),
             attachments,
@@ -72,12 +76,15 @@ export default function CustomMessageComposer({
       } catch {}
 
       if (!sentViaApi) {
-        await channel.sendMessage({
+        const msgPayload: any = {
           text: trimmed || "GIF",
-          attachments,
-          parent_id: replyTarget?.id || undefined,
-          quoted_message_id: replyTarget?.id || undefined,
-        });
+          attachments: Array.isArray(attachments) ? attachments : [],
+        };
+        if (replyTarget?.id) {
+          msgPayload.parent_id = replyTarget.id;
+          msgPayload.quoted_message_id = replyTarget.id;
+        }
+        await liveChannel.sendMessage(msgPayload);
       }
 
       window.dispatchEvent(new Event("leafsty:message-sent"));
@@ -91,6 +98,7 @@ export default function CustomMessageComposer({
       setSending(false);
     }
   };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await sendPayload(text);
