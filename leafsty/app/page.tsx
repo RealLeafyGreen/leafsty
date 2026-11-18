@@ -175,16 +175,18 @@ export default function HomePage() {
         return;
       }
 
-      const res = await fetch("/api/register", {
+            const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          username: cleanId,
           userId: cleanId,
           name: username.trim(),
           password: password.trim(),
           mode,
         }),
       });
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.error || "Authentication failed");
