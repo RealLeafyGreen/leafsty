@@ -1,22 +1,6 @@
 import { NextResponse } from "next/server";
+import { StreamClient } from "@stream-io/node-sdk";
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
-
-const USERS_FILE = path.join(process.cwd(), ".leafsty-users.json");
-
-function readUsers(): Record<string, { hash: string; name: string }> {
-  try {
-    if (!fs.existsSync(USERS_FILE)) return {};
-    return JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeUsers(users: Record<string, { hash: string; name: string }>) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
-}
 
 function hashPassword(pw: string): string {
   return crypto.createHash("sha256").update(pw).digest("hex");
@@ -24,6 +8,15 @@ function hashPassword(pw: string): string {
 
 export async function POST(request: Request) {
   try {
+    const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY;
+    const apiSecret = process.env.STREAM_API_SECRET;
+    if (!apiKey || !apiSecret) {
+      return NextResponse.json(
+        { error: "Missing Stream API credentials" },
+        { status: 500 }
+      );
+    }
+
     const { userId, newPassword } = await request.json();
     const cleanId = String(userId || "").trim().toLowerCase();
 
@@ -34,12 +27,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const users = readUsers();
-    users[cleanId] = {
-      hash: hashPassword(String(newPassword).trim()),
-      name: users[cleanId]?.name || cleanId,
-    };
-    writeUsers(users);
+    const serverClient = new StreamClient(apiKey, apiSecret);
+    const existing = await serverClient.queryUsers({
+      payload: {
+        filter_conditions: { id: cleanId },
+      },
+    });
+    const existingUser = existing.users?.[0];
+
+    await serverClient.upsertUsers([
+      {
+        id: cleanId,
+        name: existingUser?.name || cleanId,
+        custom: {
+          ...(existingUser?.custom || {}),
+          passwordHash: hashPassword(String(newPassword).trim()),
+        },
+      },
+    ]);
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
