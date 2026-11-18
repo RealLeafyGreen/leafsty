@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Chat, useCreateChatClient } from "stream-chat-react";
 import MyChat from "../components/mychat";
-import CustomMessage from "../components/MessageList/CustomMessage/CustomMessage";
 import { DiscordContextProvider } from "../types/DiscordContext";
 import { Lock, Eye, EyeOff, ArrowRight, RotateCcw } from "lucide-react";
 
@@ -100,11 +99,11 @@ function ConnectedWorkspace({
   }
 
   return (
-    <Chat client={client} componentOverrides={{ Message: CustomMessage }}>
-      <DiscordContextProvider>
-        <MyChat />
-      </DiscordContextProvider>
-    </Chat>
+    <Chat client={client}>
+  <DiscordContextProvider>
+    <MyChat />
+  </DiscordContextProvider>
+</Chat>
   );
 }
 export default function HomePage() {
