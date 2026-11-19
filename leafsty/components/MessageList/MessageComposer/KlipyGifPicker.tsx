@@ -22,22 +22,29 @@ export default function KlipyGifPicker({
   const [query, setQuery] = useState("");
   const [gifs, setGifs] = useState<KlipyGifItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
+        setErrorMsg(null);
         const url = query.trim()
           ? `/api/gifs?q=${encodeURIComponent(query.trim())}`
           : `/api/gifs`;
         const res = await fetch(url);
         const data = await res.json().catch(() => ({ gifs: [] }));
         if (!cancelled) {
+          if (!res.ok && data?.error) {
+            setErrorMsg(data.error);
+          }
           setGifs(Array.isArray(data?.gifs) ? data.gifs : []);
         }
-      } catch (err) {
-        console.error("Failed to fetch Klipy GIFs:", err);
+      } catch (err: any) {
+        if (!cancelled) {
+          setErrorMsg(err?.message || "Failed to load GIFs");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -88,6 +95,10 @@ export default function KlipyGifPicker({
           <div className="h-full flex items-center justify-center text-xs text-emerald-300/60 gap-2">
             <Sparkles className="w-4 h-4 animate-pulse text-emerald-400" />
             <span>Loading Klipy GIFs...</span>
+          </div>
+        ) : errorMsg ? (
+          <div className="h-full flex items-center justify-center text-xs text-red-300 text-center px-4">
+            {errorMsg}
           </div>
         ) : gifs.length === 0 ? (
           <div className="h-full flex items-center justify-center text-xs text-emerald-300/60 text-center px-4">

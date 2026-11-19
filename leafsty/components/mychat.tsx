@@ -43,20 +43,63 @@ export default function MyChat() {
       return;
     }
 
-    const syncFromChannel = () => {
-      const list = activeChannel?.state?.messages || [];
-      setLocalMessages([...list]);
+    let cancelled = false;
+
+    const mergeMessages = (incoming: any[]) => {
+      if (!Array.isArray(incoming) || incoming.length === 0) return;
+      setLocalMessages((prev) => {
+        const map = new Map<string, any>();
+        for (const m of prev) {
+          if (m?.id) map.set(String(m.id), m);
+        }
+        for (const m of incoming) {
+          if (m?.id) map.set(String(m.id), m);
+        }
+        return Array.from(map.values()).sort((a, b) => {
+          const ta = new Date(a?.created_at || a?.createdAt || 0).getTime();
+          const tb = new Date(b?.created_at || b?.createdAt || 0).getTime();
+          return ta - tb;
+        });
+      });
     };
 
-    syncFromChannel();
-    activeChannel.watch?.().then(syncFromChannel).catch(() => {});
+    setLocalMessages([...(activeChannel?.state?.messages || [])]);
+
+    (async () => {
+      try {
+        const res = await activeChannel.query?.({
+          messages: { limit: 100 },
+        });
+        if (!cancelled) {
+          const history =
+            res?.messages || activeChannel?.state?.messages || [];
+          mergeMessages(history);
+        }
+      } catch {
+        try {
+          await activeChannel.watch?.();
+          if (!cancelled) {
+            mergeMessages(activeChannel?.state?.messages || []);
+          }
+        } catch {}
+      }
+    })();
+
+    const syncFromChannel = () => {
+      mergeMessages(activeChannel?.state?.messages || []);
+    };
+
+    const handleDeleted = (e: any) => {
+      const delId = e?.message?.id;
+      if (delId) {
+        setLocalMessages((prev) => prev.filter((m) => m.id !== delId));
+      }
+    };
 
     const handleSent = (e: any) => {
       const newMsg = e?.detail;
       if (newMsg?.id) {
-        setLocalMessages((prev) =>
-          prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]
-        );
+        mergeMessages([newMsg]);
       } else {
         syncFromChannel();
       }
@@ -64,16 +107,17 @@ export default function MyChat() {
 
     activeChannel.on?.("message.new", syncFromChannel);
     activeChannel.on?.("message.updated", syncFromChannel);
-    activeChannel.on?.("message.deleted", syncFromChannel);
+    activeChannel.on?.("message.deleted", handleDeleted);
     window.addEventListener("leafsty:message-sent", handleSent);
 
     return () => {
+      cancelled = true;
       activeChannel.off?.("message.new", syncFromChannel);
       activeChannel.off?.("message.updated", syncFromChannel);
-      activeChannel.off?.("message.deleted", syncFromChannel);
+      activeChannel.off?.("message.deleted", handleDeleted);
       window.removeEventListener("leafsty:message-sent", handleSent);
     };
-  }, [activeChannel]);
+  }, [activeChannel?.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
