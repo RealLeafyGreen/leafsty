@@ -32,12 +32,32 @@ export default function MyChat() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
   const [localMessages, setLocalMessages] = useState<any[]>([]);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    type: "message" | "member";
+    data: any;
+  } | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
+
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
   useEffect(() => {
     setReplyTo(null);
     setSearchQuery("");
+    setContextMenu(null);
     if (!activeChannel) {
       setLocalMessages([]);
       return;
@@ -95,6 +115,7 @@ export default function MyChat() {
         setLocalMessages((prev) => prev.filter((m) => m.id !== delId));
       }
     };
+
     const handleSent = (e: any) => {
       const newMsg = e?.detail;
       if (!newMsg?.id) {
@@ -110,7 +131,6 @@ export default function MyChat() {
           : [...filtered, newMsg];
       });
     };
-
 
     activeChannel.on?.("message.new", syncFromChannel);
     activeChannel.on?.("message.updated", syncFromChannel);
@@ -278,11 +298,20 @@ export default function MyChat() {
                       </div>
 
                       {visibleMessages.map((msg: any) => (
-                        <CustomMessage
+                        <div
                           key={msg.id}
-                          message={msg}
-                          onReply={setReplyTo}
-                        />
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setContextMenu({
+                              x: Math.min(e.clientX, window.innerWidth - 200),
+                              y: Math.min(e.clientY, window.innerHeight - 180),
+                              type: "message",
+                              data: msg,
+                            });
+                          }}
+                        >
+                          <CustomMessage message={msg} onReply={setReplyTo} />
+                        </div>
                       ))}
                       <div ref={bottomRef} />
                     </div>
@@ -294,7 +323,6 @@ export default function MyChat() {
                   </div>
                 </Channel>
               </div>
-
               {showMembers && (
                 <aside className="w-60 h-full border-l border-emerald-500/15 bg-[#081914] p-3 overflow-y-auto shrink-0 hidden lg:block">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-300/70 mb-3 px-1">
@@ -309,7 +337,19 @@ export default function MyChat() {
                       return (
                         <div
                           key={mUser.id || member?.user_id || idx}
-                          className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-emerald-500/10 transition"
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setContextMenu({
+                              x: Math.min(e.clientX, window.innerWidth - 200),
+                              y: Math.min(e.clientY, window.innerHeight - 140),
+                              type: "member",
+                              data: {
+                                id: String(mUser.id || member?.user_id || ""),
+                                name: mName,
+                              },
+                            });
+                          }}
+                          className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-emerald-500/10 transition cursor-context-menu"
                         >
                           <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
                             {mImg ? (
@@ -340,6 +380,103 @@ export default function MyChat() {
           </>
         )}
       </main>
+
+      {contextMenu && (
+        <div
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-50 w-48 rounded-xl bg-[#061410] border border-emerald-500/30 shadow-2xl py-1.5 text-xs text-emerald-50 select-none"
+        >
+          {contextMenu.type === "message" ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setReplyTo({
+                    id: contextMenu.data.id,
+                    text: contextMenu.data.text || "",
+                    userName:
+                      contextMenu.data.user?.name ||
+                      contextMenu.data.user?.id ||
+                      "User",
+                  });
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
+              >
+                Reply
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(
+                    String(contextMenu.data.text || "")
+                  );
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
+              >
+                Copy Message Text
+              </button>
+              {String(contextMenu.data.user?.id) === currentUserId && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const msgId = contextMenu.data.id;
+                    setContextMenu(null);
+                    setLocalMessages((prev) =>
+                      prev.filter((m) => m.id !== msgId)
+                    );
+                    try {
+                      await (client as any)?.deleteMessage?.({ id: msgId });
+                    } catch {}
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-red-300 hover:bg-red-500/20 cursor-pointer"
+                >
+                  Delete Message
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {contextMenu.data.id &&
+                contextMenu.data.id !== currentUserId && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const peerId = contextMenu.data.id;
+                      setContextMenu(null);
+                      if (!client) return;
+                      const sorted = [currentUserId, peerId].sort();
+                      const dmId = `dm-${sorted.join("-")}`;
+                      const ch = client.channel("messaging", dmId, {
+                        members: sorted,
+                      } as any);
+                      await ch.watch({ state: true });
+                      discordCtx?.setActiveChannel?.(ch);
+                      window.dispatchEvent(
+                        new Event("leafsty:channels-updated")
+                      );
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 font-bold text-emerald-300 cursor-pointer"
+                  >
+                    Message {contextMenu.data.name}
+                  </button>
+                )}
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(contextMenu.data.id);
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
+              >
+                Copy User ID
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
