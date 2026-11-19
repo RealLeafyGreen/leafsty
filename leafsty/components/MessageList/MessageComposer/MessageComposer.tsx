@@ -51,32 +51,27 @@ export default function CustomMessageComposer({
         channel.id
       );
 
-      let sentViaApi = false;
+      let sent = false;
       try {
-        const res = await fetch("/api/messages/send", {
+               const res = await fetch("/api/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            cid: liveChannel.cid,
             channelType: liveChannel.type || "messaging",
             channelId: liveChannel.id,
             userId: currentUserId,
             text: trimmed || (attachments.length > 0 ? "GIF" : ""),
             attachments,
-            parentId: replyTarget?.id || undefined,
-            quotedMessageId: replyTarget?.id || undefined,
+            parent_id: replyTarget?.id || undefined,
           }),
         });
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (data?.message || data?.ok) {
-            sentViaApi = true;
-          }
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && (data?.message || data?.ok)) {
+          sent = true;
         }
       } catch {}
 
-                if (!sentViaApi) {
-        await liveChannel.watch({ state: true });
+      if (!sent) {
         const innerMessage: any = {
           text: trimmed || "GIF",
           attachments: Array.isArray(attachments) ? attachments : [],
@@ -85,11 +80,17 @@ export default function CustomMessageComposer({
           innerMessage.parent_id = replyTarget.id;
           innerMessage.quoted_message_id = replyTarget.id;
         }
-        await (liveChannel as any).sendMessage({ message: innerMessage });
-        discordCtx?.setActiveChannel?.(liveChannel);
+        try {
+          await (liveChannel as any).sendMessage({ message: innerMessage });
+        } catch {
+          await (liveChannel as any).sendMessage(innerMessage);
+        }
       }
 
+      await liveChannel.watch({ state: true });
+      discordCtx?.setActiveChannel?.(liveChannel);
       window.dispatchEvent(new Event("leafsty:message-sent"));
+
       setText("");
       onCancelReply?.();
       inputRef.current?.focus();
@@ -100,6 +101,7 @@ export default function CustomMessageComposer({
       setSending(false);
     }
   };
+
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
