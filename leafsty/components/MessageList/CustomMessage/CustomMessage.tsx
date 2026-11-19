@@ -133,12 +133,13 @@ export default function CustomMessage({
   const replyMeta = message?.custom?.replyTo;
   const attachments = Array.isArray(message.attachments) ? message.attachments : [];
 
-  const formattedTime = message.created_at
-    ? new Date(message.created_at).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "";
+    const formattedTime = (() => {
+    const raw = message?.created_at || (message as any)?.createdAt;
+    if (!raw) return "Just now";
+    const d = raw instanceof Date ? raw : new Date(raw);
+    if (Number.isNaN(d.getTime())) return "Just now";
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  })();
 
   const handleCopy = () => {
     navigator.clipboard?.writeText(decryptedText);
