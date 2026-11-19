@@ -13,6 +13,7 @@ import {
   UserPlus,
   Check,
   Inbox,
+  Settings,
 } from "lucide-react";
 
 export default function CustomChannelList() {
@@ -61,7 +62,6 @@ export default function CustomChannelList() {
       try {
         if (!silent) setLoading(true);
 
-        // Fetch from both /api/channel and Stream client queryChannels so incoming invites always appear
         const [apiRes, streamChannels] = await Promise.all([
           fetch("/api/channel", {
             method: "POST",
@@ -74,7 +74,7 @@ export default function CustomChannelList() {
           })
             .then((r) => r.json())
             .catch(() => ({ channels: [] })),
-                 (client as any)
+          (client as any)
             .queryChannels({
               filter_conditions: {
                 type: "messaging",
@@ -463,6 +463,7 @@ export default function CustomChannelList() {
             </div>
           </div>
         )}
+
         <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
           <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
             {isServerView ? "Text Channels" : "Direct Messages"}
@@ -557,31 +558,51 @@ export default function CustomChannelList() {
             })
           )}
         </div>
+        <div className="p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              window.dispatchEvent(new Event("leafsty:open-own-profile"))
+            }
+            title="View Your Profile Card"
+            className="flex items-center gap-2.5 min-w-0 flex-1 text-left rounded-xl p-1 hover:bg-emerald-500/10 transition cursor-pointer"
+          >
+            <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
+              {currentUserImage ? (
+                <img
+                  src={currentUserImage}
+                  alt={currentUserName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                currentUserName.charAt(0).toUpperCase()
+              )}
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#04120e]" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-extrabold text-emerald-50 truncate">
+                {currentUserName}
+              </div>
+              <div className="text-[10px] text-emerald-400 flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" />
+                <span>Encrypted · Online</span>
+              </div>
+            </div>
+          </button>
 
-        <div className="p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center gap-2.5">
-          <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
-            {currentUserImage ? (
-              <img
-                src={currentUserImage}
-                alt={currentUserName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              currentUserName.charAt(0).toUpperCase()
-            )}
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#04120e]" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-extrabold text-emerald-50 truncate">
-              {currentUserName}
-            </div>
-            <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-              <Lock className="w-2.5 h-2.5" />
-              <span>Encrypted · Online</span>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() =>
+              window.dispatchEvent(new Event("leafsty:open-settings"))
+            }
+            title="User Settings"
+            className="p-2 rounded-xl text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer shrink-0"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </aside>
+
       {showNewDm && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-2xl bg-[#081914] border border-emerald-500/25 p-5 text-emerald-50 shadow-2xl">

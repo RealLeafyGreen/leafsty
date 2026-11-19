@@ -8,6 +8,8 @@ import CustomChannelList from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
 import CustomMessageComposer from "./MessageList/MessageComposer/MessageComposer";
 import UserContextMenu, { ContextTargetUser } from "./UserContextMenu";
+import UserProfilePopover, { LeafstyProfileUser } from "./UserProfilePopover";
+import UserSettingsModal from "./UserSettingsModal";
 import LeafstyCallStage from "./LeafstyCallStage";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
@@ -47,6 +49,8 @@ export default function MyChat() {
     y: number;
     msg: any;
   } | null>(null);
+  const [profileUser, setProfileUser] = useState<LeafstyProfileUser | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
@@ -57,15 +61,34 @@ export default function MyChat() {
       if (e.key === "Escape") {
         setMsgMenu(null);
         setTargetUserMenu(null);
+        setProfileUser(null);
       }
     };
+    const openSettings = () => setShowSettings(true);
+    const openOwnProfile = () => {
+      const u: any = client?.user || {};
+      setProfileUser({
+        id: currentUserId,
+        name: u.name || currentUserId,
+        image: u.image,
+        statusText: u.status || "Encrypted · Online",
+        aboutMe: u.bio || "",
+        isCurrentUser: true,
+      });
+    };
+
     window.addEventListener("click", closeMenus);
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("leafsty:open-settings", openSettings);
+    window.addEventListener("leafsty:open-own-profile", openOwnProfile);
+
     return () => {
       window.removeEventListener("click", closeMenus);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("leafsty:open-settings", openSettings);
+      window.removeEventListener("leafsty:open-own-profile", openOwnProfile);
     };
-  }, []);
+  }, [client, currentUserId]);
   useEffect(() => {
     setReplyTo(null);
     setSearchQuery("");
@@ -188,6 +211,24 @@ export default function MyChat() {
         text: `👋 poked @${target.name}!`,
       }),
     }).catch(() => {});
+  };
+
+  const handleSaveProfile = async (updated: any) => {
+    if (!client || !currentUserId) return;
+    try {
+      await (client as any).partialUpdateUser?.({
+        id: currentUserId,
+        set: updated,
+      });
+      const raw = localStorage.getItem("leafsty_user");
+      const parsed = raw ? JSON.parse(raw) : { id: currentUserId };
+      localStorage.setItem(
+        "leafsty_user",
+        JSON.stringify({ ...parsed, ...updated })
+      );
+    } catch (err) {
+      console.error("Failed to save user settings:", err);
+    }
   };
 
   const { channelTitle, peerImage } = useMemo(() => {
@@ -394,13 +435,11 @@ export default function MyChat() {
                             onReply={setReplyTo}
                             onSelectUser={(u) => {
                               setMsgMenu(null);
-                              setTargetUserMenu({
-                                user: {
-                                  id: String(u?.id || ""),
-                                  name: u?.name || String(u?.id || "User"),
-                                  image: u?.image,
-                                },
-                                position: { x: 260, y: 220 },
+                              setProfileUser({
+                                id: String(u?.id || ""),
+                                name: u?.name || String(u?.id || "User"),
+                                image: u?.image,
+                                isCurrentUser: String(u?.id || "") === currentUserId,
                               });
                             }}
                           />
@@ -431,6 +470,14 @@ export default function MyChat() {
                       return (
                         <div
                           key={mId || idx}
+                          onClick={() =>
+                            setProfileUser({
+                              id: mId,
+                              name: mName,
+                              image: mImg,
+                              isCurrentUser: mId === currentUserId,
+                            })
+                          }
                           onContextMenuCapture={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -447,7 +494,7 @@ export default function MyChat() {
                               },
                             });
                           }}
-                          className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-emerald-500/10 transition cursor-context-menu"
+                          className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-emerald-500/10 transition cursor-pointer"
                         >
                           <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
                             {mImg ? (
@@ -486,8 +533,65 @@ export default function MyChat() {
               user={targetUserMenu?.user || null}
               position={targetUserMenu?.position || null}
               onClose={() => setTargetUserMenu(null)}
+              onViewProfile={(u) =>
+                setProfileUser({
+                  id: u.id,
+                  name: u.name,
+                  image: u.image,
+                  isCurrentUser: u.id === currentUserId,
+                })
+              }
               onMessage={handleOpenDmWithUser}
               onPoke={handlePokeUser}
+            />
+
+            {profileUser && (
+              <div
+                className="fixed inset-0 z- bg-black/60 flex items-center justify-center p-4"
+                onClick={() => setProfileUser(null)}
+              >
+                <div onClick={(e) => e.stopPropagation()}>
+                  <UserProfilePopover
+                    user={profileUser}
+                    onClose={() => setProfileUser(null)}
+                    onEditProfile={() => {
+                      setProfileUser(null);
+                      setShowSettings(true);
+                    }}
+                    onSendQuickMessage={async (text) => {
+                      const target = profileUser;
+                      setProfileUser(null);
+                      await handleOpenDmWithUser({
+                        id: target.id,
+                        name: target.name || target.id,
+                        image: target.image,
+                      });
+                      if (text.trim()) {
+                        const sorted = [currentUserId, target.id].sort();
+                        const dmId = `dm-${sorted.join("-")}`;
+                        await fetch("/api/messages", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            channelType: "messaging",
+                            channelId: dmId,
+                            userId: currentUserId,
+                            text: text.trim(),
+                          }),
+                        }).catch(() => {});
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <UserSettingsModal
+              isOpen={showSettings}
+              user={client?.user}
+              profile={client?.user}
+              onClose={() => setShowSettings(false)}
+              onSave={handleSaveProfile}
             />
 
             {msgMenu && (
@@ -527,19 +631,17 @@ export default function MyChat() {
                   type="button"
                   onClick={() => {
                     const u = msgMenu.msg.user || {};
-                    setTargetUserMenu({
-                      user: {
-                        id: String(u.id || ""),
-                        name: u.name || String(u.id || "User"),
-                        image: u.image,
-                      },
-                      position: { x: msgMenu.x, y: msgMenu.y },
+                    setProfileUser({
+                      id: String(u.id || ""),
+                      name: u.name || String(u.id || "User"),
+                      image: u.image,
+                      isCurrentUser: String(u.id || "") === currentUserId,
                     });
                     setMsgMenu(null);
                   }}
                   className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 text-emerald-300 cursor-pointer"
                 >
-                  User Options
+                  View Profile Card
                 </button>
                 {String(msgMenu.msg.user?.id) === currentUserId && (
                   <button
