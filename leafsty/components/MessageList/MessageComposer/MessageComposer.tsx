@@ -27,7 +27,6 @@ export default function CustomMessageComposer({
   const channel = discordCtx?.activeChannel || null;
 
   const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -37,16 +36,41 @@ export default function CustomMessageComposer({
     attachments: any[] = []
   ) => {
     const trimmed = rawText.trim();
-    if ((!trimmed && attachments.length === 0) || !channel || sending) return;
+    if ((!trimmed && attachments.length === 0) || !channel) return;
 
     const currentUserId = String(
       client?.userID || (client?.user as any)?.id || ""
     );
 
-    try {
-      setSending(true);
-      setSendError(null);
+    const tempId = `temp-${Date.now()}`;
+    const nowIso = new Date().toISOString();
 
+    const optimisticMsg = {
+      id: tempId,
+      text: trimmed || (attachments.length > 0 ? "GIF" : ""),
+      attachments,
+      type: "regular",
+      cid: channel.cid || `${channel.type || "messaging"}:${channel.id}`,
+      user: {
+        id: currentUserId,
+        name: (client?.user as any)?.name || currentUserId,
+        image: (client?.user as any)?.image,
+      },
+      created_at: nowIso,
+    };
+
+    // 1. Instant 0ms UI update + clear input immediately
+    window.dispatchEvent(
+      new CustomEvent("leafsty:message-sent", { detail: optimisticMsg })
+    );
+    setText("");
+    setSendError(null);
+    const savedReplyId = replyTarget?.id;
+    onCancelReply?.();
+    inputRef.current?.focus();
+
+    // 2. Persist & encrypt in background via /api/messages
+    try {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,7 +80,7 @@ export default function CustomMessageComposer({
           userId: currentUserId,
           text: trimmed || (attachments.length > 0 ? "GIF" : ""),
           attachments,
-          parent_id: replyTarget?.id || undefined,
+          parent_id: savedReplyId || undefined,
         }),
       });
 
@@ -65,42 +89,19 @@ export default function CustomMessageComposer({
         throw new Error(data?.error || `Send failed (${res.status})`);
       }
 
-      const sentMsg = data?.message || {
-        id: `msg-${Date.now()}`,
-        text: trimmed || (attachments.length > 0 ? "GIF" : ""),
-        attachments,
-        type: "regular",
-        user: {
-          id: currentUserId,
-          name: (client?.user as any)?.name || currentUserId,
-          image: (client?.user as any)?.image,
-        },
-        created_at: new Date().toISOString(),
-      };
-
-      if (channel?.state?.messages) {
-        const exists = channel.state.messages.some(
-          (m: any) => m.id === sentMsg.id
+      if (data?.message) {
+        window.dispatchEvent(
+          new CustomEvent("leafsty:message-sent", {
+            detail: { ...data.message, _replaceId: tempId },
+          })
         );
-        if (!exists) {
-          channel.state.messages.push(sentMsg);
-        }
       }
-
-      window.dispatchEvent(
-        new CustomEvent("leafsty:message-sent", { detail: sentMsg })
-      );
-
-      setText("");
-      onCancelReply?.();
-      inputRef.current?.focus();
     } catch (err: any) {
       console.error("Failed to send message:", err);
       setSendError(err?.message || "Could not send message");
-    } finally {
-      setSending(false);
     }
   };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await sendPayload(text);
@@ -194,15 +195,14 @@ export default function CustomMessageComposer({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={`Message ${channelLabel} (E2EE)...`}
-            disabled={sending}
-            className="w-full pl-3.5 pr-9 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400 disabled:opacity-60"
+            className="w-full pl-3.5 pr-9 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
           />
           <Lock className="w-3.5 h-3.5 text-emerald-400/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
 
         <button
           type="submit"
-          disabled={sending || !text.trim()}
+          disabled={!text.trim()}
           title="Send Encrypted Message"
           className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white transition cursor-pointer shrink-0 flex items-center justify-center"
         >

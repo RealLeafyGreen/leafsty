@@ -100,6 +100,10 @@ export default function CustomMessage({
 
     decryptRoomText(raw, roomId).then((plain) => {
       if (!cancelled) setDecryptedText(plain);
+        const rawCid = String((message as any)?.cid || "");
+  const cleanChannelId = rawCid.includes(":")
+    ? rawCid.split(":").slice(1).join(":")
+    : rawCid;
     });
 
     return () => {

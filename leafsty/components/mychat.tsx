@@ -95,15 +95,22 @@ export default function MyChat() {
         setLocalMessages((prev) => prev.filter((m) => m.id !== delId));
       }
     };
-
     const handleSent = (e: any) => {
       const newMsg = e?.detail;
-      if (newMsg?.id) {
-        mergeMessages([newMsg]);
-      } else {
+      if (!newMsg?.id) {
         syncFromChannel();
+        return;
       }
+      setLocalMessages((prev) => {
+        const filtered = newMsg._replaceId
+          ? prev.filter((m) => m.id !== newMsg._replaceId)
+          : prev;
+        return filtered.some((m) => m.id === newMsg.id)
+          ? filtered
+          : [...filtered, newMsg];
+      });
     };
+
 
     activeChannel.on?.("message.new", syncFromChannel);
     activeChannel.on?.("message.updated", syncFromChannel);
