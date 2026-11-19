@@ -11,6 +11,7 @@ import UserContextMenu, { ContextTargetUser } from "./UserContextMenu";
 import UserProfilePopover, { LeafstyProfileUser } from "./UserProfilePopover";
 import UserSettingsModal from "./UserSettingsModal";
 import LeafstyCallStage from "./LeafstyCallStage";
+import LeafstyTerminal from "./LeafstyTerminal";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
   AtSign,
@@ -18,6 +19,7 @@ import {
   Lock,
   Phone,
   Search,
+  Terminal,
   Users,
   Video,
   X,
@@ -36,6 +38,7 @@ export default function MyChat() {
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
+  const [showTerminal, setShowTerminal] = useState(false);
   const [localMessages, setLocalMessages] = useState<any[]>([]);
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [activeCall, setActiveCall] = useState<{
@@ -63,6 +66,10 @@ export default function MyChat() {
         setMsgMenu(null);
         setTargetUserMenu(null);
         setProfileUser(null);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "`") {
+        e.preventDefault();
+        setShowTerminal((v) => !v);
       }
     };
     const openSettings = () => setShowSettings(true);
@@ -307,7 +314,11 @@ export default function MyChat() {
               Your Leafsty Space
             </h1>
             <p className="text-sm text-emerald-300/70 mt-1 max-w-sm">
-              Pick a channel or DM from the sidebar to start chatting.
+              Pick a channel or DM from the sidebar to start chatting, or press{" "}
+              <kbd className="px-1.5 py-0.5 rounded bg-[#0d261e] border border-emerald-500/25 text-emerald-200 text-xs">
+                Ctrl + `
+              </kbd>{" "}
+              to open the Leafsty Terminal.
             </p>
           </div>
         ) : (
@@ -376,6 +387,18 @@ export default function MyChat() {
                 >
                   <Users className="w-4 h-4" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTerminal((v) => !v)}
+                  title="Toggle Leafsty Terminal (Ctrl + `)"
+                  className={`p-2 rounded-lg transition cursor-pointer ${
+                    showTerminal
+                      ? "bg-emerald-500/20 text-emerald-200"
+                      : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
+                  }`}
+                >
+                  <Terminal className="w-4 h-4" />
+                </button>
 
                 <div className="relative hidden md:block w-44">
                   <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -411,7 +434,6 @@ export default function MyChat() {
                 onLeave={() => setActiveCall(null)}
               />
             )}
-
             <div className="flex-1 flex min-h-0">
               <div className="flex-1 flex flex-col min-w-0 h-full bg-[#0a1d17]">
                 <Channel channel={activeChannel}>
@@ -497,7 +519,7 @@ export default function MyChat() {
                   </div>
                 </Channel>
               </div>
-              {showMembers && (
+{showMembers && (
                 <aside className="w-60 h-full border-l border-emerald-500/15 bg-[#081914] p-3 overflow-y-auto shrink-0 hidden lg:block">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-300/70 mb-3 px-1">
                     Room Members — {membersList.length}
@@ -566,6 +588,13 @@ export default function MyChat() {
             </div>
           </>
         )}
+
+        <LeafstyTerminal
+          isOpen={showTerminal}
+          onClose={() => setShowTerminal(false)}
+          currentUserId={currentUserId}
+          activeChannelId={activeChannel?.id}
+        />
       </main>
 
       {typeof document !== "undefined" &&
