@@ -31,12 +31,12 @@ export default function CustomMessageComposer({
   const [sendError, setSendError] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const sendPayload = async (
+    const sendPayload = async (
     rawText: string,
     attachments: any[] = []
   ) => {
     const trimmed = rawText.trim();
-    if ((!trimmed && attachments.length === 0) || !channel || !client || sending) return;
+    if ((!trimmed && attachments.length === 0) || !channel || sending) return;
 
     const currentUserId = String(
       client?.userID || (client?.user as any)?.id || ""
@@ -46,51 +46,41 @@ export default function CustomMessageComposer({
       setSending(true);
       setSendError(null);
 
-      const liveChannel = client.channel(
-        channel.type || "messaging",
-        channel.id
-      );
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelType: channel.type || "messaging",
+          channelId: channel.id,
+          userId: currentUserId,
+          text: trimmed || (attachments.length > 0 ? "GIF" : ""),
+          attachments,
+          parent_id: replyTarget?.id || undefined,
+        }),
+      });
 
-      let sent = false;
-      try {
-               const res = await fetch("/api/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            channelType: liveChannel.type || "messaging",
-            channelId: liveChannel.id,
-            userId: currentUserId,
-            text: trimmed || (attachments.length > 0 ? "GIF" : ""),
-            attachments,
-            parent_id: replyTarget?.id || undefined,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && (data?.message || data?.ok)) {
-          sent = true;
-        }
-      } catch {}
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `Send failed (${res.status})`);
+      }
 
-      if (!sent) {
-        const innerMessage: any = {
-          text: trimmed || "GIF",
-          attachments: Array.isArray(attachments) ? attachments : [],
+            if (channel?.state?.messages) {
+        const msgObj = data?.message || {
+          id: `temp-${Date.now()}`,
+          text: trimmed || (attachments.length > 0 ? "GIF" : ""),
+          attachments,
+          user: client?.user || { id: currentUserId, name: currentUserId },
+          created_at: new Date().toISOString(),
         };
-        if (replyTarget?.id) {
-          innerMessage.parent_id = replyTarget.id;
-          innerMessage.quoted_message_id = replyTarget.id;
-        }
-        try {
-          await (liveChannel as any).sendMessage({ message: innerMessage });
-        } catch {
-          await (liveChannel as any).sendMessage(innerMessage);
+        const exists = channel.state.messages.some(
+          (m: any) => m.id === msgObj.id
+        );
+        if (!exists) {
+          channel.state.messages.push(msgObj);
         }
       }
 
-      await liveChannel.watch({ state: true });
-      discordCtx?.setActiveChannel?.(liveChannel);
       window.dispatchEvent(new Event("leafsty:message-sent"));
-
       setText("");
       onCancelReply?.();
       inputRef.current?.focus();
@@ -101,6 +91,7 @@ export default function CustomMessageComposer({
       setSending(false);
     }
   };
+
 
 
   const handleFormSubmit = async (e: React.FormEvent) => {

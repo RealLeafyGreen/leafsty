@@ -86,14 +86,14 @@ export default function MyChat() {
     return Object.values(activeChannel.state.members);
   }, [activeChannel, msgTick]);
 
-  const visibleMessages = useMemo(() => {
-    const recent = rawMessages.slice(-100);
+    const visibleMessages = useMemo(() => {
+    const recent = [...(activeChannel?.state?.messages || [])].slice(-100);
     const q = searchQuery.trim().toLowerCase();
     if (!q) return recent;
     return recent.filter((m: any) =>
       String(m?.text || "").toLowerCase().includes(q)
     );
-  }, [rawMessages, searchQuery, msgTick]);
+  }, [activeChannel, searchQuery, msgTick]);
 
   const isDm =
     !activeServer?.id &&
