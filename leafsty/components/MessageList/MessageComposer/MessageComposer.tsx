@@ -5,8 +5,6 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
-const roomId = channel.id || "leafsty-default-room";
-const encryptedPayload = trimmed ? await encryptRoomText(trimmed, roomId) : "";
 import {
   Send,
   X,
@@ -61,7 +59,6 @@ export default function CustomMessageComposer({
       created_at: nowIso,
     };
 
-    // 1. Instant 0ms UI update + clear input immediately
     window.dispatchEvent(
       new CustomEvent("leafsty:message-sent", { detail: optimisticMsg })
     );
@@ -71,7 +68,6 @@ export default function CustomMessageComposer({
     onCancelReply?.();
     inputRef.current?.focus();
 
-    // 2. Persist & encrypt in background via /api/messages
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
@@ -103,7 +99,6 @@ export default function CustomMessageComposer({
       setSendError(err?.message || "Could not send message");
     }
   };
-
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await sendPayload(text);
