@@ -133,13 +133,42 @@ export default function CustomMessage({
   const replyMeta = message?.custom?.replyTo;
   const attachments = Array.isArray(message.attachments) ? message.attachments : [];
 
-    const formattedTime = (() => {
-    const raw = message?.created_at || (message as any)?.createdAt;
+      const formattedTime = (() => {
+    const raw: any =
+      message?.created_at ||
+      (message as any)?.createdAt ||
+      (message as any)?.timestamp;
     if (!raw) return "Just now";
-    const d = raw instanceof Date ? raw : new Date(raw);
+
+    let d: Date;
+    if (raw instanceof Date) {
+      d = raw;
+    } else if (typeof raw === "number" || /^\d+$/.test(String(raw))) {
+      const num = Number(raw);
+      // Handle nanoseconds (19 digits), microseconds (16 digits), milliseconds (13 digits), or seconds (10 digits)
+      const ms =
+        num > 1e17
+          ? Math.floor(num / 1e6)
+          : num > 1e14
+          ? Math.floor(num / 1e3)
+          : num < 1e11
+          ? num * 1000
+          : num;
+      d = new Date(ms);
+    } else {
+      d = new Date(raw);
+    }
+
     if (Number.isNaN(d.getTime())) return "Just now";
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    const isToday = d.toDateString() === new Date().toDateString();
+    return isToday
+      ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString([], { month: "short", day: "numeric" }) +
+          " · " +
+          d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   })();
+
 
   const handleCopy = () => {
     navigator.clipboard?.writeText(decryptedText);
