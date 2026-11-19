@@ -37,6 +37,7 @@ export default function MyChat() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
   const [localMessages, setLocalMessages] = useState<any[]>([]);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [activeCall, setActiveCall] = useState<{
     startWithVideo: boolean;
   } | null>(null);
@@ -95,6 +96,7 @@ export default function MyChat() {
     setMsgMenu(null);
     setTargetUserMenu(null);
     setActiveCall(null);
+    setTypingUsers({});
     if (!activeChannel) {
       setLocalMessages([]);
       return;
@@ -169,9 +171,29 @@ export default function MyChat() {
       });
     };
 
+    const handleTypingStart = (e: any) => {
+      const uid = String(e?.user?.id || "");
+      if (!uid || uid === currentUserId) return;
+      const uname = e?.user?.name || uid;
+      setTypingUsers((prev) => ({ ...prev, [uid]: uname }));
+    };
+
+    const handleTypingStop = (e: any) => {
+      const uid = String(e?.user?.id || "");
+      if (!uid) return;
+      setTypingUsers((prev) => {
+        if (!prev[uid]) return prev;
+        const next = { ...prev };
+        delete next[uid];
+        return next;
+      });
+    };
+
     activeChannel.on?.("message.new", syncFromChannel);
     activeChannel.on?.("message.updated", syncFromChannel);
     activeChannel.on?.("message.deleted", handleDeleted);
+    activeChannel.on?.("typing.start", handleTypingStart);
+    activeChannel.on?.("typing.stop", handleTypingStop);
     window.addEventListener("leafsty:message-sent", handleSent);
 
     return () => {
@@ -179,9 +201,11 @@ export default function MyChat() {
       activeChannel.off?.("message.new", syncFromChannel);
       activeChannel.off?.("message.updated", syncFromChannel);
       activeChannel.off?.("message.deleted", handleDeleted);
+      activeChannel.off?.("typing.start", handleTypingStart);
+      activeChannel.off?.("typing.stop", handleTypingStop);
       window.removeEventListener("leafsty:message-sent", handleSent);
     };
-  }, [activeChannel?.id]);
+  }, [activeChannel?.id, currentUserId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -447,6 +471,24 @@ export default function MyChat() {
                       ))}
                       <div ref={bottomRef} />
                     </div>
+
+                    {Object.keys(typingUsers).length > 0 && (
+                      <div className="px-4 py-1.5 bg-[#081914] border-t border-emerald-500/10 flex items-center gap-2 text-xs text-emerald-300">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" />
+                        </span>
+                        <span className="font-semibold">
+                          {(() => {
+                            const names = Object.values(typingUsers);
+                            if (names.length === 1) return `${names} is typing...`;
+                            if (names.length === 2) return `${names} and ${names} are typing...`;
+                            return `${names} and ${names.length - 1} others are typing...`;
+                          })()}
+                        </span>
+                      </div>
+                    )}
 
                     <CustomMessageComposer
                       replyTarget={replyTo}

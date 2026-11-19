@@ -50,32 +50,59 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get("q")?.trim() || "";
   const limit = searchParams.get("limit") || "24";
 
-  if (apiKey) {
-    const urls = q
+    if (apiKey) {
+    const encodedKey = encodeURIComponent(apiKey);
+    const encodedQ = encodeURIComponent(q);
+
+    const candidates: Array<{ url: string; headers?: Record<string, string> }> = q
       ? [
-          `https://klipy.com{encodeURIComponent(apiKey)}/gifs/search?q=${encodeURIComponent(q)}&per_page=${limit}&customer_id=leafsty`,
-          `https://klipy.co{encodeURIComponent(apiKey)}/gifs/search?q=${encodeURIComponent(q)}&per_page=${limit}&customer_id=leafsty`,
+          {
+            url: `https://klipy.com{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty_user_1`,
+          },
+          {
+            url: `https://klipy.co{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty_user_1`,
+          },
+          {
+            url: `https://klipy.com{encodedQ}&per_page=${limit}&customer_id=leafsty_user_1`,
+            headers: { "x-api-key": apiKey, Authorization: `Bearer ${apiKey}` },
+          },
         ]
       : [
-          `https://klipy.com{encodeURIComponent(apiKey)}/gifs/trending?per_page=${limit}&customer_id=leafsty`,
-          `https://klipy.co{encodeURIComponent(apiKey)}/gifs/trending?per_page=${limit}&customer_id=leafsty`,
+          {
+            url: `https://klipy.com{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty_user_1`,
+          },
+          {
+            url: `https://klipy.co{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty_user_1`,
+          },
+          {
+            url: `https://klipy.com{limit}&customer_id=leafsty_user_1`,
+            headers: { "x-api-key": apiKey, Authorization: `Bearer ${apiKey}` },
+          },
         ];
 
-    for (const endpoint of urls) {
+    const errors: string[] = [];
+
+    for (const candidate of candidates) {
       try {
-        const res = await fetch(endpoint, {
+        const res = await fetch(candidate.url, {
           cache: "no-store",
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(6000),
           headers: {
             Accept: "application/json",
-            "User-Agent": "LeafstyChat/1.0",
+            "User-Agent": "Mozilla/5.0 (compatible; Leafsty/1.0)",
+            ...(candidate.headers || {}),
           },
         });
-        if (!res.ok) continue;
+        if (!res.ok) {
+          const bodySnippet = await res.text().catch(() => "");
+          errors.push(`${res.status}: ${bodySnippet.slice(0, 100)}`);
+          continue;
+        }
 
         const data = await res.json();
         const rawItems =
           data?.data?.data ||
+          data?.data?.items ||
           data?.data ||
           data?.results ||
           (Array.isArray(data) ? data : []);
@@ -110,11 +137,21 @@ export async function GET(req: NextRequest) {
           .filter((g: any) => Boolean(g.fullUrl));
 
         if (gifs.length > 0) {
-          return NextResponse.json({ gifs });
+          return NextResponse.json({ gifs, source: "klipy" });
         }
-      } catch {}
+        errors.push(`200 OK but 0 items parsed: ${JSON.stringify(data).slice(0, 120)}`);
+      } catch (err: any) {
+        errors.push(err?.message || "fetch error");
+      }
     }
+
+    return NextResponse.json({
+      gifs: FALLBACK_GIFS,
+      source: "fallback",
+      klipyDebug: errors,
+    });
   }
+
 
   // Fallback if Klipy is unreachable or key isn't set so GIFs still work
   const filtered = q

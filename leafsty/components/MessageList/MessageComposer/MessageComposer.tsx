@@ -64,6 +64,7 @@ export default function CustomMessageComposer({
     );
     setText("");
     setSendError(null);
+    channel.stopTyping?.().catch(() => {});
     const savedReplyId = replyTarget?.id;
     onCancelReply?.();
     inputRef.current?.focus();
@@ -190,7 +191,15 @@ export default function CustomMessageComposer({
             ref={inputRef}
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setText(val);
+              if (val.trim()) {
+                channel?.keystroke?.().catch(() => {});
+              } else {
+                channel?.stopTyping?.().catch(() => {});
+              }
+            }}
             placeholder={`Message ${channelLabel} (E2EE)...`}
             className="w-full pl-3.5 pr-9 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
           />
