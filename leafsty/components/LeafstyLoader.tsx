@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { Lock } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Lock, RefreshCw, LogOut } from "lucide-react";
 
 interface LeafstyLoaderProps {
   label?: string;
@@ -14,6 +14,13 @@ export default function LeafstyLoader({
   sublabel = "End-to-End Encrypted Workspace",
   username,
 }: LeafstyLoaderProps) {
+  const [stalled, setStalled] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStalled(true), 6000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const heading =
     label ||
     (username
@@ -38,6 +45,30 @@ export default function LeafstyLoader({
         <Lock className="w-3.5 h-3.5" />
         <span>{sublabel}</span>
       </div>
+
+      {stalled && (
+        <div className="mt-6 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry Connection</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem("leafsty_user");
+              window.location.reload();
+            }}
+            className="px-4 py-2 rounded-xl bg-[#0d261e] hover:bg-red-500/20 border border-emerald-500/25 text-emerald-200 hover:text-red-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
