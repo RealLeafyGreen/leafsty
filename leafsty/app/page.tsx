@@ -11,31 +11,78 @@ interface SavedUser {
   name: string;
   image?: string;
 }
+function LeafstyEyesLoader({
+  label = "Connecting to Leafsty...",
+  error,
+  onRetry,
+  onLogout,
+}: {
+  label?: string;
+  error?: string | null;
+  onRetry?: () => void;
+  onLogout?: () => void;
+}) {
+  const [stalled, setStalled] = useState(false);
 
-function LeafstyEyesLoader({ label = "Connecting to Leafsty..." }: { label?: string }) {
+  useEffect(() => {
+    const t = setTimeout(() => setStalled(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
-    <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none">
-      <div className="w-36 h-36 rounded-3xl bg-white border border-emerald-500/30 overflow-hidden flex items-center justify-center shadow-2xl shadow-emerald-950/80 mb-5">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          className="w-full h-full object-contain"
-        >
-          <source src="/loadingleafsty.mp4" type="video/mp4" />
-        </video>
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none px-4">
+      <div className="relative w-24 h-24 rounded-3xl bg-[#0b211a] border border-emerald-400/35 shadow-2xl shadow-emerald-950/90 flex items-center justify-center gap-3 mb-6">
+        <span className="absolute -inset-1 rounded-3xl border border-emerald-400/20 animate-ping pointer-events-none" />
+        {/* Left Animated Eye */}
+        <div className="w-6 h-8 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shadow-inner">
+          <div className="w-3 h-4 rounded-full bg-[#04120e] animate-bounce" />
+        </div>
+        {/* Right Animated Eye */}
+        <div className="w-6 h-8 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shadow-inner">
+          <div className="w-3 h-4 rounded-full bg-[#04120e] animate-bounce [animation-delay:150ms]" />
+        </div>
       </div>
-      <p className="text-sm font-extrabold tracking-wide text-emerald-100">
+
+      <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-emerald-50 text-center">
         {label}
-      </p>
-      <p className="text-xs text-emerald-400/70 mt-1 flex items-center gap-1">
-        <Lock className="w-3 h-3" /> End-to-End Encrypted Workspace
-      </p>
+      </h1>
+
+      <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-400/85">
+        <Lock className="w-3.5 h-3.5" />
+        <span>End-to-End Encrypted Workspace</span>
+      </div>
+
+      {error && (
+        <div className="mt-4 max-w-sm px-3.5 py-2 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-200 text-center">
+          {error}
+        </div>
+      )}
+
+      {(stalled || error) && (
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => (onRetry ? onRetry() : window.location.reload())}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="px-4 py-2 rounded-xl bg-[#0d261e] hover:bg-red-500/20 border border-emerald-500/25 text-emerald-200 hover:text-red-200 font-bold text-xs transition cursor-pointer"
+            >
+              Sign Out
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
 function ConnectedWorkspace({
   currentUser,
   onLogout,
@@ -44,6 +91,7 @@ function ConnectedWorkspace({
   onLogout: () => void;
 }) {
   const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || "";
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const userData = useMemo(
     () => ({
@@ -64,18 +112,22 @@ function ConnectedWorkspace({
         name: currentUser.name || currentUser.id,
       }),
     });
+
     if (postRes.ok) {
-      const data = await postRes.json();
+      const data = await postRes.json().catch(() => ({}));
       if (data?.token) return data.token;
     }
 
     const getRes = await fetch(`/api/token?userId=${uid}`);
-    if (getRes.ok) {
-      const data = await getRes.json();
-      if (data?.token) return data.token;
+    const getData = await getRes.json().catch(() => ({}));
+    if (!getRes.ok || !getData?.token) {
+      const msg =
+        getData?.error ||
+        `Token error (${postRes.status}/${getRes.status}) — check STREAM_API_SECRET in Vercel`;
+      setConnectError(msg);
+      throw new Error(msg);
     }
-
-    throw new Error(`Token request failed (${postRes.status} / ${getRes.status})`);
+    return getData.token;
   }, [currentUser.id, currentUser.name]);
 
   const client = useCreateChatClient({
@@ -86,26 +138,33 @@ function ConnectedWorkspace({
 
   if (!apiKey) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-100 p-6">
-        <div className="px-5 py-4 rounded-2xl bg-[#0b211a] border border-red-500/40 text-sm">
-          Missing <code className="text-emerald-300">NEXT_PUBLIC_STREAM_API_KEY</code> in Vercel Environment Variables.
-        </div>
-      </div>
+      <LeafstyEyesLoader
+        label="Missing Stream API Key"
+        error="NEXT_PUBLIC_STREAM_API_KEY is not set in Vercel Production environment variables."
+        onLogout={onLogout}
+      />
     );
   }
 
   if (!client) {
-    return <LeafstyEyesLoader label={`Waking up Leafsty for ${currentUser.name}...`} />;
+    return (
+      <LeafstyEyesLoader
+        label={`Waking up Leafsty for ${currentUser.name || currentUser.id}...`}
+        error={connectError}
+        onLogout={onLogout}
+      />
+    );
   }
 
   return (
-    <Chat client={client}>
-  <DiscordContextProvider>
-    <MyChat />
-  </DiscordContextProvider>
-</Chat>
+    <Chat client={client} theme="str-chat__theme-dark">
+      <DiscordContextProvider>
+        <MyChat />
+      </DiscordContextProvider>
+    </Chat>
   );
 }
+
 export default function HomePage() {
   const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
   const [hydrated, setHydrated] = useState(false);
