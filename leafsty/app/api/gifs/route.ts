@@ -41,61 +41,47 @@ const FALLBACK_GIFS = [
 
 export async function GET(req: NextRequest) {
   const apiKey = (
-    process.env.KLIPY_API_KEY ||
     process.env.NEXT_PUBLIC_KLIPY_API_KEY ||
+    process.env.KLIPY_API_KEY ||
     ""
   ).trim();
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim() || "";
   const limit = searchParams.get("limit") || "24";
+  const errors: string[] = [];
 
-    if (apiKey) {
+  if (!apiKey) {
+    errors.push("Missing NEXT_PUBLIC_KLIPY_API_KEY on server");
+  } else {
     const encodedKey = encodeURIComponent(apiKey);
     const encodedQ = encodeURIComponent(q);
 
-    const candidates: Array<{ url: string; headers?: Record<string, string> }> = q
+    const urls = q
       ? [
-          {
-            url: `https://klipy.com{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty_user_1`,
-          },
-          {
-            url: `https://klipy.co{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty_user_1`,
-          },
-          {
-            url: `https://klipy.com{encodedQ}&per_page=${limit}&customer_id=leafsty_user_1`,
-            headers: { "x-api-key": apiKey, Authorization: `Bearer ${apiKey}` },
-          },
+          `https://klipy.com{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty&locale=en`,
+          `https://klipy.co{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty&locale=en`,
         ]
       : [
-          {
-            url: `https://klipy.com{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty_user_1`,
-          },
-          {
-            url: `https://klipy.co{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty_user_1`,
-          },
-          {
-            url: `https://klipy.com{limit}&customer_id=leafsty_user_1`,
-            headers: { "x-api-key": apiKey, Authorization: `Bearer ${apiKey}` },
-          },
+          `https://klipy.com{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty&locale=en`,
+          `https://klipy.co{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty&locale=en`,
         ];
 
-    const errors: string[] = [];
-
-    for (const candidate of candidates) {
+    for (const endpoint of urls) {
       try {
-        const res = await fetch(candidate.url, {
+        const res = await fetch(endpoint, {
           cache: "no-store",
           signal: AbortSignal.timeout(6000),
           headers: {
             Accept: "application/json",
-            "User-Agent": "Mozilla/5.0 (compatible; Leafsty/1.0)",
-            ...(candidate.headers || {}),
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
           },
         });
+
         if (!res.ok) {
-          const bodySnippet = await res.text().catch(() => "");
-          errors.push(`${res.status}: ${bodySnippet.slice(0, 100)}`);
+          const snippet = await res.text().catch(() => "");
+          errors.push(`HTTP ${res.status}: ${snippet.slice(0, 80)}`);
           continue;
         }
 
@@ -107,15 +93,15 @@ export async function GET(req: NextRequest) {
           data?.results ||
           (Array.isArray(data) ? data : []);
 
-        const gifs = rawItems
+        const gifs = (Array.isArray(rawItems) ? rawItems : [])
           .map((item: any, idx: number) => {
             const previewUrl =
               item?.file?.sm?.gif?.url ||
               item?.file?.xs?.gif?.url ||
+              item?.file?.sm?.webp?.url ||
               item?.file?.md?.gif?.url ||
               item?.media_formats?.tinygif?.url ||
               item?.media_formats?.gif?.url ||
-              item?.images?.fixed_width_small?.url ||
               item?.url ||
               "";
 
@@ -123,8 +109,8 @@ export async function GET(req: NextRequest) {
               item?.file?.md?.gif?.url ||
               item?.file?.hd?.gif?.url ||
               item?.file?.sm?.gif?.url ||
+              item?.file?.md?.webp?.url ||
               item?.media_formats?.gif?.url ||
-              item?.images?.original?.url ||
               previewUrl;
 
             return {
@@ -139,21 +125,14 @@ export async function GET(req: NextRequest) {
         if (gifs.length > 0) {
           return NextResponse.json({ gifs, source: "klipy" });
         }
-        errors.push(`200 OK but 0 items parsed: ${JSON.stringify(data).slice(0, 120)}`);
+
+        errors.push(`200 empty: ${JSON.stringify(data).slice(0, 100)}`);
       } catch (err: any) {
-        errors.push(err?.message || "fetch error");
+        errors.push(err?.cause?.code || err?.message || "server fetch failed");
       }
     }
-
-    return NextResponse.json({
-      gifs: FALLBACK_GIFS,
-      source: "fallback",
-      klipyDebug: errors,
-    });
   }
 
-
-  // Fallback if Klipy is unreachable or key isn't set so GIFs still work
   const filtered = q
     ? FALLBACK_GIFS.filter((g) =>
         g.title.toLowerCase().includes(q.toLowerCase())
@@ -162,5 +141,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     gifs: filtered.length > 0 ? filtered : FALLBACK_GIFS,
+    source: "fallback",
+    klipyDebug: errors,
   });
 }

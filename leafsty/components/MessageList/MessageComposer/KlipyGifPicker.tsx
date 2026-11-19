@@ -14,45 +14,6 @@ interface KlipyGifPickerProps {
   onSelectGif: (gif: KlipyGifItem) => void;
   onClose: () => void;
 }
-function parseKlipyPayload(data: any): KlipyGifItem[] {
-  const rawItems =
-    data?.data?.data ||
-    data?.data?.items ||
-    data?.data ||
-    data?.results ||
-    (Array.isArray(data) ? data : []);
-
-  if (!Array.isArray(rawItems)) return [];
-
-  return rawItems
-    .map((item: any, idx: number) => {
-      const previewUrl =
-        item?.file?.sm?.gif?.url ||
-        item?.file?.xs?.gif?.url ||
-        item?.file?.sm?.webp?.url ||
-        item?.file?.md?.gif?.url ||
-        item?.media_formats?.tinygif?.url ||
-        item?.media_formats?.gif?.url ||
-        item?.url ||
-        "";
-
-      const fullUrl =
-        item?.file?.md?.gif?.url ||
-        item?.file?.hd?.gif?.url ||
-        item?.file?.sm?.gif?.url ||
-        item?.file?.md?.webp?.url ||
-        item?.media_formats?.gif?.url ||
-        previewUrl;
-
-      return {
-        id: String(item.id || item.slug || idx),
-        title: item.title || item.content_description || "GIF",
-        previewUrl,
-        fullUrl,
-      };
-    })
-    .filter((g: KlipyGifItem) => Boolean(g.fullUrl));
-}
 
 export default function KlipyGifPicker({
   onSelectGif,
@@ -61,71 +22,32 @@ export default function KlipyGifPicker({
   const [query, setQuery] = useState("");
   const [gifs, setGifs] = useState<KlipyGifItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [debugBanner, setDebugBanner] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
-        setErrorMsg(null);
+        setDebugBanner(null);
 
-        const apiKey = (process.env.NEXT_PUBLIC_KLIPY_API_KEY || "").trim();
         const trimmedQ = query.trim();
-        const attempts: string[] = [];
-
-        if (apiKey) {
-          const encodedKey = encodeURIComponent(apiKey);
-          const endpoints = trimmedQ
-            ? [
-                `https://klipy.com{encodeURIComponent(trimmedQ)}&key=${encodedKey}&limit=24`,
-                `https://klipy.com{encodedKey}/gifs/search?q=${encodeURIComponent(trimmedQ)}&per_page=24&customer_id=leafsty`,
-                `https://klipy.co{encodedKey}/gifs/search?q=${encodeURIComponent(trimmedQ)}&per_page=24&customer_id=leafsty`,
-              ]
-            : [
-                `https://klipy.com{encodedKey}&limit=24`,
-                `https://klipy.com{encodedKey}/gifs/trending?per_page=24&customer_id=leafsty`,
-                `https://klipy.co{encodedKey}/gifs/trending?per_page=24&customer_id=leafsty`,
-              ];
-
-          for (const ep of endpoints) {
-            try {
-              const directRes = await fetch(ep);
-              if (directRes.ok) {
-                const json = await directRes.json();
-                const parsed = parseKlipyPayload(json);
-                if (parsed.length > 0) {
-                  if (!cancelled) setGifs(parsed);
-                  return;
-                }
-                attempts.push(`200 empty`);
-              } else {
-                attempts.push(`HTTP ${directRes.status}`);
-              }
-            } catch (e: any) {
-              attempts.push(e?.message || "network error");
-            }
-          }
-        }
-
         const url = trimmedQ
           ? `/api/gifs?q=${encodeURIComponent(trimmedQ)}`
           : `/api/gifs`;
+
         const res = await fetch(url);
         const data = await res.json().catch(() => ({ gifs: [] }));
+
         if (!cancelled) {
-          if (!apiKey) {
-            setErrorMsg(
-              "NEXT_PUBLIC_KLIPY_API_KEY is empty in this build (check Production env var in Vercel & redeploy)."
-            );
-          } else if (attempts.length > 0) {
-            setErrorMsg(`Klipy debug: ${attempts.join(" · ")}`);
-          }
           setGifs(Array.isArray(data?.gifs) ? data.gifs : []);
+          if (data?.source === "fallback" && Array.isArray(data?.klipyDebug)) {
+            setDebugBanner(data.klipyDebug.join(" · "));
+          }
         }
       } catch (err: any) {
         if (!cancelled) {
-          setErrorMsg(err?.message || "Failed to load Klipy GIFs");
+          setDebugBanner(err?.message || "Failed to load GIFs");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -172,9 +94,9 @@ export default function KlipyGifPicker({
         </button>
       </div>
 
-      {errorMsg && (
-        <div className="px-3 py-1.5 bg-amber-500/15 border-b border-amber-500/25 text-[11px] text-amber-200">
-          {errorMsg}
+      {debugBanner && (
+        <div className="px-3 py-1.5 bg-amber-500/15 border-b border-amber-500/25 text-[11px] text-amber-200 break-words">
+          Klipy server status: {debugBanner}
         </div>
       )}
 
