@@ -40,98 +40,97 @@ const FALLBACK_GIFS = [
 ];
 
 export async function GET(req: NextRequest) {
-  const apiKey = (
+  const { searchParams } = new URL(req.url);
+  const q = searchParams.get("q")?.trim() || "";
+  const limit = searchParams.get("limit") || "24";
+
+  const giphyKey = (
+    process.env.GIPHY_API_KEY ||
+    process.env.NEXT_PUBLIC_GIPHY_API_KEY ||
+    "dc6zaTOxFJmzC"
+  ).trim();
+
+  const klipyKey = (
     process.env.NEXT_PUBLIC_KLIPY_API_KEY ||
     process.env.KLIPY_API_KEY ||
     ""
   ).trim();
 
-  const { searchParams } = new URL(req.url);
-  const q = searchParams.get("q")?.trim() || "";
-  const limit = searchParams.get("limit") || "24";
-  const errors: string[] = [];
+  // 1. Try Klipy if a custom base URL or valid host responds
+  if (klipyKey) {
+    const base = (process.env.KLIPY_API_BASE || "https://klipy.com").replace(/\/$/, "");
+    const klipyUrl = q
+      ? `${base}/api/v1/${encodeURIComponent(klipyKey)}/gifs/search?q=${encodeURIComponent(q)}&per_page=${limit}&customer_id=leafsty&locale=en`
+      : `${base}/api/v1/${encodeURIComponent(klipyKey)}/gifs/trending?per_page=${limit}&customer_id=leafsty&locale=en`;
 
-  if (!apiKey) {
-    errors.push("Missing NEXT_PUBLIC_KLIPY_API_KEY on server");
-  } else {
-    const encodedKey = encodeURIComponent(apiKey);
-    const encodedQ = encodeURIComponent(q);
-
-    const urls = q
-      ? [
-          `https://klipy.com{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty&locale=en`,
-          `https://klipy.co{encodedKey}/gifs/search?q=${encodedQ}&per_page=${limit}&customer_id=leafsty&locale=en`,
-        ]
-      : [
-          `https://klipy.com{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty&locale=en`,
-          `https://klipy.co{encodedKey}/gifs/trending?per_page=${limit}&customer_id=leafsty&locale=en`,
-        ];
-
-    for (const endpoint of urls) {
-      try {
-        const res = await fetch(endpoint, {
-          cache: "no-store",
-          signal: AbortSignal.timeout(6000),
-          headers: {
-            Accept: "application/json",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-          },
-        });
-
-        if (!res.ok) {
-          const snippet = await res.text().catch(() => "");
-          errors.push(`HTTP ${res.status}: ${snippet.slice(0, 80)}`);
-          continue;
-        }
-
+    try {
+      const res = await fetch(klipyUrl, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(4000),
+      });
+      if (res.ok) {
         const data = await res.json();
         const rawItems =
-          data?.data?.data ||
-          data?.data?.items ||
-          data?.data ||
-          data?.results ||
-          (Array.isArray(data) ? data : []);
-
+          data?.data?.data || data?.data || data?.results || [];
         const gifs = (Array.isArray(rawItems) ? rawItems : [])
-          .map((item: any, idx: number) => {
-            const previewUrl =
+          .map((item: any, idx: number) => ({
+            id: String(item.id || idx),
+            title: item.title || "GIF",
+            previewUrl:
               item?.file?.sm?.gif?.url ||
-              item?.file?.xs?.gif?.url ||
-              item?.file?.sm?.webp?.url ||
               item?.file?.md?.gif?.url ||
-              item?.media_formats?.tinygif?.url ||
-              item?.media_formats?.gif?.url ||
               item?.url ||
-              "";
-
-            const fullUrl =
+              "",
+            fullUrl:
               item?.file?.md?.gif?.url ||
               item?.file?.hd?.gif?.url ||
               item?.file?.sm?.gif?.url ||
-              item?.file?.md?.webp?.url ||
-              item?.media_formats?.gif?.url ||
-              previewUrl;
-
-            return {
-              id: String(item.id || item.slug || idx),
-              title: item.title || "GIF",
-              previewUrl,
-              fullUrl,
-            };
-          })
+              item?.url ||
+              "",
+          }))
           .filter((g: any) => Boolean(g.fullUrl));
 
         if (gifs.length > 0) {
           return NextResponse.json({ gifs, source: "klipy" });
         }
+      }
+    } catch {}
+  }
 
-        errors.push(`200 empty: ${JSON.stringify(data).slice(0, 100)}`);
-      } catch (err: any) {
-        errors.push(err?.cause?.code || err?.message || "server fetch failed");
+  // 2. Live Giphy trending & search API (works reliably from Vercel)
+  try {
+    const giphyUrl = q
+      ? `https://giphy.com{encodeURIComponent(giphyKey)}&q=${encodeURIComponent(q)}&limit=${limit}&rating=pg-13`
+      : `https://giphy.com{encodeURIComponent(giphyKey)}&limit=${limit}&rating=pg-13`;
+
+    const gRes = await fetch(giphyUrl, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (gRes.ok) {
+      const gData = await gRes.json();
+      const items = Array.isArray(gData?.data) ? gData.data : [];
+      const gifs = items
+        .map((item: any) => ({
+          id: String(item.id),
+          title: item.title || "GIF",
+          previewUrl:
+            item?.images?.fixed_width_small?.url ||
+            item?.images?.fixed_width?.url ||
+            "",
+          fullUrl:
+            item?.images?.downsized_medium?.url ||
+            item?.images?.original?.url ||
+            item?.images?.fixed_width?.url ||
+            "",
+        }))
+        .filter((g: any) => Boolean(g.fullUrl));
+
+      if (gifs.length > 0) {
+        return NextResponse.json({ gifs, source: "giphy" });
       }
     }
-  }
+  } catch {}
 
   const filtered = q
     ? FALLBACK_GIFS.filter((g) =>
@@ -142,6 +141,5 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     gifs: filtered.length > 0 ? filtered : FALLBACK_GIFS,
     source: "fallback",
-    klipyDebug: errors,
   });
 }
