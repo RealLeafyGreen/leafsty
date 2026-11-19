@@ -93,7 +93,7 @@ export default function CustomMessage({
       (typeof message?.cid === "string" ? message.cid.split(":")[1] : "") ||
       "leafsty-default-room";
 
-    if (!raw.startsWith("leafsty_e2ee:")) {
+if (!raw.startsWith("leafsty_e2ee:") && !raw.startsWith("E2EE:")) {
       setDecryptedText(raw);
       return;
     }

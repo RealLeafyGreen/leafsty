@@ -5,22 +5,35 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
   Hash,
+  Plus,
   Search,
   Lock,
   X,
   MessageSquare,
+  UserPlus,
 } from "lucide-react";
 
 export default function CustomChannelList() {
   const { client } = useChatContext();
   const discordCtx = useDiscordContext() as any;
-  const activeServer = discordCtx?.activeServer || discordCtx?.server || null;
+  const activeServer =
+    discordCtx?.activeServer ||
+    discordCtx?.server ||
+    discordCtx?.selectedServer ||
+    null;
   const activeChannel = discordCtx?.activeChannel || null;
   const setActiveChannel = discordCtx?.setActiveChannel;
 
   const [channels, setChannels] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // New DM Modal state
+  const [showNewDm, setShowNewDm] = useState(false);
+  const [dmTarget, setDmTarget] = useState("");
+  const [creatingDm, setCreatingDm] = useState(false);
+  const [dmError, setDmError] = useState<string | null>(null);
+  const [knownUsers, setKnownUsers] = useState<any[]>([]);
 
   const currentUserId = String(client?.userID || (client?.user as any)?.id || "");
   const currentUserName =
@@ -88,6 +101,71 @@ export default function CustomChannelList() {
       window.removeEventListener("leafsty:channels-updated", handleManualRefresh);
     };
   }, [client, currentUserId, activeServer?.id]);
+  const openNewDmModal = async () => {
+    setDmTarget("");
+    setDmError(null);
+    setShowNewDm(true);
+    try {
+      const res = await fetch("/api/users");
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const list = Array.isArray(data?.users) ? data.users : [];
+        setKnownUsers(
+          list.filter((u: any) => String(u.id) !== currentUserId)
+        );
+      }
+    } catch {}
+  };
+
+  const handleCreateDm = async (targetUsername?: string) => {
+    const raw = (targetUsername ?? dmTarget).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!raw || !client) {
+      setDmError("Enter a valid username.");
+      return;
+    }
+    if (raw === currentUserId) {
+      setDmError("You cannot start a DM with yourself.");
+      return;
+    }
+
+    try {
+      setCreatingDm(true);
+      setDmError(null);
+
+      const sortedIds = [currentUserId, raw].sort();
+      const dmId = `dm-${sortedIds[0]}-${sortedIds[1]}`;
+
+      const res = await fetch("/api/channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          channelType: "messaging",
+          channelId: dmId,
+          userId: currentUserId,
+          members: sortedIds,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Could not create DM");
+      }
+
+      const liveChannel = client.channel("messaging", dmId);
+      await liveChannel.watch({ state: true, presence: true });
+
+      setShowNewDm(false);
+      setDmTarget("");
+      setActiveChannel?.(liveChannel);
+      window.dispatchEvent(new Event("leafsty:channels-updated"));
+    } catch (err: any) {
+      setDmError(err?.message || "Could not start DM");
+    } finally {
+      setCreatingDm(false);
+    }
+  };
+
   const handleSelectChannel = async (ch: any) => {
     if (!client || !ch) return;
     try {
@@ -153,131 +231,232 @@ export default function CustomChannelList() {
   const isServerView = Boolean(activeServer?.id);
 
   return (
-    <aside className="w-64 h-full flex flex-col bg-[#081914] border-r border-emerald-500/15 text-emerald-50 select-none shrink-0">
-      <div className="p-3 border-b border-emerald-500/15 bg-[#061410]">
-        {isServerView ? (
-          <div className="flex items-center justify-between px-1 py-1">
-            <div className="min-w-0">
-              <h2 className="text-sm font-extrabold text-emerald-50 truncate">
-                {activeServer?.name || "Leafsty Space"}
-              </h2>
-              <p className="text-[11px] text-emerald-400/70 flex items-center gap-1">
-                <Lock className="w-3 h-3" /> Encrypted Space
+    <>
+      <aside className="w-64 h-full flex flex-col bg-[#081914] border-r border-emerald-500/15 text-emerald-50 select-none shrink-0">
+        <div className="p-3 border-b border-emerald-500/15 bg-[#061410]">
+          {isServerView ? (
+            <div className="flex items-center justify-between px-1 py-1">
+              <div className="min-w-0">
+                <h2 className="text-sm font-extrabold text-emerald-50 truncate">
+                  {activeServer?.name || "Leafsty Space"}
+                </h2>
+                <p className="text-[11px] text-emerald-400/70 flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Encrypted Space
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Find or start a conversation"
+                className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
+          <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
+            {isServerView ? "Text Channels" : "Direct Messages"}
+          </span>
+          {!isServerView && (
+            <button
+              type="button"
+              onClick={openNewDmModal}
+              title="New Direct Message"
+              className="p-1 rounded-md text-emerald-300/80 hover:text-emerald-50 hover:bg-emerald-500/20 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
+          {loading && filteredChannels.length === 0 ? (
+            <div className="px-3 py-4 text-xs text-emerald-300/50">
+              Loading conversations...
+            </div>
+          ) : filteredChannels.length === 0 ? (
+            <div className="px-3 py-6 text-center rounded-xl bg-[#0b211a] border border-emerald-500/15 mx-1 mt-2">
+              <MessageSquare className="w-5 h-5 text-emerald-400/60 mx-auto mb-1.5" />
+              <p className="text-xs font-semibold text-emerald-100">
+                {isServerView ? "No channels yet" : "No DMs yet"}
               </p>
+              {!isServerView && (
+                <button
+                  type="button"
+                  onClick={openNewDmModal}
+                  className="mt-2.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  + Start a DM
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredChannels.map((ch) => {
+              const label = getChannelDisplayName(ch);
+              const isSelected = activeChannel?.id === ch.id;
+              const unreadCount = ch.countUnread?.() || 0;
+
+              return (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => handleSelectChannel(ch)}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
+                    isSelected
+                      ? "bg-emerald-500/20 text-emerald-50 border border-emerald-400/30 shadow-sm"
+                      : "text-emerald-100/85 hover:bg-emerald-500/10 hover:text-emerald-50 border border-transparent"
+                  }`}
+                >
+                  {isServerView ? (
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
+                      <Hash className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                      {label.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-emerald-50 truncate">
+                      {label}
+                    </div>
+                    <div className="text-[10px] text-emerald-300/65 truncate flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5 text-emerald-400/80 shrink-0" />
+                      <span>{isServerView ? "Encrypted channel" : "Encrypted DM"}</span>
+                    </div>
+                  </div>
+
+                  {unreadCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-[#04120e] font-extrabold text-[10px]">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <div className="p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center gap-2.5">
+          <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
+            {currentUserImage ? (
+              <img
+                src={currentUserImage}
+                alt={currentUserName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              currentUserName.charAt(0).toUpperCase()
+            )}
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#04120e]" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold text-emerald-50 truncate">
+              {currentUserName}
+            </div>
+            <div className="text-[10px] text-emerald-400 flex items-center gap-1">
+              <Lock className="w-2.5 h-2.5" />
+              <span>Encrypted · Online</span>
             </div>
           </div>
-        ) : (
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Find or start a conversation"
-              className="w-full pl-8 pr-7 py-1.5 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
-            />
-            {searchQuery && (
+        </div>
+      </aside>
+      {showNewDm && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-[#081914] border border-emerald-500/25 p-5 text-emerald-50 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-extrabold">New Direct Message</h3>
+              </div>
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
+                onClick={() => setShowNewDm(false)}
+                className="p-1 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateDm();
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-300/75 mb-1">
+                  Enter Username
+                </label>
+                <input
+                  type="text"
+                  value={dmTarget}
+                  onChange={(e) => setDmTarget(e.target.value)}
+                  placeholder="e.g. testuser"
+                  autoFocus
+                  className="w-full px-3 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              {dmError && (
+                <div className="px-3 py-2 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300">
+                  {dmError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={creatingDm || !dmTarget.trim()}
+                className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-45 text-white font-extrabold text-xs transition cursor-pointer"
+              >
+                {creatingDm ? "Starting encrypted DM..." : "Start Encrypted DM"}
+              </button>
+            </form>
+
+            {knownUsers.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-emerald-500/15">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/60 mb-2">
+                  People on Leafsty
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1">
+                  {knownUsers.map((u: any) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => handleCreateDm(u.id)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl hover:bg-emerald-500/15 text-left transition cursor-pointer"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-[11px] flex items-center justify-center">
+                        {(u.name || u.id).charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-bold text-emerald-100 truncate">
+                        {u.name || u.id}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-        )}
-      </div>
-
-      <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
-          {isServerView ? "Text Channels" : "Direct Messages"}
-        </span>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
-        {loading && filteredChannels.length === 0 ? (
-          <div className="px-3 py-4 text-xs text-emerald-300/50">
-            Loading conversations...
-          </div>
-        ) : filteredChannels.length === 0 ? (
-          <div className="px-3 py-6 text-center rounded-xl bg-[#0b211a] border border-emerald-500/15 mx-1 mt-2">
-            <MessageSquare className="w-5 h-5 text-emerald-400/60 mx-auto mb-1.5" />
-            <p className="text-xs font-semibold text-emerald-100">
-              {isServerView ? "No channels yet" : "No DMs yet"}
-            </p>
-          </div>
-        ) : (
-          filteredChannels.map((ch) => {
-            const label = getChannelDisplayName(ch);
-            const isSelected = activeChannel?.id === ch.id;
-            const unreadCount = ch.countUnread?.() || 0;
-
-            return (
-              <button
-                key={ch.id}
-                type="button"
-                onClick={() => handleSelectChannel(ch)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
-                  isSelected
-                    ? "bg-emerald-500/20 text-emerald-50 border border-emerald-400/30 shadow-sm"
-                    : "text-emerald-100/85 hover:bg-emerald-500/10 hover:text-emerald-50 border border-transparent"
-                }`}
-              >
-                {isServerView ? (
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
-                    <Hash className="w-4 h-4" />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
-                    {label.charAt(0).toUpperCase()}
-                  </div>
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-emerald-50 truncate">
-                    {label}
-                  </div>
-                  <div className="text-[10px] text-emerald-300/65 truncate flex items-center gap-1">
-                    <Lock className="w-2.5 h-2.5 text-emerald-400/80 shrink-0" />
-                    <span>{isServerView ? "Encrypted channel" : "Encrypted DM"}</span>
-                  </div>
-                </div>
-
-                {unreadCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-[#04120e] font-extrabold text-[10px]">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            );
-          })
-        )}
-      </div>
-
-      <div className="p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center gap-2.5">
-        <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
-          {currentUserImage ? (
-            <img
-              src={currentUserImage}
-              alt={currentUserName}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            currentUserName.charAt(0).toUpperCase()
-          )}
-          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#04120e]" />
         </div>
-        <div className="min-w-0">
-          <div className="text-xs font-extrabold text-emerald-50 truncate">
-            {currentUserName}
-          </div>
-          <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-            <Lock className="w-2.5 h-2.5" />
-            <span>Encrypted · Online</span>
-          </div>
-        </div>
-      </div>
-    </aside>
+      )}
+    </>
   );
 }

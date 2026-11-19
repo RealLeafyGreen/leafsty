@@ -5,6 +5,8 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
+const roomId = channel.id || "leafsty-default-room";
+const encryptedPayload = trimmed ? await encryptRoomText(trimmed, roomId) : "";
 import {
   Send,
   X,
