@@ -31,40 +31,53 @@ export default function MyChat() {
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
-  const [msgTick, setMsgTick] = useState(0);
+  const [localMessages, setLocalMessages] = useState<any[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
   useEffect(() => {
     setReplyTo(null);
     setSearchQuery("");
-    if (!activeChannel) return;
+    if (!activeChannel) {
+      setLocalMessages([]);
+      return;
+    }
 
-    const bump = () => setMsgTick((t) => t + 1);
-    activeChannel.watch?.().then(bump).catch(() => {});
+    const syncFromChannel = () => {
+      const list = activeChannel?.state?.messages || [];
+      setLocalMessages([...list]);
+    };
 
-    activeChannel.on?.("message.new", bump);
-    activeChannel.on?.("message.updated", bump);
-    activeChannel.on?.("message.deleted", bump);
-    activeChannel.on?.("reaction.new", bump);
-    activeChannel.on?.("reaction.deleted", bump);
-    window.addEventListener("leafsty:message-sent", bump);
+    syncFromChannel();
+    activeChannel.watch?.().then(syncFromChannel).catch(() => {});
+
+    const handleSent = (e: any) => {
+      const newMsg = e?.detail;
+      if (newMsg?.id) {
+        setLocalMessages((prev) =>
+          prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]
+        );
+      } else {
+        syncFromChannel();
+      }
+    };
+
+    activeChannel.on?.("message.new", syncFromChannel);
+    activeChannel.on?.("message.updated", syncFromChannel);
+    activeChannel.on?.("message.deleted", syncFromChannel);
+    window.addEventListener("leafsty:message-sent", handleSent);
 
     return () => {
-      activeChannel.off?.("message.new", bump);
-      activeChannel.off?.("message.updated", bump);
-      activeChannel.off?.("message.deleted", bump);
-      activeChannel.off?.("reaction.new", bump);
-      activeChannel.off?.("reaction.deleted", bump);
-      window.removeEventListener("leafsty:message-sent", bump);
+      activeChannel.off?.("message.new", syncFromChannel);
+      activeChannel.off?.("message.updated", syncFromChannel);
+      activeChannel.off?.("message.deleted", syncFromChannel);
+      window.removeEventListener("leafsty:message-sent", handleSent);
     };
   }, [activeChannel]);
 
-  const rawMessages = activeChannel?.state?.messages || [];
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [rawMessages.length, activeChannel?.id, msgTick]);
+  }, [localMessages.length, activeChannel?.id]);
 
   const channelTitle = useMemo(() => {
     if (!activeChannel) return "";
@@ -84,16 +97,16 @@ export default function MyChat() {
   const membersList = useMemo(() => {
     if (!activeChannel?.state?.members) return [];
     return Object.values(activeChannel.state.members);
-  }, [activeChannel, msgTick]);
+  }, [activeChannel, localMessages.length]);
 
-    const visibleMessages = useMemo(() => {
-    const recent = [...(activeChannel?.state?.messages || [])].slice(-100);
+  const visibleMessages = useMemo(() => {
+    const recent = localMessages.slice(-100);
     const q = searchQuery.trim().toLowerCase();
     if (!q) return recent;
     return recent.filter((m: any) =>
       String(m?.text || "").toLowerCase().includes(q)
     );
-  }, [activeChannel, searchQuery, msgTick]);
+  }, [localMessages, searchQuery]);
 
   const isDm =
     !activeServer?.id &&

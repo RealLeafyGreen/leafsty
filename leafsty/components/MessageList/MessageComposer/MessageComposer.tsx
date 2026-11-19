@@ -31,7 +31,8 @@ export default function CustomMessageComposer({
   const [sendError, setSendError] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-    const sendPayload = async (
+
+  const sendPayload = async (
     rawText: string,
     attachments: any[] = []
   ) => {
@@ -64,23 +65,32 @@ export default function CustomMessageComposer({
         throw new Error(data?.error || `Send failed (${res.status})`);
       }
 
-            if (channel?.state?.messages) {
-        const msgObj = data?.message || {
-          id: `temp-${Date.now()}`,
-          text: trimmed || (attachments.length > 0 ? "GIF" : ""),
-          attachments,
-          user: client?.user || { id: currentUserId, name: currentUserId },
-          created_at: new Date().toISOString(),
-        };
+      const sentMsg = data?.message || {
+        id: `msg-${Date.now()}`,
+        text: trimmed || (attachments.length > 0 ? "GIF" : ""),
+        attachments,
+        type: "regular",
+        user: {
+          id: currentUserId,
+          name: (client?.user as any)?.name || currentUserId,
+          image: (client?.user as any)?.image,
+        },
+        created_at: new Date().toISOString(),
+      };
+
+      if (channel?.state?.messages) {
         const exists = channel.state.messages.some(
-          (m: any) => m.id === msgObj.id
+          (m: any) => m.id === sentMsg.id
         );
         if (!exists) {
-          channel.state.messages.push(msgObj);
+          channel.state.messages.push(sentMsg);
         }
       }
 
-      window.dispatchEvent(new Event("leafsty:message-sent"));
+      window.dispatchEvent(
+        new CustomEvent("leafsty:message-sent", { detail: sentMsg })
+      );
+
       setText("");
       onCancelReply?.();
       inputRef.current?.focus();
@@ -91,9 +101,6 @@ export default function CustomMessageComposer({
       setSending(false);
     }
   };
-
-
-
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await sendPayload(text);
@@ -113,6 +120,7 @@ export default function CustomMessageComposer({
 
   const channelLabel =
     (channel?.data as any)?.name || channel?.id || "encrypted chat";
+
   return (
     <div className="relative shrink-0 bg-[#081914] border-t border-emerald-500/15 px-4 py-3 text-emerald-50">
       {showGifPicker && (
