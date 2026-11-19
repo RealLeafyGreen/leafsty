@@ -14,7 +14,6 @@ interface KlipyGifPickerProps {
   onSelectGif: (gif: KlipyGifItem) => void;
   onClose: () => void;
 }
-
 function parseKlipyPayload(data: any): KlipyGifItem[] {
   const rawItems =
     data?.data?.data ||
@@ -30,12 +29,10 @@ function parseKlipyPayload(data: any): KlipyGifItem[] {
       const previewUrl =
         item?.file?.sm?.gif?.url ||
         item?.file?.xs?.gif?.url ||
+        item?.file?.sm?.webp?.url ||
         item?.file?.md?.gif?.url ||
         item?.media_formats?.tinygif?.url ||
-        item?.media_formats?.nanogif?.url ||
-        item?.media_formats?.mediumgif?.url ||
         item?.media_formats?.gif?.url ||
-        item?.images?.fixed_width_small?.url ||
         item?.url ||
         "";
 
@@ -43,9 +40,8 @@ function parseKlipyPayload(data: any): KlipyGifItem[] {
         item?.file?.md?.gif?.url ||
         item?.file?.hd?.gif?.url ||
         item?.file?.sm?.gif?.url ||
+        item?.file?.md?.webp?.url ||
         item?.media_formats?.gif?.url ||
-        item?.media_formats?.mediumgif?.url ||
-        item?.images?.original?.url ||
         previewUrl;
 
       return {
