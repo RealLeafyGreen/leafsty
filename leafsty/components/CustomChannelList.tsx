@@ -11,6 +11,8 @@ import {
   X,
   MessageSquare,
   UserPlus,
+  Check,
+  Inbox,
 } from "lucide-react";
 
 export default function CustomChannelList() {
@@ -33,11 +35,22 @@ export default function CustomChannelList() {
   const [creatingDm, setCreatingDm] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   const [knownUsers, setKnownUsers] = useState<any[]>([]);
+  const [acceptedIds, setAcceptedIds] = useState<Record<string, boolean>>({});
+  const [declinedIds, setDeclinedIds] = useState<Record<string, boolean>>({});
 
   const currentUserId = String(client?.userID || (client?.user as any)?.id || "");
   const currentUserName =
     (client?.user as any)?.name || currentUserId || "LeafyUser";
   const currentUserImage = (client?.user as any)?.image || "";
+
+  useEffect(() => {
+    try {
+      const savedAcc = JSON.parse(localStorage.getItem("leafsty_accepted_dms") || "{}");
+      const savedDec = JSON.parse(localStorage.getItem("leafsty_declined_dms") || "{}");
+      setAcceptedIds(savedAcc);
+      setDeclinedIds(savedDec);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!client || !currentUserId) return;
@@ -47,21 +60,57 @@ export default function CustomChannelList() {
     const loadChannels = async (silent = false) => {
       try {
         if (!silent) setLoading(true);
-        const res = await fetch("/api/channel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "list",
-            userId: currentUserId,
-            serverId: activeServer?.id || null,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        const rawList = Array.isArray(data?.channels) ? data.channels : [];
+
+        // Fetch from both /api/channel and Stream client queryChannels so incoming invites always appear
+        const [apiRes, streamChannels] = await Promise.all([
+          fetch("/api/channel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "list",
+              userId: currentUserId,
+              serverId: activeServer?.id || null,
+            }),
+          })
+            .then((r) => r.json())
+            .catch(() => ({ channels: [] })),
+                 (client as any)
+            .queryChannels({
+              filter_conditions: {
+                type: "messaging",
+                members: { $in: [currentUserId] },
+              },
+              sort: [{ field: "last_message_at", direction: -1 }],
+              watch: true,
+              state: true,
+              limit: 30,
+            })
+            .catch(() => ({ channels: [] })),
+        ]);
 
         const seenIds = new Set<string>();
         const hydrated: any[] = [];
 
+        const fetchedChannels = Array.isArray(streamChannels)
+          ? streamChannels
+          : Array.isArray(streamChannels?.channels)
+          ? streamChannels.channels
+          : [];
+
+        for (const item of fetchedChannels) {
+          const ch = item?.channel
+            ? client.channel(item.channel.type || "messaging", item.channel.id)
+            : item;
+          if (item?.channel && ch) {
+            ch.data = { ...ch.data, ...item.channel };
+          }
+          if (ch?.id && !seenIds.has(ch.id)) {
+            seenIds.add(ch.id);
+            hydrated.push(ch);
+          }
+        }
+
+        const rawList = Array.isArray(apiRes?.channels) ? apiRes.channels : [];
         for (const item of rawList) {
           const cid = String(item.id || item.channel?.id || "");
           if (!cid || seenIds.has(cid)) continue;
@@ -134,7 +183,7 @@ export default function CustomChannelList() {
     } catch {}
   };
 
-    const handleCreateDm = async (targetUsername?: string) => {
+  const handleCreateDm = async (targetUsername?: string) => {
     const raw = (targetUsername ?? dmTarget)
       .trim()
       .toLowerCase()
@@ -155,13 +204,13 @@ export default function CustomChannelList() {
       const sortedIds = [currentUserId, raw].sort();
       const dmId = `dm-${sortedIds.join("-")}`;
 
-      // 1. Create & watch the 1-on-1 DM channel directly in Stream
       const liveChannel = client.channel("messaging", dmId, {
         members: sortedIds,
+        invite_status: "pending",
+        invited_by: currentUserId,
       } as any);
       await liveChannel.watch({ state: true, presence: true });
 
-      // 2. Also notify /api/channel so server-side channel listings stay synced
       await fetch("/api/channel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -177,6 +226,10 @@ export default function CustomChannelList() {
         }),
       }).catch(() => {});
 
+      const nextAccepted = { ...acceptedIds, [dmId]: true };
+      setAcceptedIds(nextAccepted);
+      localStorage.setItem("leafsty_accepted_dms", JSON.stringify(nextAccepted));
+
       setShowNewDm(false);
       setDmTarget("");
       setChannels((prev) =>
@@ -185,10 +238,37 @@ export default function CustomChannelList() {
       setActiveChannel?.(liveChannel);
       window.dispatchEvent(new Event("leafsty:channels-updated"));
     } catch (err: any) {
-      setDmError(err?.message || "User not found or could not start DM");
+      setDmError(err?.message || "User not found or could not send DM invite");
     } finally {
       setCreatingDm(false);
     }
+  };
+
+  const handleAcceptInvite = async (ch: any) => {
+    if (!ch?.id) return;
+    const nextAccepted = { ...acceptedIds, [ch.id]: true };
+    setAcceptedIds(nextAccepted);
+    localStorage.setItem("leafsty_accepted_dms", JSON.stringify(nextAccepted));
+
+    try {
+      await ch.updatePartial?.({ set: { invite_status: "accepted" } });
+    } catch {}
+    await handleSelectChannel(ch);
+  };
+
+  const handleDeclineInvite = async (ch: any) => {
+    if (!ch?.id) return;
+    const nextDeclined = { ...declinedIds, [ch.id]: true };
+    setDeclinedIds(nextDeclined);
+    localStorage.setItem("leafsty_declined_dms", JSON.stringify(nextDeclined));
+
+    try {
+      await ch.hide?.();
+    } catch {}
+    if (activeChannel?.id === ch.id) {
+      setActiveChannel?.(null);
+    }
+    setChannels((prev) => prev.filter((c) => c.id !== ch.id));
   };
 
   const handleSelectChannel = async (ch: any) => {
@@ -223,11 +303,15 @@ export default function CustomChannelList() {
     return ch?.id || "Encrypted DM";
   };
 
-  const filteredChannels = useMemo(() => {
+  const { activeList, incomingInvites } = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const seenDmPeers = new Set<string>();
+    const active: any[] = [];
+    const invites: any[] = [];
 
-    return channels.filter((ch) => {
+    for (const ch of channels) {
+      if (declinedIds[ch.id]) continue;
+
       const chServerId =
         ch?.data?.serverId || ch?.data?.server_id || ch?.data?.server;
       const isServerCh =
@@ -239,20 +323,45 @@ export default function CustomChannelList() {
         const matchesServer =
           String(chServerId || "") === String(activeServer.id) ||
           String(ch?.id || "").includes(String(activeServer.id));
-        if (!matchesServer) return false;
-      } else {
-        if (isServerCh) return false;
-        const peerId = getOtherMemberId(ch);
-        if (peerId) {
-          if (seenDmPeers.has(peerId)) return false;
-          seenDmPeers.add(peerId);
+        if (!matchesServer) continue;
+        if (!q || getChannelDisplayName(ch).toLowerCase().includes(q)) {
+          active.push(ch);
         }
+        continue;
       }
 
-      if (!q) return true;
-      return getChannelDisplayName(ch).toLowerCase().includes(q);
-    });
-  }, [channels, activeServer?.id, searchQuery, currentUserId]);
+      if (isServerCh) continue;
+
+      const peerId = getOtherMemberId(ch);
+      if (peerId) {
+        if (seenDmPeers.has(peerId)) continue;
+        seenDmPeers.add(peerId);
+      }
+
+      if (q && !getChannelDisplayName(ch).toLowerCase().includes(q)) continue;
+
+      const inviter = String(ch?.data?.invited_by || ch?.data?.created_by?.id || "");
+      const status = String(ch?.data?.invite_status || "");
+      const hasMyMessages = (ch?.state?.messages || []).some(
+        (m: any) => String(m?.user?.id) === currentUserId
+      );
+
+      const isIncomingPending =
+        !acceptedIds[ch.id] &&
+        status !== "accepted" &&
+        !hasMyMessages &&
+        inviter &&
+        inviter !== currentUserId;
+
+      if (isIncomingPending) {
+        invites.push(ch);
+      } else {
+        active.push(ch);
+      }
+    }
+
+    return { activeList: active, incomingInvites: invites };
+  }, [channels, activeServer?.id, searchQuery, currentUserId, acceptedIds, declinedIds]);
   const isServerView = Boolean(activeServer?.id);
 
   return (
@@ -293,6 +402,67 @@ export default function CustomChannelList() {
           )}
         </div>
 
+        {!isServerView && incomingInvites.length > 0 && (
+          <div className="px-2 pt-3 pb-2 border-b border-emerald-500/15 bg-[#061510]">
+            <div className="px-2 pb-1.5 flex items-center justify-between">
+              <span className="text-[10px] font-extrabold tracking-wider uppercase text-amber-300 flex items-center gap-1">
+                <Inbox className="w-3 h-3" /> Message Requests
+              </span>
+              <span className="px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 font-extrabold text-[10px]">
+                {incomingInvites.length}
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {incomingInvites.map((inv) => {
+                const label = getChannelDisplayName(inv);
+                return (
+                  <div
+                    key={inv.id}
+                    className="p-2 rounded-xl bg-[#0d261e] border border-amber-400/25 flex items-center justify-between gap-2"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSelectChannel(inv)}
+                      className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-amber-500/25 text-amber-200 font-extrabold text-xs flex items-center justify-center shrink-0">
+                        {label.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-emerald-50 truncate">
+                          {label}
+                        </div>
+                        <div className="text-[10px] text-amber-300/80 truncate">
+                          DM Invite
+                        </div>
+                      </div>
+                    </button>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleAcceptInvite(inv)}
+                        title="Accept DM Request"
+                        className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeclineInvite(inv)}
+                        title="Decline DM Request"
+                        className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-red-300 transition cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
           <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
             {isServerView ? "Text Channels" : "Direct Messages"}
@@ -301,7 +471,7 @@ export default function CustomChannelList() {
             <button
               type="button"
               onClick={openNewDmModal}
-              title="New Direct Message"
+              title="Send DM Invite"
               className="p-1 rounded-md text-emerald-300/80 hover:text-emerald-50 hover:bg-emerald-500/20 transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -310,11 +480,11 @@ export default function CustomChannelList() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
-          {loading && filteredChannels.length === 0 ? (
+          {loading && activeList.length === 0 ? (
             <div className="px-3 py-4 text-xs text-emerald-300/50">
               Loading conversations...
             </div>
-          ) : filteredChannels.length === 0 ? (
+          ) : activeList.length === 0 ? (
             <div className="px-3 py-6 text-center rounded-xl bg-[#0b211a] border border-emerald-500/15 mx-1 mt-2">
               <MessageSquare className="w-5 h-5 text-emerald-400/60 mx-auto mb-1.5" />
               <p className="text-xs font-semibold text-emerald-100">
@@ -326,15 +496,19 @@ export default function CustomChannelList() {
                   onClick={openNewDmModal}
                   className="mt-2.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer"
                 >
-                  + Start a DM
+                  + Send DM Invite
                 </button>
               )}
             </div>
           ) : (
-            filteredChannels.map((ch) => {
+            activeList.map((ch) => {
               const label = getChannelDisplayName(ch);
               const isSelected = activeChannel?.id === ch.id;
               const unreadCount = ch.countUnread?.() || 0;
+              const isPendingOutgoing =
+                !isServerView &&
+                String(ch?.data?.invite_status || "") === "pending" &&
+                String(ch?.data?.invited_by || "") === currentUserId;
 
               return (
                 <button
@@ -363,7 +537,13 @@ export default function CustomChannelList() {
                     </div>
                     <div className="text-[10px] text-emerald-300/65 truncate flex items-center gap-1">
                       <Lock className="w-2.5 h-2.5 text-emerald-400/80 shrink-0" />
-                      <span>{isServerView ? "Encrypted channel" : "Encrypted DM"}</span>
+                      <span>
+                        {isServerView
+                          ? "Encrypted channel"
+                          : isPendingOutgoing
+                          ? "Invite sent · Pending"
+                          : "Encrypted DM"}
+                      </span>
                     </div>
                   </div>
 
@@ -408,7 +588,7 @@ export default function CustomChannelList() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-extrabold">New Direct Message</h3>
+                <h3 className="text-sm font-extrabold">Send DM Invite</h3>
               </div>
               <button
                 type="button"
@@ -451,7 +631,7 @@ export default function CustomChannelList() {
                 disabled={creatingDm || !dmTarget.trim()}
                 className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-45 text-white font-extrabold text-xs transition cursor-pointer"
               >
-                {creatingDm ? "Starting encrypted DM..." : "Start Encrypted DM"}
+                {creatingDm ? "Sending DM invite..." : "Send DM Invite"}
               </button>
             </form>
 
