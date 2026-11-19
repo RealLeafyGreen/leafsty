@@ -32,6 +32,8 @@ function parseKlipyPayload(data: any): KlipyGifItem[] {
         item?.file?.xs?.gif?.url ||
         item?.file?.md?.gif?.url ||
         item?.media_formats?.tinygif?.url ||
+        item?.media_formats?.nanogif?.url ||
+        item?.media_formats?.mediumgif?.url ||
         item?.media_formats?.gif?.url ||
         item?.images?.fixed_width_small?.url ||
         item?.url ||
@@ -42,12 +44,13 @@ function parseKlipyPayload(data: any): KlipyGifItem[] {
         item?.file?.hd?.gif?.url ||
         item?.file?.sm?.gif?.url ||
         item?.media_formats?.gif?.url ||
+        item?.media_formats?.mediumgif?.url ||
         item?.images?.original?.url ||
         previewUrl;
 
       return {
         id: String(item.id || item.slug || idx),
-        title: item.title || "GIF",
+        title: item.title || item.content_description || "GIF",
         previewUrl,
         fullUrl,
       };
@@ -73,16 +76,18 @@ export default function KlipyGifPicker({
 
         const apiKey = (process.env.NEXT_PUBLIC_KLIPY_API_KEY || "").trim();
         const trimmedQ = query.trim();
+        const attempts: string[] = [];
 
-        // 1. Try direct browser fetch to Klipy using NEXT_PUBLIC_KLIPY_API_KEY
         if (apiKey) {
           const encodedKey = encodeURIComponent(apiKey);
           const endpoints = trimmedQ
             ? [
+                `https://klipy.com{encodeURIComponent(trimmedQ)}&key=${encodedKey}&limit=24`,
                 `https://klipy.com{encodedKey}/gifs/search?q=${encodeURIComponent(trimmedQ)}&per_page=24&customer_id=leafsty`,
                 `https://klipy.co{encodedKey}/gifs/search?q=${encodeURIComponent(trimmedQ)}&per_page=24&customer_id=leafsty`,
               ]
             : [
+                `https://klipy.com{encodedKey}&limit=24`,
                 `https://klipy.com{encodedKey}/gifs/trending?per_page=24&customer_id=leafsty`,
                 `https://klipy.co{encodedKey}/gifs/trending?per_page=24&customer_id=leafsty`,
               ];
@@ -97,22 +102,28 @@ export default function KlipyGifPicker({
                   if (!cancelled) setGifs(parsed);
                   return;
                 }
+                attempts.push(`200 empty`);
+              } else {
+                attempts.push(`HTTP ${directRes.status}`);
               }
-            } catch {}
+            } catch (e: any) {
+              attempts.push(e?.message || "network error");
+            }
           }
         }
 
-        // 2. Fallback to /api/gifs server route
         const url = trimmedQ
           ? `/api/gifs?q=${encodeURIComponent(trimmedQ)}`
           : `/api/gifs`;
         const res = await fetch(url);
         const data = await res.json().catch(() => ({ gifs: [] }));
         if (!cancelled) {
-          if (!apiKey && data?.source === "fallback") {
+          if (!apiKey) {
             setErrorMsg(
-              "NEXT_PUBLIC_KLIPY_API_KEY not found in build — redeploy Vercel after saving env var."
+              "NEXT_PUBLIC_KLIPY_API_KEY is empty in this build (check Production env var in Vercel & redeploy)."
             );
+          } else if (attempts.length > 0) {
+            setErrorMsg(`Klipy debug: ${attempts.join(" · ")}`);
           }
           setGifs(Array.isArray(data?.gifs) ? data.gifs : []);
         }
