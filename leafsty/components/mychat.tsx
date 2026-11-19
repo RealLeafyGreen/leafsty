@@ -6,6 +6,7 @@ import ServerList from "./ServerList";
 import CustomChannelList from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
 import CustomMessageComposer from "./MessageList/MessageComposer/MessageComposer";
+import UserContextMenu, { ContextTargetUser } from "./UserContextMenu";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
   AtSign,
@@ -32,32 +33,39 @@ export default function MyChat() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
   const [localMessages, setLocalMessages] = useState<any[]>([]);
-  const [contextMenu, setContextMenu] = useState<{
+  const [targetUserMenu, setTargetUserMenu] = useState<{
+    user: ContextTargetUser;
+    position: { x: number; y: number };
+  } | null>(null);
+  const [msgMenu, setMsgMenu] = useState<{
     x: number;
     y: number;
-    type: "message" | "member";
-    data: any;
+    msg: any;
   } | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
 
   useEffect(() => {
-    const closeMenu = () => setContextMenu(null);
+    const closeMenus = () => setMsgMenu(null);
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setContextMenu(null);
+      if (e.key === "Escape") {
+        setMsgMenu(null);
+        setTargetUserMenu(null);
+      }
     };
-    window.addEventListener("click", closeMenu);
+    window.addEventListener("click", closeMenus);
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("click", closeMenus);
       window.removeEventListener("keydown", onKeyDown);
     };
   }, []);
   useEffect(() => {
     setReplyTo(null);
     setSearchQuery("");
-    setContextMenu(null);
+    setMsgMenu(null);
+    setTargetUserMenu(null);
     if (!activeChannel) {
       setLocalMessages([]);
       return;
@@ -149,6 +157,32 @@ export default function MyChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [localMessages.length, activeChannel?.id]);
+
+  const handleOpenDmWithUser = async (target: ContextTargetUser) => {
+    if (!client || !target?.id || target.id === currentUserId) return;
+    const sorted = [currentUserId, target.id].sort();
+    const dmId = `dm-${sorted.join("-")}`;
+    const ch = client.channel("messaging", dmId, {
+      members: sorted,
+    } as any);
+    await ch.watch({ state: true });
+    discordCtx?.setActiveChannel?.(ch);
+    window.dispatchEvent(new Event("leafsty:channels-updated"));
+  };
+
+  const handlePokeUser = async (target: ContextTargetUser) => {
+    if (!activeChannel || !target?.name) return;
+    await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channelType: activeChannel.type || "messaging",
+        channelId: activeChannel.id,
+        userId: currentUserId,
+        text: `👋 poked @${target.name}!`,
+      }),
+    }).catch(() => {});
+  };
 
   const channelTitle = useMemo(() => {
     if (!activeChannel) return "";
@@ -300,18 +334,31 @@ export default function MyChat() {
                       {visibleMessages.map((msg: any) => (
                         <div
                           key={msg.id}
-                          onContextMenuCapture={(e) => {
+                          onContextMenu={(e) => {
                             e.preventDefault();
-                            e.stopPropagation();
-                            setContextMenu({
+                            setTargetUserMenu(null);
+                            setMsgMenu({
                               x: Math.min(e.clientX, window.innerWidth - 200),
-                              y: Math.min(e.clientY, window.innerHeight - 180),
-                              type: "message",
-                              data: msg,
+                              y: Math.min(e.clientY, window.innerHeight - 160),
+                              msg,
                             });
                           }}
                         >
-                          <CustomMessage message={msg} onReply={setReplyTo} />
+                                                   <CustomMessage
+                            message={msg}
+                            onReply={setReplyTo}
+                            onSelectUser={(u) => {
+                              setMsgMenu(null);
+                              setTargetUserMenu({
+                                user: {
+                                  id: String(u?.id || ""),
+                                  name: u?.name || String(u?.id || "User"),
+                                  image: u?.image,
+                                },
+                                position: { x: 260, y: 220 },
+                              });
+                            }}
+                          />
                         </div>
                       ))}
                       <div ref={bottomRef} />
@@ -332,22 +379,25 @@ export default function MyChat() {
                   <div className="space-y-1.5">
                     {membersList.map((member: any, idx: number) => {
                       const mUser = member?.user || {};
+                      const mId = String(mUser.id || member?.user_id || "");
                       const mName = mUser.name || member?.user_id || "Member";
                       const mImg = mUser.image || "";
 
                       return (
                         <div
-                          key={mUser.id || member?.user_id || idx}
-                          onContextMenuCapture={(e) => {
+                          key={mId || idx}
+                          onContextMenu={(e) => {
                             e.preventDefault();
-                            e.stopPropagation();
-                            setContextMenu({
-                              x: Math.min(e.clientX, window.innerWidth - 200),
-                              y: Math.min(e.clientY, window.innerHeight - 140),
-                              type: "member",
-                              data: {
-                                id: String(mUser.id || member?.user_id || ""),
+                            setMsgMenu(null);
+                            setTargetUserMenu({
+                              user: {
+                                id: mId,
                                 name: mName,
+                                image: mImg,
+                              },
+                              position: {
+                                x: e.clientX,
+                                y: e.clientY,
                               },
                             });
                           }}
@@ -383,99 +433,82 @@ export default function MyChat() {
         )}
       </main>
 
-      {contextMenu && (
+      <UserContextMenu
+        user={targetUserMenu?.user || null}
+        position={targetUserMenu?.position || null}
+        onClose={() => setTargetUserMenu(null)}
+        onMessage={handleOpenDmWithUser}
+        onPoke={handlePokeUser}
+      />
+
+      {msgMenu && (
         <div
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          style={{ top: msgMenu.y, left: msgMenu.x }}
           onClick={(e) => e.stopPropagation()}
           className="fixed z-50 w-48 rounded-xl bg-[#061410] border border-emerald-500/30 shadow-2xl py-1.5 text-xs text-emerald-50 select-none"
         >
-          {contextMenu.type === "message" ? (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setReplyTo({
-                    id: contextMenu.data.id,
-                    text: contextMenu.data.text || "",
-                    userName:
-                      contextMenu.data.user?.name ||
-                      contextMenu.data.user?.id ||
-                      "User",
-                  });
-                  setContextMenu(null);
-                }}
-                className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
-              >
-                Reply
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(
-                    String(contextMenu.data.text || "")
-                  );
-                  setContextMenu(null);
-                }}
-                className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
-              >
-                Copy Message Text
-              </button>
-              {String(contextMenu.data.user?.id) === currentUserId && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const msgId = contextMenu.data.id;
-                    setContextMenu(null);
-                    setLocalMessages((prev) =>
-                      prev.filter((m) => m.id !== msgId)
-                    );
-                    try {
-                      await (client as any)?.deleteMessage?.(msgId);
-                    } catch {}
-                  }}
-                  className="w-full px-3 py-1.5 text-left text-red-300 hover:bg-red-500/20 cursor-pointer"
-                >
-                  Delete Message
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              {contextMenu.data.id &&
-                contextMenu.data.id !== currentUserId && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const peerId = contextMenu.data.id;
-                      setContextMenu(null);
-                      if (!client) return;
-                      const sorted = [currentUserId, peerId].sort();
-                      const dmId = `dm-${sorted.join("-")}`;
-                      const ch = client.channel("messaging", dmId, {
-                        members: sorted,
-                      } as any);
-                      await ch.watch({ state: true });
-                      discordCtx?.setActiveChannel?.(ch);
-                      window.dispatchEvent(
-                        new Event("leafsty:channels-updated")
-                      );
-                    }}
-                    className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 font-bold text-emerald-300 cursor-pointer"
-                  >
-                    Message {contextMenu.data.name}
-                  </button>
-                )}
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(contextMenu.data.id);
-                  setContextMenu(null);
-                }}
-                className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
-              >
-                Copy User ID
-              </button>
-            </>
+          <button
+            type="button"
+            onClick={() => {
+              setReplyTo({
+                id: msgMenu.msg.id,
+                text: msgMenu.msg.text || "",
+                userName:
+                  msgMenu.msg.user?.name ||
+                  msgMenu.msg.user?.id ||
+                  "User",
+              });
+              setMsgMenu(null);
+            }}
+            className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
+          >
+            Reply
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard?.writeText(String(msgMenu.msg.text || ""));
+              setMsgMenu(null);
+            }}
+            className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
+          >
+            Copy Message Text
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const u = msgMenu.msg.user || {};
+              setTargetUserMenu({
+                user: {
+                  id: String(u.id || ""),
+                  name: u.name || String(u.id || "User"),
+                  image: u.image,
+                },
+                position: { x: msgMenu.x, y: msgMenu.y },
+              });
+              setMsgMenu(null);
+            }}
+            className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 text-emerald-300 cursor-pointer"
+          >
+            User Options
+          </button>
+          {String(msgMenu.msg.user?.id) === currentUserId && (
+            <button
+              type="button"
+              onClick={async () => {
+                const msgId = msgMenu.msg.id;
+                setMsgMenu(null);
+                setLocalMessages((prev) =>
+                  prev.filter((m) => m.id !== msgId)
+                );
+                try {
+                  await (client as any)?.deleteMessage?.(msgId);
+                } catch {}
+              }}
+              className="w-full px-3 py-1.5 text-left text-red-300 hover:bg-red-500/20 cursor-pointer"
+            >
+              Delete Message
+            </button>
           )}
         </div>
       )}
