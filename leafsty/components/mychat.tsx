@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Channel, useChatContext } from "stream-chat-react";
 import ServerList from "./ServerList";
 import CustomChannelList from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
 import CustomMessageComposer from "./MessageList/MessageComposer/MessageComposer";
 import UserContextMenu, { ContextTargetUser } from "./UserContextMenu";
+import LeafstyCallStage from "./LeafstyCallStage";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
   AtSign,
@@ -33,6 +35,9 @@ export default function MyChat() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(true);
   const [localMessages, setLocalMessages] = useState<any[]>([]);
+  const [activeCall, setActiveCall] = useState<{
+    startWithVideo: boolean;
+  } | null>(null);
   const [targetUserMenu, setTargetUserMenu] = useState<{
     user: ContextTargetUser;
     position: { x: number; y: number };
@@ -66,6 +71,7 @@ export default function MyChat() {
     setSearchQuery("");
     setMsgMenu(null);
     setTargetUserMenu(null);
+    setActiveCall(null);
     if (!activeChannel) {
       setLocalMessages([]);
       return;
@@ -184,19 +190,22 @@ export default function MyChat() {
     }).catch(() => {});
   };
 
-  const channelTitle = useMemo(() => {
-    if (!activeChannel) return "";
-    if (activeChannel.data?.name) return activeChannel.data.name;
+  const { channelTitle, peerImage } = useMemo(() => {
+    if (!activeChannel) return { channelTitle: "", peerImage: undefined };
     const membersObj = activeChannel.state?.members || {};
     const other: any = Object.values(membersObj).find(
       (m: any) => String(m?.user?.id || m?.user_id) !== currentUserId
     );
-    return (
+    const title =
+      activeChannel.data?.name ||
       other?.user?.name ||
       other?.user_id ||
       activeChannel.id ||
-      "Encrypted Chat"
-    );
+      "Encrypted Chat";
+    return {
+      channelTitle: title,
+      peerImage: other?.user?.image,
+    };
   }, [activeChannel, currentUserId]);
 
   const membersList = useMemo(() => {
@@ -256,15 +265,37 @@ export default function MyChat() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() =>
+                    setActiveCall((prev) =>
+                      prev && !prev.startWithVideo
+                        ? null
+                        : { startWithVideo: false }
+                    )
+                  }
                   title="Voice Call"
-                  className="p-2 rounded-lg text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer"
+                  className={`p-2 rounded-lg transition cursor-pointer ${
+                    activeCall && !activeCall.startWithVideo
+                      ? "bg-emerald-600 text-white"
+                      : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
+                  }`}
                 >
                   <Phone className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
+                  onClick={() =>
+                    setActiveCall((prev) =>
+                      prev && prev.startWithVideo
+                        ? null
+                        : { startWithVideo: true }
+                    )
+                  }
                   title="Video Call"
-                  className="p-2 rounded-lg text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer"
+                  className={`p-2 rounded-lg transition cursor-pointer ${
+                    activeCall && activeCall.startWithVideo
+                      ? "bg-emerald-600 text-white"
+                      : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
+                  }`}
                 >
                   <Video className="w-4 h-4" />
                 </button>
@@ -303,6 +334,19 @@ export default function MyChat() {
               </div>
             </header>
 
+            {activeCall && (
+              <LeafstyCallStage
+                channel={activeChannel}
+                currentUserId={currentUserId}
+                currentUserImage={(client?.user as any)?.image}
+                peerName={isDm ? channelTitle : undefined}
+                peerImage={peerImage}
+                roomLabel={channelTitle}
+                startWithVideo={activeCall.startWithVideo}
+                onLeave={() => setActiveCall(null)}
+              />
+            )}
+
             <div className="flex-1 flex min-h-0">
               <div className="flex-1 flex flex-col min-w-0 h-full bg-[#0a1d17]">
                 <Channel channel={activeChannel}>
@@ -334,17 +378,18 @@ export default function MyChat() {
                       {visibleMessages.map((msg: any) => (
                         <div
                           key={msg.id}
-                          onContextMenu={(e) => {
+                          onContextMenuCapture={(e) => {
                             e.preventDefault();
+                            e.stopPropagation();
                             setTargetUserMenu(null);
                             setMsgMenu({
                               x: Math.min(e.clientX, window.innerWidth - 200),
-                              y: Math.min(e.clientY, window.innerHeight - 160),
+                              y: Math.min(e.clientY, window.innerHeight - 170),
                               msg,
                             });
                           }}
                         >
-                                                   <CustomMessage
+                          <CustomMessage
                             message={msg}
                             onReply={setReplyTo}
                             onSelectUser={(u) => {
@@ -386,8 +431,9 @@ export default function MyChat() {
                       return (
                         <div
                           key={mId || idx}
-                          onContextMenu={(e) => {
+                          onContextMenuCapture={(e) => {
                             e.preventDefault();
+                            e.stopPropagation();
                             setMsgMenu(null);
                             setTargetUserMenu({
                               user: {
@@ -396,8 +442,8 @@ export default function MyChat() {
                                 image: mImg,
                               },
                               position: {
-                                x: e.clientX,
-                                y: e.clientY,
+                                x: Math.min(e.clientX, window.innerWidth - 220),
+                                y: Math.min(e.clientY, window.innerHeight - 220),
                               },
                             });
                           }}
@@ -433,85 +479,91 @@ export default function MyChat() {
         )}
       </main>
 
-      <UserContextMenu
-        user={targetUserMenu?.user || null}
-        position={targetUserMenu?.position || null}
-        onClose={() => setTargetUserMenu(null)}
-        onMessage={handleOpenDmWithUser}
-        onPoke={handlePokeUser}
-      />
+      {typeof document !== "undefined" &&
+        createPortal(
+          <>
+            <UserContextMenu
+              user={targetUserMenu?.user || null}
+              position={targetUserMenu?.position || null}
+              onClose={() => setTargetUserMenu(null)}
+              onMessage={handleOpenDmWithUser}
+              onPoke={handlePokeUser}
+            />
 
-      {msgMenu && (
-        <div
-          style={{ top: msgMenu.y, left: msgMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-          className="fixed z-50 w-48 rounded-xl bg-[#061410] border border-emerald-500/30 shadow-2xl py-1.5 text-xs text-emerald-50 select-none"
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setReplyTo({
-                id: msgMenu.msg.id,
-                text: msgMenu.msg.text || "",
-                userName:
-                  msgMenu.msg.user?.name ||
-                  msgMenu.msg.user?.id ||
-                  "User",
-              });
-              setMsgMenu(null);
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
-          >
-            Reply
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              navigator.clipboard?.writeText(String(msgMenu.msg.text || ""));
-              setMsgMenu(null);
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
-          >
-            Copy Message Text
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const u = msgMenu.msg.user || {};
-              setTargetUserMenu({
-                user: {
-                  id: String(u.id || ""),
-                  name: u.name || String(u.id || "User"),
-                  image: u.image,
-                },
-                position: { x: msgMenu.x, y: msgMenu.y },
-              });
-              setMsgMenu(null);
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 text-emerald-300 cursor-pointer"
-          >
-            User Options
-          </button>
-          {String(msgMenu.msg.user?.id) === currentUserId && (
-            <button
-              type="button"
-              onClick={async () => {
-                const msgId = msgMenu.msg.id;
-                setMsgMenu(null);
-                setLocalMessages((prev) =>
-                  prev.filter((m) => m.id !== msgId)
-                );
-                try {
-                  await (client as any)?.deleteMessage?.(msgId);
-                } catch {}
-              }}
-              className="w-full px-3 py-1.5 text-left text-red-300 hover:bg-red-500/20 cursor-pointer"
-            >
-              Delete Message
-            </button>
-          )}
-        </div>
-      )}
+            {msgMenu && (
+              <div
+                style={{ top: msgMenu.y, left: msgMenu.x }}
+                onClick={(e) => e.stopPropagation()}
+                className="fixed z- w-48 rounded-xl bg-[#061410] border border-emerald-500/30 shadow-2xl py-1.5 text-xs text-emerald-50 select-none"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplyTo({
+                      id: msgMenu.msg.id,
+                      text: msgMenu.msg.text || "",
+                      userName:
+                        msgMenu.msg.user?.name ||
+                        msgMenu.msg.user?.id ||
+                        "User",
+                    });
+                    setMsgMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
+                >
+                  Reply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(String(msgMenu.msg.text || ""));
+                    setMsgMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 cursor-pointer"
+                >
+                  Copy Message Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = msgMenu.msg.user || {};
+                    setTargetUserMenu({
+                      user: {
+                        id: String(u.id || ""),
+                        name: u.name || String(u.id || "User"),
+                        image: u.image,
+                      },
+                      position: { x: msgMenu.x, y: msgMenu.y },
+                    });
+                    setMsgMenu(null);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-emerald-500/20 text-emerald-300 cursor-pointer"
+                >
+                  User Options
+                </button>
+                {String(msgMenu.msg.user?.id) === currentUserId && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const msgId = msgMenu.msg.id;
+                      setMsgMenu(null);
+                      setLocalMessages((prev) =>
+                        prev.filter((m) => m.id !== msgId)
+                      );
+                      try {
+                        await (client as any)?.deleteMessage?.(msgId);
+                      } catch {}
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-red-300 hover:bg-red-500/20 cursor-pointer"
+                  >
+                    Delete Message
+                  </button>
+                )}
+              </div>
+            )}
+          </>,
+          document.body
+        )}
     </div>
   );
 }
