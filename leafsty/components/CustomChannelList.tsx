@@ -28,7 +28,6 @@ export default function CustomChannelList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // New DM Modal state
   const [showNewDm, setShowNewDm] = useState(false);
   const [dmTarget, setDmTarget] = useState("");
   const [creatingDm, setCreatingDm] = useState(false);
@@ -43,10 +42,11 @@ export default function CustomChannelList() {
   useEffect(() => {
     if (!client || !currentUserId) return;
     let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const loadChannels = async () => {
+    const loadChannels = async (silent = false) => {
       try {
-        setLoading(true);
+        if (!silent) setLoading(true);
         const res = await fetch("/api/channel", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -84,20 +84,37 @@ export default function CustomChannelList() {
       } catch (err) {
         console.error("Failed to load channels:", err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && !silent) setLoading(false);
       }
     };
 
-    loadChannels();
+    loadChannels(false);
 
-    const handleManualRefresh = () => {
-      loadChannels();
+    const scheduleSilentRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        if (!cancelled) loadChannels(true);
+      }, 600);
     };
 
+    const handleManualRefresh = () => loadChannels(true);
+
+    client.on?.("notification.added_to_channel", scheduleSilentRefresh);
+    client.on?.("notification.message_new", scheduleSilentRefresh);
+    client.on?.("channel.visible", scheduleSilentRefresh);
     window.addEventListener("leafsty:channels-updated", handleManualRefresh);
+
+    const pollInterval = setInterval(() => {
+      if (!cancelled) loadChannels(true);
+    }, 15000);
 
     return () => {
       cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      clearInterval(pollInterval);
+      client.off?.("notification.added_to_channel", scheduleSilentRefresh);
+      client.off?.("notification.message_new", scheduleSilentRefresh);
+      client.off?.("channel.visible", scheduleSilentRefresh);
       window.removeEventListener("leafsty:channels-updated", handleManualRefresh);
     };
   }, [client, currentUserId, activeServer?.id]);
@@ -118,7 +135,10 @@ export default function CustomChannelList() {
   };
 
   const handleCreateDm = async (targetUsername?: string) => {
-    const raw = (targetUsername ?? dmTarget).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const raw = (targetUsername ?? dmTarget)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "");
     if (!raw || !client) {
       setDmError("Enter a valid username.");
       return;
@@ -133,7 +153,7 @@ export default function CustomChannelList() {
       setDmError(null);
 
       const sortedIds = [currentUserId, raw].sort();
-      const dmId = `dm-${sortedIds[0]}-${sortedIds[1]}`;
+      const dmId = `dm-${sortedIds}-${sortedIds}`;
 
       const res = await fetch("/api/channel", {
         method: "POST",
