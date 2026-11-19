@@ -45,9 +45,9 @@ export default function CustomMessageComposer({
     const tempId = `temp-${Date.now()}`;
     const nowIso = new Date().toISOString();
 
-    const optimisticMsg = {
+        const optimisticMsg = {
       id: tempId,
-      text: trimmed || (attachments.length > 0 ? "GIF" : ""),
+      text: trimmed,
       attachments,
       type: "regular",
       cid: channel.cid || `${channel.type || "messaging"}:${channel.id}`,
@@ -58,6 +58,7 @@ export default function CustomMessageComposer({
       },
       created_at: nowIso,
     };
+
 
     window.dispatchEvent(
       new CustomEvent("leafsty:message-sent", { detail: optimisticMsg })
