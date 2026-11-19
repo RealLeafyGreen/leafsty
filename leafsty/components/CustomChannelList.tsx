@@ -134,7 +134,7 @@ export default function CustomChannelList() {
     } catch {}
   };
 
-  const handleCreateDm = async (targetUsername?: string) => {
+    const handleCreateDm = async (targetUsername?: string) => {
     const raw = (targetUsername ?? dmTarget)
       .trim()
       .toLowerCase()
@@ -153,34 +153,39 @@ export default function CustomChannelList() {
       setDmError(null);
 
       const sortedIds = [currentUserId, raw].sort();
-      const dmId = `dm-${sortedIds}-${sortedIds}`;
+      const dmId = `dm-${sortedIds.join("-")}`;
 
-      const res = await fetch("/api/channel", {
+      // 1. Create & watch the 1-on-1 DM channel directly in Stream
+      const liveChannel = client.channel("messaging", dmId, {
+        members: sortedIds,
+      } as any);
+      await liveChannel.watch({ state: true, presence: true });
+
+      // 2. Also notify /api/channel so server-side channel listings stay synced
+      await fetch("/api/channel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "create",
+          type: "messaging",
           channelType: "messaging",
+          id: dmId,
           channelId: dmId,
           userId: currentUserId,
+          targetUserId: raw,
           members: sortedIds,
         }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || "Could not create DM");
-      }
-
-      const liveChannel = client.channel("messaging", dmId);
-      await liveChannel.watch({ state: true, presence: true });
+      }).catch(() => {});
 
       setShowNewDm(false);
       setDmTarget("");
+      setChannels((prev) =>
+        prev.some((c) => c.id === dmId) ? prev : [liveChannel, ...prev]
+      );
       setActiveChannel?.(liveChannel);
       window.dispatchEvent(new Event("leafsty:channels-updated"));
     } catch (err: any) {
-      setDmError(err?.message || "Could not start DM");
+      setDmError(err?.message || "User not found or could not start DM");
     } finally {
       setCreatingDm(false);
     }
