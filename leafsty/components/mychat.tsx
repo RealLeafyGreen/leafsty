@@ -300,8 +300,9 @@ export default function MyChat() {
                       {visibleMessages.map((msg: any) => (
                         <div
                           key={msg.id}
-                          onContextMenu={(e) => {
+                          onContextMenuCapture={(e) => {
                             e.preventDefault();
+                            e.stopPropagation();
                             setContextMenu({
                               x: Math.min(e.clientX, window.innerWidth - 200),
                               y: Math.min(e.clientY, window.innerHeight - 180),
@@ -337,8 +338,9 @@ export default function MyChat() {
                       return (
                         <div
                           key={mUser.id || member?.user_id || idx}
-                          onContextMenu={(e) => {
+                          onContextMenuCapture={(e) => {
                             e.preventDefault();
+                            e.stopPropagation();
                             setContextMenu({
                               x: Math.min(e.clientX, window.innerWidth - 200),
                               y: Math.min(e.clientY, window.innerHeight - 140),
@@ -428,7 +430,7 @@ export default function MyChat() {
                       prev.filter((m) => m.id !== msgId)
                     );
                     try {
-                      await (client as any)?.deleteMessage?.({ id: msgId });
+                      await (client as any)?.deleteMessage?.(msgId);
                     } catch {}
                   }}
                   className="w-full px-3 py-1.5 text-left text-red-300 hover:bg-red-500/20 cursor-pointer"
