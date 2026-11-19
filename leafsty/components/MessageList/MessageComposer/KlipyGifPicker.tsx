@@ -15,6 +15,46 @@ interface KlipyGifPickerProps {
   onClose: () => void;
 }
 
+function parseKlipyPayload(data: any): KlipyGifItem[] {
+  const rawItems =
+    data?.data?.data ||
+    data?.data?.items ||
+    data?.data ||
+    data?.results ||
+    (Array.isArray(data) ? data : []);
+
+  if (!Array.isArray(rawItems)) return [];
+
+  return rawItems
+    .map((item: any, idx: number) => {
+      const previewUrl =
+        item?.file?.sm?.gif?.url ||
+        item?.file?.xs?.gif?.url ||
+        item?.file?.md?.gif?.url ||
+        item?.media_formats?.tinygif?.url ||
+        item?.media_formats?.gif?.url ||
+        item?.images?.fixed_width_small?.url ||
+        item?.url ||
+        "";
+
+      const fullUrl =
+        item?.file?.md?.gif?.url ||
+        item?.file?.hd?.gif?.url ||
+        item?.file?.sm?.gif?.url ||
+        item?.media_formats?.gif?.url ||
+        item?.images?.original?.url ||
+        previewUrl;
+
+      return {
+        id: String(item.id || item.slug || idx),
+        title: item.title || "GIF",
+        previewUrl,
+        fullUrl,
+      };
+    })
+    .filter((g: KlipyGifItem) => Boolean(g.fullUrl));
+}
+
 export default function KlipyGifPicker({
   onSelectGif,
   onClose,
@@ -30,20 +70,55 @@ export default function KlipyGifPicker({
       try {
         setLoading(true);
         setErrorMsg(null);
-        const url = query.trim()
-          ? `/api/gifs?q=${encodeURIComponent(query.trim())}`
+
+        const apiKey = (process.env.NEXT_PUBLIC_KLIPY_API_KEY || "").trim();
+        const trimmedQ = query.trim();
+
+        // 1. Try direct browser fetch to Klipy using NEXT_PUBLIC_KLIPY_API_KEY
+        if (apiKey) {
+          const encodedKey = encodeURIComponent(apiKey);
+          const endpoints = trimmedQ
+            ? [
+                `https://klipy.com{encodedKey}/gifs/search?q=${encodeURIComponent(trimmedQ)}&per_page=24&customer_id=leafsty`,
+                `https://klipy.co{encodedKey}/gifs/search?q=${encodeURIComponent(trimmedQ)}&per_page=24&customer_id=leafsty`,
+              ]
+            : [
+                `https://klipy.com{encodedKey}/gifs/trending?per_page=24&customer_id=leafsty`,
+                `https://klipy.co{encodedKey}/gifs/trending?per_page=24&customer_id=leafsty`,
+              ];
+
+          for (const ep of endpoints) {
+            try {
+              const directRes = await fetch(ep);
+              if (directRes.ok) {
+                const json = await directRes.json();
+                const parsed = parseKlipyPayload(json);
+                if (parsed.length > 0) {
+                  if (!cancelled) setGifs(parsed);
+                  return;
+                }
+              }
+            } catch {}
+          }
+        }
+
+        // 2. Fallback to /api/gifs server route
+        const url = trimmedQ
+          ? `/api/gifs?q=${encodeURIComponent(trimmedQ)}`
           : `/api/gifs`;
         const res = await fetch(url);
         const data = await res.json().catch(() => ({ gifs: [] }));
         if (!cancelled) {
-          if (!res.ok && data?.error) {
-            setErrorMsg(data.error);
+          if (!apiKey && data?.source === "fallback") {
+            setErrorMsg(
+              "NEXT_PUBLIC_KLIPY_API_KEY not found in build — redeploy Vercel after saving env var."
+            );
           }
           setGifs(Array.isArray(data?.gifs) ? data.gifs : []);
         }
       } catch (err: any) {
         if (!cancelled) {
-          setErrorMsg(err?.message || "Failed to load GIFs");
+          setErrorMsg(err?.message || "Failed to load Klipy GIFs");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -90,15 +165,17 @@ export default function KlipyGifPicker({
         </button>
       </div>
 
+      {errorMsg && (
+        <div className="px-3 py-1.5 bg-amber-500/15 border-b border-amber-500/25 text-[11px] text-amber-200">
+          {errorMsg}
+        </div>
+      )}
+
       <div className="h-64 overflow-y-auto p-2">
         {loading ? (
           <div className="h-full flex items-center justify-center text-xs text-emerald-300/60 gap-2">
             <Sparkles className="w-4 h-4 animate-pulse text-emerald-400" />
             <span>Loading Klipy GIFs...</span>
-          </div>
-        ) : errorMsg ? (
-          <div className="h-full flex items-center justify-center text-xs text-red-300 text-center px-4">
-            {errorMsg}
           </div>
         ) : gifs.length === 0 ? (
           <div className="h-full flex items-center justify-center text-xs text-emerald-300/60 text-center px-4">
