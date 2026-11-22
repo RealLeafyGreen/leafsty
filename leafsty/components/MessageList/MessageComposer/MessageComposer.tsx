@@ -109,19 +109,18 @@ export default function CustomMessageComposer({
         throw new Error(data?.error || `Send failed (${res.status})`);
       }
 
-   if (data?.message) {
-     window.dispatchEvent(
-       new CustomEvent("leafsty:message-sent", {
-         detail: { ...data.message, _replaceId: tempId },
-       })
-     );
-   }
-       } catch (err: any) {
+        if (data?.message) {
+        window.dispatchEvent(
+          new CustomEvent("leafsty:message-sent", {
+            detail: { ...data.message, _replaceId: tempId },
+          })
+        );
+      }
+    } catch (err: any) {
       console.error("Failed to send message:", err);
       setSendError(err?.message || "Could not send message");
     }
   };
-
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setShowEmojiPicker(false);

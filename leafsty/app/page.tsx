@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Chat, useCreateChatClient } from "stream-chat-react";
 import MyChat from "../components/mychat";
+import LandingPage from "../components/landingPage";
 import { DiscordContextProvider } from "../types/DiscordContext";
 import { Lock, Eye, EyeOff, ArrowRight, RotateCcw } from "lucide-react";
 
@@ -11,6 +12,7 @@ interface SavedUser {
   name: string;
   image?: string;
 }
+
 function LeafstyEyesLoader({
   label = "Connecting to Leafsty...",
   error,
@@ -33,11 +35,9 @@ function LeafstyEyesLoader({
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none px-4">
       <div className="relative w-24 h-24 rounded-3xl bg-[#0b211a] border border-emerald-400/35 shadow-2xl shadow-emerald-950/90 flex items-center justify-center gap-3 mb-6">
         <span className="absolute -inset-1 rounded-3xl border border-emerald-400/20 animate-ping pointer-events-none" />
-        {/* Left Animated Eye */}
         <div className="w-6 h-8 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shadow-inner">
           <div className="w-3 h-4 rounded-full bg-[#04120e] animate-bounce" />
         </div>
-        {/* Right Animated Eye */}
         <div className="w-6 h-8 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shadow-inner">
           <div className="w-3 h-4 rounded-full bg-[#04120e] animate-bounce [animation-delay:150ms]" />
         </div>
@@ -82,7 +82,6 @@ function LeafstyEyesLoader({
     </div>
   );
 }
-
 function ConnectedWorkspace({
   currentUser,
   onLogout,
@@ -166,16 +165,16 @@ function ConnectedWorkspace({
 }
 
 export default function HomePage() {
-  const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<SavedUser | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
 
-  const [mode, setMode] = useState<"login" | "register" | "reset">("login");
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -183,9 +182,9 @@ export default function HomePage() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed?.id) {
-          setSavedUser({
+          setCurrentUser({
             id: String(parsed.id),
-            name: parsed.name || String(parsed.id),
+            name: String(parsed.name || parsed.id),
             image: parsed.image,
           });
         }
@@ -194,99 +193,120 @@ export default function HomePage() {
     setHydrated(true);
   }, []);
 
+  const handleLogout = useCallback(() => {
+    try {
+      localStorage.removeItem("leafsty_user");
+    } catch {}
+    setCurrentUser(null);
+    setShowAuth(false);
+    setPassword("");
+    setAuthError(null);
+  }, []);
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg(null);
-    setSuccessMsg(null);
+    const cleanId = username
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "");
 
-    const cleanId = username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
-    if (!cleanId || password.trim().length < 4) {
-      setErrorMsg("Enter a valid username and at least 4 characters for password.");
+    if (!cleanId) {
+      setAuthError("Enter a valid username (letters, numbers, _ or -).");
+      return;
+    }
+    if (!password.trim()) {
+      setAuthError("Enter your password.");
       return;
     }
 
     try {
       setSubmitting(true);
-
-      if (mode === "reset") {
-        const res = await fetch("/api/reset-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: cleanId,
-            newPassword: password.trim(),
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data?.error || "Could not reset password");
-        }
-        setSuccessMsg("Password updated! You can now sign in.");
-        setMode("login");
-        return;
-      }
+      setAuthError(null);
 
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: mode,
           username: cleanId,
-          userId: cleanId,
-          name: username.trim(),
+          name: username.trim() || cleanId,
           password: password.trim(),
-          mode,
         }),
       });
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.error || "Authentication failed");
       }
 
-      const nextUser: SavedUser = {
-        id: cleanId,
-        name: data?.user?.name || username.trim(),
+      const userObj: SavedUser = {
+        id: String(data?.user?.id || cleanId),
+        name: String(data?.user?.name || username.trim() || cleanId),
         image: data?.user?.image,
       };
-      localStorage.setItem("leafsty_user", JSON.stringify(nextUser));
-      setSavedUser(nextUser);
+
+      localStorage.setItem("leafsty_user", JSON.stringify(userObj));
+      setCurrentUser(userObj);
     } catch (err: any) {
-      setErrorMsg(err?.message || "Something went wrong");
+      setAuthError(err?.message || "Could not sign in");
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("leafsty_user");
-    setSavedUser(null);
   };
 
   if (!hydrated) {
     return <LeafstyEyesLoader label="Loading Leafsty..." />;
   }
 
-  if (savedUser) {
-    return <ConnectedWorkspace currentUser={savedUser} onLogout={handleLogout} />;
+  if (currentUser) {
+    return (
+      <ConnectedWorkspace currentUser={currentUser} onLogout={handleLogout} />
+    );
+  }
+
+  if (!showAuth) {
+    const LandingAny = LandingPage as any;
+    return (
+      <LandingAny
+        onGetStarted={() => setShowAuth(true)}
+        onSignIn={() => setShowAuth(true)}
+        onEnter={() => setShowAuth(true)}
+        onStart={() => setShowAuth(true)}
+        onLogin={() => setShowAuth(true)}
+      />
+    );
   }
 
   return (
     <div className="min-h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-50 p-4">
-      <div className="w-full max-w-md rounded-3xl bg-[#081914] border border-emerald-500/20 p-7 shadow-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center shadow-lg">
-            L
+      <div className="w-full max-w-md rounded-3xl bg-[#081914] border border-emerald-500/25 p-7 shadow-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center shadow-lg">
+              L
+            </div>
+            <div>
+              <h1 className="text-lg font-extrabold text-emerald-50">
+                {mode === "login" ? "Welcome back" : "Create your account"}
+              </h1>
+              <p className="text-xs text-emerald-300/70 flex items-center gap-1">
+                <Lock className="w-3 h-3 text-emerald-400" />
+                <span>End-to-End Encrypted Leafsty</span>
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-emerald-50">Leafsty</h1>
-            <p className="text-xs text-emerald-300/70 flex items-center gap-1">
-              <Lock className="w-3 h-3 text-emerald-400" /> Encrypted Workspace
-            </p>
-          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAuth(false)}
+            className="text-xs font-bold text-emerald-300/70 hover:text-emerald-100 cursor-pointer"
+          >
+            ← Back
+          </button>
         </div>
 
         <form onSubmit={handleAuthSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-emerald-300/80 mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-300/75 mb-1.5">
               Username
             </label>
             <input
@@ -294,43 +314,40 @@ export default function HomePage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. leafygreen"
-              required
+              autoFocus
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-emerald-300/80 mb-1.5">
-              {mode === "reset" ? "New Password" : "Password"}
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-300/75 mb-1.5">
+              Password
             </label>
             <div className="relative">
               <input
-                type={showPw ? "text" : "password"}
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                required
                 className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
               />
               <button
                 type="button"
-                onClick={() => setShowPw((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100 cursor-pointer"
               >
-                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
 
-          {errorMsg && (
-            <div className="px-3.5 py-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300">
-              {errorMsg}
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300">
-              {successMsg}
+          {authError && (
+            <div className="px-3.5 py-2 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300">
+              {authError}
             </div>
           )}
 
@@ -341,42 +358,44 @@ export default function HomePage() {
           >
             <span>
               {submitting
-                ? "Please wait..."
+                ? "Connecting..."
                 : mode === "login"
-                ? "Sign in to workspace"
-                : mode === "register"
-                ? "Create encrypted account"
-                : "Reset password"}
+                ? "Sign In"
+                : "Create Account"}
             </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        <div className="mt-5 pt-4 border-t border-emerald-500/15 flex items-center justify-between text-xs text-emerald-300/75">
-          <button
-            type="button"
-            onClick={() => {
-              setErrorMsg(null);
-              setSuccessMsg(null);
-              setMode(mode === "login" ? "register" : "login");
-            }}
-            className="hover:text-emerald-100 underline cursor-pointer"
-          >
-            {mode === "login" ? "Create an account" : "Back to sign in"}
-          </button>
-
-          {mode !== "reset" && (
-            <button
-              type="button"
-              onClick={() => {
-                setErrorMsg(null);
-                setSuccessMsg(null);
-                setMode("reset");
-              }}
-              className="inline-flex items-center gap-1 hover:text-emerald-100 cursor-pointer"
-            >
-              <RotateCcw className="w-3 h-3" /> Forgot password?
-            </button>
+        <div className="mt-5 pt-4 border-t border-emerald-500/15 text-center text-xs text-emerald-300/75">
+          {mode === "login" ? (
+            <>
+              New to Leafsty?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("register");
+                  setAuthError(null);
+                }}
+                className="font-bold text-emerald-300 hover:underline cursor-pointer"
+              >
+                Create an account
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setAuthError(null);
+                }}
+                className="font-bold text-emerald-300 hover:underline cursor-pointer"
+              >
+                Sign in
+              </button>
+            </>
           )}
         </div>
       </div>
