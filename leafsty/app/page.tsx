@@ -169,12 +169,16 @@ export default function HomePage() {
   const [hydrated, setHydrated] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "register" | "reset">("login");
+  const [authFields, setAuthFields] = useState({
+    username: "",
+    password: "",
+    newPassword: "",
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -199,12 +203,13 @@ export default function HomePage() {
     } catch {}
     setCurrentUser(null);
     setShowAuth(false);
-    setPassword("");
+    setAuthFields({ username: "", password: "", newPassword: "" });
     setAuthError(null);
+    setAuthNotice(null);
   }, []);
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanId = username
+    const cleanId = authFields.username
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9_-]/g, "");
@@ -213,7 +218,44 @@ export default function HomePage() {
       setAuthError("Enter a valid username (letters, numbers, _ or -).");
       return;
     }
-    if (!password.trim()) {
+
+    if (mode === "reset") {
+      if (!authFields.newPassword.trim() || authFields.newPassword.length < 4) {
+        setAuthError("Enter a new password (at least 4 characters).");
+        return;
+      }
+      try {
+        setSubmitting(true);
+        setAuthError(null);
+        setAuthNotice(null);
+
+        const res = await fetch("/api/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: cleanId,
+            userId: cleanId,
+            currentPassword: authFields.password.trim(),
+            oldPassword: authFields.password.trim(),
+            newPassword: authFields.newPassword.trim(),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || "Could not reset password.");
+        }
+        setAuthNotice("Password updated! You can now sign in with your new password.");
+        setAuthFields((p) => ({ ...p, password: "", newPassword: "" }));
+        setMode("login");
+      } catch (err: any) {
+        setAuthError(err?.message || "Password reset failed.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    if (!authFields.password.trim()) {
       setAuthError("Enter your password.");
       return;
     }
@@ -221,6 +263,7 @@ export default function HomePage() {
     try {
       setSubmitting(true);
       setAuthError(null);
+      setAuthNotice(null);
 
       const res = await fetch("/api/register", {
         method: "POST",
@@ -228,8 +271,8 @@ export default function HomePage() {
         body: JSON.stringify({
           action: mode,
           username: cleanId,
-          name: username.trim() || cleanId,
-          password: password.trim(),
+          name: authFields.username.trim() || cleanId,
+          password: authFields.password.trim(),
         }),
       });
 
@@ -240,7 +283,7 @@ export default function HomePage() {
 
       const userObj: SavedUser = {
         id: String(data?.user?.id || cleanId),
-        name: String(data?.user?.name || username.trim() || cleanId),
+        name: String(data?.user?.name || authFields.username.trim() || cleanId),
         image: data?.user?.image,
       };
 
@@ -275,7 +318,6 @@ export default function HomePage() {
       />
     );
   }
-
   return (
     <div className="min-h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-50 p-4">
       <div className="w-full max-w-md rounded-3xl bg-[#081914] border border-emerald-500/25 p-7 shadow-2xl">
@@ -286,7 +328,11 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="text-lg font-extrabold text-emerald-50">
-                {mode === "login" ? "Welcome back" : "Create your account"}
+                {mode === "login"
+                  ? "Welcome back"
+                  : mode === "register"
+                  ? "Create your account"
+                  : "Reset password"}
               </h1>
               <p className="text-xs text-emerald-300/70 flex items-center gap-1">
                 <Lock className="w-3 h-3 text-emerald-400" />
@@ -311,8 +357,10 @@ export default function HomePage() {
             </label>
             <input
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={authFields.username}
+              onChange={(e) =>
+                setAuthFields((p) => ({ ...p, username: e.target.value }))
+              }
               placeholder="e.g. leafygreen"
               autoFocus
               className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
@@ -320,14 +368,31 @@ export default function HomePage() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-300/75 mb-1.5">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-300/75">
+                {mode === "reset" ? "Current Password (if known)" : "Password"}
+              </label>
+              {mode === "login" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("reset");
+                    setAuthError(null);
+                    setAuthNotice(null);
+                  }}
+                  className="text-[11px] font-bold text-emerald-300 hover:underline cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={authFields.password}
+                onChange={(e) =>
+                  setAuthFields((p) => ({ ...p, password: e.target.value }))
+                }
                 placeholder="••••••••"
                 className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
               />
@@ -345,9 +410,35 @@ export default function HomePage() {
             </div>
           </div>
 
+          {mode === "reset" && (
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-300/75 mb-1.5">
+                New Password
+              </label>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={authFields.newPassword}
+                onChange={(e) =>
+                  setAuthFields((p) => ({
+                    ...p,
+                    newPassword: e.target.value,
+                  }))
+                }
+                placeholder="Enter new password"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+              />
+            </div>
+          )}
+
           {authError && (
             <div className="px-3.5 py-2 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300">
               {authError}
+            </div>
+          )}
+
+          {authNotice && (
+            <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-xs text-emerald-200">
+              {authNotice}
             </div>
           )}
 
@@ -358,10 +449,12 @@ export default function HomePage() {
           >
             <span>
               {submitting
-                ? "Connecting..."
+                ? "Please wait..."
                 : mode === "login"
                 ? "Sign In"
-                : "Create Account"}
+                : mode === "register"
+                ? "Create Account"
+                : "Reset Password"}
             </span>
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -376,6 +469,7 @@ export default function HomePage() {
                 onClick={() => {
                   setMode("register");
                   setAuthError(null);
+                  setAuthNotice(null);
                 }}
                 className="font-bold text-emerald-300 hover:underline cursor-pointer"
               >
@@ -384,21 +478,22 @@ export default function HomePage() {
             </>
           ) : (
             <>
-              Already have an account?{" "}
+              Remembered your password?{" "}
               <button
                 type="button"
                 onClick={() => {
                   setMode("login");
                   setAuthError(null);
+                  setAuthNotice(null);
                 }}
                 className="font-bold text-emerald-300 hover:underline cursor-pointer"
               >
-                Sign in
+                Back to sign in
               </button>
             </>
           )}
         </div>
       </div>
     </div>
-    );
+  );
 }

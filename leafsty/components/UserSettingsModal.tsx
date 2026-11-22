@@ -10,6 +10,7 @@ import {
   Copy,
   Lock,
   Sparkles,
+  KeyRound,
 } from "lucide-react";
 
 type SettingsTab = "profile" | "privacy" | "account";
@@ -39,6 +40,17 @@ export default function UserSettingsModal({
     status: "Encrypted · Online",
     bio: "",
   });
+  const [pwForm, setPwForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [pwStatus, setPwStatus] = useState<{
+    loading: boolean;
+    error: string | null;
+    success: boolean;
+  }>({ loading: false, error: null, success: false });
+
   const [saving, setSaving] = useState(false);
   const [savedBanner, setSavedBanner] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -51,6 +63,12 @@ export default function UserSettingsModal({
       status: sourceUser.status || "Encrypted · Online",
       bio: sourceUser.bio || "",
     });
+    setPwForm({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setPwStatus({ loading: false, error: null, success: false });
     setSavedBanner(false);
   }, [
     isOpen,
@@ -80,6 +98,57 @@ export default function UserSettingsModal({
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwForm.newPassword.trim() || pwForm.newPassword.length < 4) {
+      setPwStatus({
+        loading: false,
+        error: "New password must be at least 4 characters.",
+        success: false,
+      });
+      return;
+    }
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      setPwStatus({
+        loading: false,
+        error: "New passwords do not match.",
+        success: false,
+      });
+      return;
+    }
+
+    try {
+      setPwStatus({ loading: true, error: null, success: false });
+      const res = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: userId,
+          userId,
+          currentPassword: pwForm.currentPassword,
+          oldPassword: pwForm.currentPassword,
+          newPassword: pwForm.newPassword.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Could not update password.");
+      }
+      setPwForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setPwStatus({ loading: false, error: null, success: true });
+    } catch (err: any) {
+      setPwStatus({
+        loading: false,
+        error: err?.message || "Password reset failed.",
+        success: false,
+      });
+    }
+  };
+
   const handleLogoutToLanding = () => {
     try {
       localStorage.removeItem("leafsty_user");
@@ -101,7 +170,7 @@ export default function UserSettingsModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-3xl bg-[#081914] border border-emerald-500/25 shadow-2xl overflow-hidden flex flex-col sm:flex-row min-h-[420px]"
+        className="w-full max-w-2xl rounded-3xl bg-[#081914] border border-emerald-500/25 shadow-2xl overflow-hidden flex flex-col sm:flex-row min-h-[440px]"
       >
         <aside className="w-full sm:w-48 bg-[#061410] border-b sm:border-b-0 sm:border-r border-emerald-500/15 p-3 flex flex-col justify-between shrink-0">
           <div>
@@ -169,7 +238,7 @@ export default function UserSettingsModal({
                   ? "Edit Leafsty Profile"
                   : activeTab === "privacy"
                   ? "End-to-End Encryption"
-                  : "Account & Session"}
+                  : "Account, Password & Session"}
               </h2>
               <button
                 type="button"
@@ -283,8 +352,8 @@ export default function UserSettingsModal({
             )}
 
             {activeTab === "account" && (
-              <div className="space-y-4 text-xs">
-                <div className="p-3.5 rounded-2xl bg-[#0d261e] border border-emerald-500/20 flex items-center justify-between gap-3">
+              <div className="space-y-3.5 text-xs">
+                <div className="p-3 rounded-2xl bg-[#0d261e] border border-emerald-500/20 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/60">
                       Your Leafsty Username / ID
@@ -312,7 +381,74 @@ export default function UserSettingsModal({
                   </button>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-center justify-between gap-3">
+                <form
+                  onSubmit={handleResetPassword}
+                  className="p-3.5 rounded-2xl bg-[#0d261e] border border-emerald-500/20 space-y-2.5"
+                >
+                  <div className="flex items-center gap-2 font-extrabold text-emerald-50">
+                    <KeyRound className="w-4 h-4 text-emerald-400" />
+                    <span>Reset Password</span>
+                  </div>
+
+                  <input
+                    type="password"
+                    value={pwForm.currentPassword}
+                    onChange={(e) =>
+                      setPwForm((p) => ({
+                        ...p,
+                        currentPassword: e.target.value,
+                      }))
+                    }
+                    placeholder="Current password"
+                    className="w-full px-3 py-1.5 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="password"
+                      value={pwForm.newPassword}
+                      onChange={(e) =>
+                        setPwForm((p) => ({
+                          ...p,
+                          newPassword: e.target.value,
+                        }))
+                      }
+                      placeholder="New password"
+                      className="w-full px-3 py-1.5 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+                    />
+                    <input
+                      type="password"
+                      value={pwForm.confirmPassword}
+                      onChange={(e) =>
+                        setPwForm((p) => ({
+                          ...p,
+                          confirmPassword: e.target.value,
+                        }))
+                      }
+                      placeholder="Confirm new password"
+                      className="w-full px-3 py-1.5 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  {pwStatus.error && (
+                    <p className="text-[11px] text-red-300">{pwStatus.error}</p>
+                  )}
+                  {pwStatus.success && (
+                    <p className="text-[11px] text-emerald-300 font-bold">
+                      Password updated successfully!
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={pwStatus.loading}
+                    className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs transition cursor-pointer"
+                  >
+                    {pwStatus.loading ? "Updating..." : "Update Password"}
+                  </button>
+                </form>
+
+                <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-center justify-between gap-3">
                   <div>
                     <div className="font-extrabold text-red-200">
                       Sign Out of Leafsty
