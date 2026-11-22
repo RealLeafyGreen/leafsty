@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "TwemojiMozilla";
+  src: url("https://jsdelivr.net") format("woff2"),
+       url("https://unpkg.com") format("woff2");
+  font-display: swap;
+}
+
+body, input, textarea, button {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "TwemojiMozilla", sans-serif !important;
+}
+
 /* Smooth Circle-to-Squircle Morph */
 .rounded-icon {
   border-radius: 50%;
