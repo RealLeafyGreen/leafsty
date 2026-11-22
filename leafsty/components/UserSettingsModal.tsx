@@ -33,11 +33,11 @@ export default function UserSettingsModal({
   const userId = String(sourceUser.id || "");
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
-  const [name, setName] = useState("");
-  const = useState("");
-  const [status, setStatus] = useState("Encrypted · Online");
-  const [bio, setBio] = useState("");
-  const [saving, setSaving] = useState(false);
+const [name, setName] = useState("");
+const = useState("");
+const [status, setStatus] = useState("Encrypted · Online");
+const [bio, setBio] = useState("");
+const [saving, setSaving] = useState(false);
   const [savedBanner, setSavedBanner] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
