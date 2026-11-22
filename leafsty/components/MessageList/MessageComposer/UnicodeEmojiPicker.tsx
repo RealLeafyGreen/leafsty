@@ -1,7 +1,19 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, X, Clock, Smile, Hand, Leaf, Pizza, Gamepad2, Lightbulb, Hash, Flag } from "lucide-react";
+import {
+  Search,
+  X,
+  Clock,
+  Smile,
+  Hand,
+  Leaf,
+  Pizza,
+  Gamepad2,
+  Lightbulb,
+  Hash,
+  Flag,
+} from "lucide-react";
 
 export interface UnicodeEmojiItem {
   char: string;
@@ -26,75 +38,42 @@ const SKIN_TONES = [
 ];
 
 const RECENT_KEY = "leafsty_recent_emojis";
-const CACHE_KEY = "leafsty_unicode_catalog_v1";
+const CACHE_KEY = "leafsty_unicode_v18_catalog";
 
 const SEED_EMOJIS: UnicodeEmojiItem[] = [
-  { char: "😀", name: "grinning face happy smile", shortcode: "grinning", category: "Smileys" },
-  { char: "😂", name: "face with tears of joy laugh lol", shortcode: "joy", category: "Smileys" },
+  { char: "😀", name: "grinning face happy smile", shortcode: "grinning_face", category: "Smileys" },
+  { char: "😂", name: "face with tears of joy laugh lol", shortcode: "face_with_tears_of_joy", category: "Smileys" },
   { char: "🥹", name: "face holding back tears proud", shortcode: "face_holding_back_tears", category: "Smileys" },
-  { char: "😍", name: "smiling face with heart eyes love", shortcode: "heart_eyes", category: "Smileys" },
-  { char: "😎", name: "smiling face with sunglasses cool", shortcode: "sunglasses", category: "Smileys" },
-  { char: "🥳", name: "partying face celebrate birthday", shortcode: "partying_face", category: "Smileys" },
-  { char: "🤔", name: "thinking face hmm", shortcode: "thinking", category: "Smileys" },
-  { char: "😴", name: "sleeping face tired zzz", shortcode: "sleeping", category: "Smileys" },
-  { char: "😭", name: "loudly crying face sob sad", shortcode: "sob", category: "Smileys" },
-  { char: "😱", name: "face screaming in fear shocked", shortcode: "scream", category: "Smileys" },
+  { char: "😍", name: "smiling face with heart-eyes love", shortcode: "smiling_face_with_heart_eyes", category: "Smileys" },
+  { char: "😎", name: "smiling face with sunglasses cool", shortcode: "smiling_face_with_sunglasses", category: "Smileys" },
+  { char: "🥳", name: "partying face celebrate", shortcode: "partying_face", category: "Smileys" },
+  { char: "🤔", name: "thinking face hmm", shortcode: "thinking_face", category: "Smileys" },
+  { char: "😭", name: "loudly crying face sob sad", shortcode: "loudly_crying_face", category: "Smileys" },
   { char: "🤯", name: "exploding head mind blown", shortcode: "exploding_head", category: "Smileys" },
-  { char: "🥶", name: "cold face freezing", shortcode: "cold_face", category: "Smileys" },
-  { char: "🥵", name: "hot face sweating", shortcode: "hot_face", category: "Smileys" },
-  { char: "🤡", name: "clown face", shortcode: "clown", category: "Smileys" },
-  { char: "👻", name: "ghost spooky halloween", shortcode: "ghost", category: "Smileys" },
-  { char: "💀", name: "skull dead skeleton", shortcode: "skull", category: "Smileys" },
+  { char: "💀", name: "skull dead", shortcode: "skull", category: "Smileys" },
   { char: "🫠", name: "melting face", shortcode: "melting_face", category: "Smileys" },
-  { char: "🫡", name: "saluting face respect", shortcode: "saluting_face", category: "Smileys" },
-  { char: "👍", name: "thumbs up like yes approve", shortcode: "thumbsup", category: "People", skinTones: true },
-  { char: "👎", name: "thumbs down dislike no", shortcode: "thumbsdown", category: "People", skinTones: true },
-  { char: "👏", name: "clapping hands applause", shortcode: "clap", category: "People", skinTones: true },
-  { char: "🙌", name: "raising hands hooray celebrate", shortcode: "raised_hands", category: "People", skinTones: true },
-  { char: "🤝", name: "handshake deal agree", shortcode: "handshake", category: "People" },
-  { char: "✌️", name: "victory hand peace", shortcode: "v", category: "People", skinTones: true },
-  { char: "🤞", name: "crossed fingers luck", shortcode: "crossed_fingers", category: "People", skinTones: true },
-  { char: "🫶", name: "heart hands love", shortcode: "heart_hands", category: "People", skinTones: true },
-  { char: "👋", name: "waving hand hello hi bye", shortcode: "wave", category: "People", skinTones: true },
-  { char: "💪", name: "flexed biceps strong muscle", shortcode: "muscle", category: "People", skinTones: true },
-  { char: "🙏", name: "folded hands pray please thanks", shortcode: "pray", category: "People", skinTones: true },
-  { char: "👀", name: "eyes look watching see", shortcode: "eyes", category: "People" },
+  { char: "🫡", name: "saluting face", shortcode: "saluting_face", category: "Smileys" },
+  { char: "👋", name: "waving hand hello hi bye", shortcode: "waving_hand", category: "People", skinTones: true },
+  { char: "👍", name: "thumbs up like yes", shortcode: "thumbs_up", category: "People", skinTones: true },
+  { char: "👏", name: "clapping hands", shortcode: "clapping_hands", category: "People", skinTones: true },
+  { char: "🫶", name: "heart hands", shortcode: "heart_hands", category: "People", skinTones: true },
+  { char: "🙏", name: "folded hands pray please", shortcode: "folded_hands", category: "People", skinTones: true },
+  { char: "👀", name: "eyes look", shortcode: "eyes", category: "People" },
   { char: "🌿", name: "herb leaf green leafsty", shortcode: "herb", category: "Nature" },
-  { char: "🍃", name: "leaf fluttering in wind", shortcode: "leaves", category: "Nature" },
-  { char: "🌱", name: "seedling sprout plant", shortcode: "seedling", category: "Nature" },
-  { char: "🌲", name: "evergreen tree pine forest", shortcode: "evergreen_tree", category: "Nature" },
-  { char: "🍀", name: "four leaf clover lucky", shortcode: "four_leaf_clover", category: "Nature" },
-  { char: "🐱", name: "cat face kitty", shortcode: "cat", category: "Nature" },
-  { char: "🐶", name: "dog face puppy", shortcode: "dog", category: "Nature" },
-  { char: "🦊", name: "fox", shortcode: "fox", category: "Nature" },
-  { char: "🐸", name: "frog", shortcode: "frog", category: "Nature" },
-  { char: "🌙", name: "crescent moon night", shortcode: "crescent_moon", category: "Nature" },
-  { char: "⭐", name: "star", shortcode: "star", category: "Nature" },
-  { char: "✨", name: "sparkles magic shine", shortcode: "sparkles", category: "Nature" },
-  { char: "🔥", name: "fire flame lit hot", shortcode: "fire", category: "Nature" },
-  { char: "🥬", name: "leafy green salad kale", shortcode: "leafy_green", category: "Food" },
+  { char: "🍃", name: "leaf fluttering in wind", shortcode: "leaf_fluttering_in_wind", category: "Nature" },
+  { char: "🌱", name: "seedling sprout", shortcode: "seedling", category: "Nature" },
+  { char: "🔥", name: "fire flame lit", shortcode: "fire", category: "Nature" },
+  { char: "✨", name: "sparkles", shortcode: "sparkles", category: "Nature" },
+  { char: "🥬", name: "leafy green", shortcode: "leafy_green", category: "Food" },
   { char: "🍕", name: "pizza", shortcode: "pizza", category: "Food" },
-  { char: "🍔", name: "hamburger burger", shortcode: "hamburger", category: "Food" },
-  { char: "🍣", name: "sushi", shortcode: "sushi", category: "Food" },
-  { char: "🍩", name: "doughnut donut", shortcode: "doughnut", category: "Food" },
-  { char: "☕", name: "hot beverage coffee tea", shortcode: "coffee", category: "Food" },
   { char: "🧋", name: "bubble tea boba", shortcode: "bubble_tea", category: "Food" },
-  { char: "🎮", name: "video game controller gaming", shortcode: "video_game", category: "Activities" },
-  { char: "🎧", name: "headphone music audio", shortcode: "headphones", category: "Activities" },
-  { char: "🏆", name: "trophy winner champion", shortcode: "trophy", category: "Activities" },
-  { char: "🎉", name: "party popper tada celebrate", shortcode: "tada", category: "Activities" },
-  { char: "💻", name: "laptop computer code", shortcode: "computer", category: "Objects" },
-  { char: "🔒", name: "locked encrypted secure privacy", shortcode: "lock", category: "Objects" },
-  { char: "🚀", name: "rocket launch space", shortcode: "rocket", category: "Objects" },
-  { char: "💎", name: "gem stone diamond", shortcode: "gem", category: "Objects" },
-  { char: "❤️", name: "red heart love", shortcode: "heart", category: "Symbols" },
+  { char: "🎮", name: "video game controller", shortcode: "video_game", category: "Activities" },
+  { char: "🎉", name: "party popper tada", shortcode: "party_popper", category: "Activities" },
+  { char: "🔒", name: "locked encrypted", shortcode: "locked", category: "Objects" },
+  { char: "🚀", name: "rocket", shortcode: "rocket", category: "Objects" },
   { char: "💚", name: "green heart leafsty", shortcode: "green_heart", category: "Symbols" },
-  { char: "💯", name: "hundred points 100 perfect", shortcode: "100", category: "Symbols" },
-  { char: "⚡", name: "high voltage lightning zap", shortcode: "zap", category: "Symbols" },
-  { char: "🇦🇺", name: "flag australia", shortcode: "flag_au", category: "Flags" },
-  { char: "🇺🇸", name: "flag united states usa", shortcode: "flag_us", category: "Flags" },
-  { char: "🇬🇧", name: "flag united kingdom uk", shortcode: "flag_gb", category: "Flags" },
-  { char: "🇯🇵", name: "flag japan", shortcode: "flag_jp", category: "Flags" },
+  { char: "💯", name: "hundred points 100", shortcode: "hundred_points", category: "Symbols" },
+  { char: "🇦🇺", name: "flag australia", shortcode: "flag_australia", category: "Flags" },
 ];
 
 export default function UnicodeEmojiPicker({
@@ -123,51 +102,21 @@ export default function UnicodeEmojiPicker({
         setRecent(savedRecent);
       }
       const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-      if (Array.isArray(cached) && cached.length > 100) {
+      if (Array.isArray(cached) && cached.length > 500) {
         setCatalog(cached);
         return;
       }
     } catch {}
 
-    // Fetch full official Unicode emoji-datasource JSON from jsDelivr CDN (zero repo disk space)
     let cancelled = false;
-    fetch(
-      "https://jsdelivr.net"
-    )
+    fetch("/api/unicode-emojis")
       .then((r) => (r.ok ? r.json() : null))
-      .then((rows) => {
-        if (cancelled || !Array.isArray(rows)) return;
-        const catMap: Record<string, string> = {
-          "Smileys & Emotion": "Smileys",
-          "People & Body": "People",
-          "Animals & Nature": "Nature",
-          "Food & Drink": "Food",
-          Activities: "Activities",
-          "Travel & Places": "Objects",
-          Objects: "Objects",
-          Symbols: "Symbols",
-          Flags: "Flags",
-        };
-        const parsed: UnicodeEmojiItem[] = rows
-          .filter((item: any) => item?.unified && catMap[item.category])
-          .map((item: any) => {
-            const cps = String(item.unified)
-              .split("-")
-              .map((h) => parseInt(h, 16));
-            const char = String.fromCodePoint(...cps);
-            const shortName = String(item.short_name || "emoji");
-            return {
-              char,
-              name: `${String(item.name || shortName).toLowerCase()} ${shortName.replace(/_/g, " ")}`,
-              shortcode: shortName,
-              category: catMap[item.category],
-              skinTones: Boolean(item.skin_variations),
-            };
-          });
-        if (parsed.length > 100) {
-          setCatalog(parsed);
+      .then((data) => {
+        if (cancelled || !Array.isArray(data?.emojis)) return;
+        if (data.emojis.length > 500) {
+          setCatalog(data.emojis);
           try {
-            localStorage.setItem(CACHE_KEY, JSON.stringify(parsed));
+            localStorage.setItem(CACHE_KEY, JSON.stringify(data.emojis));
           } catch {}
         }
       })
@@ -187,7 +136,10 @@ export default function UnicodeEmojiPicker({
     const finalChar = applySkinTone(item);
     onSelectEmoji(finalChar);
     setRecent((prev) => {
-      const next = [finalChar, ...prev.filter((e) => e !== finalChar)].slice(0, 24);
+      const next = [finalChar, ...prev.filter((e) => e !== finalChar)].slice(
+        0,
+        24
+      );
       try {
         localStorage.setItem(RECENT_KEY, JSON.stringify(next));
       } catch {}
@@ -235,7 +187,9 @@ export default function UnicodeEmojiPicker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
-              hovered ? `:${hovered.shortcode}:` : "Search emojis (e.g. fire, cat, laugh)..."
+              hovered
+                ? `:${hovered.shortcode}:`
+                : "Search Unicode v18.0 emojis..."
             }
             autoFocus
             className="w-full pl-8 pr-6 py-1.5 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
@@ -260,7 +214,9 @@ export default function UnicodeEmojiPicker({
               title={st.label}
               style={{ backgroundColor: st.swatch }}
               className={`w-3 h-3 rounded-full transition cursor-pointer ${
-                skinMod === st.mod ? "ring-2 ring-white scale-110" : "opacity-75 hover:opacity-100"
+                skinMod === st.mod
+                  ? "ring-2 ring-white scale-110"
+                  : "opacity-75 hover:opacity-100"
               }`}
             />
           ))}
@@ -332,7 +288,7 @@ export default function UnicodeEmojiPicker({
           </div>
         ) : (
           <span className="text-emerald-400/70">
-            {catalog.length.toLocaleString()} Unicode emojis ready
+            {catalog.length.toLocaleString()} Unicode v18.0 emojis
           </span>
         )}
       </div>
