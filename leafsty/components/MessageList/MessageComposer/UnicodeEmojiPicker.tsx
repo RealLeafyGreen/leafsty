@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import TwemojiChar from "../../TwemojiIcon";
 import {
   Search,
   X,
@@ -268,9 +269,12 @@ export default function UnicodeEmojiPicker({
                   onMouseEnter={() => setHovered(item)}
                   onMouseLeave={() => setHovered(null)}
                   onClick={() => handlePick(item)}
-                  className="text-xl p-1 rounded-lg hover:bg-emerald-500/20 hover:scale-110 transition cursor-pointer flex items-center justify-center"
+                  className="p-1.5 rounded-lg hover:bg-emerald-500/20 hover:scale-110 transition cursor-pointer flex items-center justify-center"
                 >
-                  {displayChar}
+                  <TwemojiChar
+                    emoji={displayChar}
+                    className="w-6 h-6 pointer-events-none"
+                  />
                 </button>
               );
             })
@@ -281,7 +285,10 @@ export default function UnicodeEmojiPicker({
       <div className="px-3 py-1.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between text-[11px] text-emerald-300/80">
         {hovered ? (
           <div className="flex items-center gap-2 truncate">
-            <span className="text-base">{applySkinTone(hovered)}</span>
+            <TwemojiChar
+              emoji={applySkinTone(hovered)}
+              className="w-5 h-5 shrink-0"
+            />
             <span className="font-mono font-bold text-emerald-200 truncate">
               :{hovered.shortcode}:
             </span>

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import * as e2ee from "../../../lib/e2ee";
+import TwemojiChar, { TwemojiText } from "../../TwemojiIcon";
 import {
   CornerUpLeft,
   Lock,
@@ -200,7 +201,7 @@ export default function CustomMessage({
           {part}
         </a>
       ) : (
-        <React.Fragment key={i}>{part}</React.Fragment>
+        <TwemojiText key={i} text={part} />
       )
     );
   };
@@ -256,7 +257,6 @@ export default function CustomMessage({
 
           <Lock className="w-2.5 h-2.5 text-emerald-400/40" />
 
-          {/* Hover Action Bar */}
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-auto bg-[#081914] border border-emerald-500/20 rounded-lg px-1 py-0.5 transition">
             <button
               type="button"
@@ -307,9 +307,9 @@ export default function CustomMessage({
                 key={emoji}
                 type="button"
                 onClick={() => handleToggleReaction(emoji)}
-                className="text-base hover:scale-125 transition-transform px-1 cursor-pointer"
+                className="hover:scale-125 transition-transform p-1 cursor-pointer flex items-center justify-center"
               >
-                {emoji}
+                <TwemojiChar emoji={emoji} className="w-5 h-5" />
               </button>
             ))}
           </div>
@@ -392,13 +392,13 @@ export default function CustomMessage({
                 key={emoji}
                 type="button"
                 onClick={() => handleToggleReaction(emoji)}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border transition cursor-pointer ${
                   myReactions[emoji]
                     ? "bg-emerald-500/25 border-emerald-400/50 text-emerald-100"
                     : "bg-[#0d261e] border-emerald-500/20 text-emerald-200/80 hover:border-emerald-400/40"
                 }`}
               >
-                <span>{emoji}</span>
+                <TwemojiChar emoji={emoji} className="w-4 h-4" />
                 <span className="text-[11px]">{count}</span>
               </button>
             ))}
