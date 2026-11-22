@@ -33,22 +33,33 @@ export default function UserSettingsModal({
   const userId = String(sourceUser.id || "");
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
-  const [name, setName] = useState("");
-  const = useState("");
-  const [status, setStatus] = useState("Encrypted · Online");
-  const [bio, setBio] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    avatarUrl: "",
+    status: "Encrypted · Online",
+    bio: "",
+  });
   const [saving, setSaving] = useState(false);
   const [savedBanner, setSavedBanner] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    setName(sourceUser.name || userId || "");
-    setImage(sourceUser.image || "");
-    setStatus(sourceUser.status || "Encrypted · Online");
-    setBio(sourceUser.bio || "");
+    setForm({
+      name: sourceUser.name || userId || "",
+      avatarUrl: sourceUser.image || "",
+      status: sourceUser.status || "Encrypted · Online",
+      bio: sourceUser.bio || "",
+    });
     setSavedBanner(false);
-  }, [isOpen, sourceUser.name, sourceUser.image, sourceUser.status, sourceUser.bio, userId]);
+  }, [
+    isOpen,
+    sourceUser.name,
+    sourceUser.image,
+    sourceUser.status,
+    sourceUser.bio,
+    userId,
+  ]);
 
   if (!isOpen) return null;
 
@@ -57,10 +68,10 @@ export default function UserSettingsModal({
     try {
       setSaving(true);
       await onSave?.({
-        name: name.trim() || userId,
-        image: image.trim() || undefined,
-        status: status.trim() || "Encrypted · Online",
-        bio: bio.trim(),
+        name: form.name.trim() || userId,
+        image: form.avatarUrl.trim() || undefined,
+        status: form.status.trim() || "Encrypted · Online",
+        bio: form.bio.trim(),
       });
       setSavedBanner(true);
       setTimeout(() => setSavedBanner(false), 2500);
@@ -85,7 +96,7 @@ export default function UserSettingsModal({
   };
   return (
     <div
-      className="fixed inset-0 z- bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 text-emerald-50 select-none"
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 text-emerald-50 select-none"
       onClick={onClose}
     >
       <div
@@ -177,8 +188,10 @@ export default function UserSettingsModal({
                   </label>
                   <input
                     type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    value={form.name}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
                     placeholder="Your display name"
                     className="w-full px-3.5 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 focus:outline-none focus:border-emerald-400"
                   />
@@ -190,8 +203,13 @@ export default function UserSettingsModal({
                   </label>
                   <input
                     type="text"
-                    value={image}
-                    onChange={(e) => setImage(e.target.value)}
+                    value={form.avatarUrl}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        avatarUrl: e.target.value,
+                      }))
+                    }
                     placeholder="https://..."
                     className="w-full px-3.5 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 focus:outline-none focus:border-emerald-400"
                   />
@@ -203,8 +221,10 @@ export default function UserSettingsModal({
                   </label>
                   <input
                     type="text"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
+                    value={form.status}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, status: e.target.value }))
+                    }
                     placeholder="Encrypted · Online"
                     className="w-full px-3.5 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 focus:outline-none focus:border-emerald-400"
                   />
@@ -216,8 +236,10 @@ export default function UserSettingsModal({
                   </label>
                   <textarea
                     rows={2}
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
+                    value={form.bio}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, bio: e.target.value }))
+                    }
                     placeholder="Tell friends about yourself..."
                     className="w-full px-3.5 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 focus:outline-none focus:border-emerald-400 resize-none"
                   />
