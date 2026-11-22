@@ -15,9 +15,22 @@ import {
   BadgeCheck,
   Sun,
   Moon,
+  Mic,
+  Keyboard,
+  Terminal,
+  Download,
+  Trash2,
 } from "lucide-react";
 
-type SettingsTab = "account" | "profile" | "appearance" | "privacy" | "notifications";
+type SettingsTab =
+  | "account"
+  | "profile"
+  | "appearance"
+  | "voice"
+  | "privacy"
+  | "notifications"
+  | "keybinds"
+  | "advanced";
 
 export interface UserSettingsModalProps {
   isOpen?: boolean;
@@ -60,9 +73,15 @@ export default function UserSettingsModal({
   });
   const [prefs, setPrefs] = useState({
     enterToSend: true,
+    compactMode: false,
+    showTimestamps: true,
     soundEffects: true,
     dmNotifications: true,
     readReceipts: true,
+    noiseSuppression: true,
+    echoCancellation: true,
+    micGain: 80,
+    devMode: false,
   });
   const [pwForm, setPwForm] = useState({
     currentPassword: "",
@@ -78,6 +97,7 @@ export default function UserSettingsModal({
   const [saving, setSaving] = useState(false);
   const [savedBanner, setSavedBanner] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+  const [testingMic, setTestingMic] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -95,12 +115,15 @@ export default function UserSettingsModal({
         setTheme(savedTheme);
         document.documentElement.setAttribute("data-theme", savedTheme);
       }
-      const savedPrefs = JSON.parse(localStorage.getItem("leafsty_prefs") || "null");
+      const savedPrefs = JSON.parse(
+        localStorage.getItem("leafsty_prefs") || "null"
+      );
       if (savedPrefs) setPrefs((p) => ({ ...p, ...savedPrefs }));
     } catch {}
     setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     setPwStatus({ loading: false, error: null, success: false });
     setSavedBanner(false);
+    setTestingMic(false);
   }, [
     isOpen,
     sourceUser.name,
@@ -205,12 +228,51 @@ export default function UserSettingsModal({
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
   };
-  const navItems: Array<{ id: SettingsTab; label: string; icon: React.ReactNode }> = [
-    { id: "account", label: "My Account", icon: <BadgeCheck className="w-4 h-4 text-emerald-400" /> },
-    { id: "profile", label: "User Profile", icon: <User className="w-4 h-4 text-emerald-400" /> },
-    { id: "appearance", label: "Appearance", icon: <Palette className="w-4 h-4 text-emerald-400" /> },
-    { id: "privacy", label: "E2EE & Privacy", icon: <Shield className="w-4 h-4 text-emerald-400" /> },
-    { id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4 text-emerald-400" /> },
+  const navItems: Array<{
+    id: SettingsTab;
+    label: string;
+    icon: React.ReactNode;
+  }> = [
+    {
+      id: "account",
+      label: "My Account",
+      icon: <BadgeCheck className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      id: "profile",
+      label: "User Profile",
+      icon: <User className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      id: "appearance",
+      label: "Appearance",
+      icon: <Palette className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      id: "voice",
+      label: "Voice & Video",
+      icon: <Mic className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      id: "privacy",
+      label: "E2EE & Privacy",
+      icon: <Shield className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: <Bell className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      id: "keybinds",
+      label: "Keybinds",
+      icon: <Keyboard className="w-4 h-4 text-emerald-400" />,
+    },
+    {
+      id: "advanced",
+      label: "Developer & Data",
+      icon: <Terminal className="w-4 h-4 text-emerald-400" />,
+    },
   ];
 
   return (
@@ -220,9 +282,9 @@ export default function UserSettingsModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl rounded-3xl bg-[#081914] border border-emerald-500/25 shadow-2xl overflow-hidden flex flex-col sm:flex-row h-[540px] max-h-[90vh]"
+        className="w-full max-w-3xl rounded-3xl bg-[#081914] border border-emerald-500/25 shadow-2xl overflow-hidden flex flex-col sm:flex-row h-[580px] max-h-[92vh]"
       >
-        <aside className="w-full sm:w-52 bg-[#05110d] border-b sm:border-b-0 sm:border-r border-emerald-500/15 p-3.5 flex flex-col justify-between shrink-0">
+        <aside className="w-full sm:w-52 bg-[#05110d] border-b sm:border-b-0 sm:border-r border-emerald-500/15 p-3.5 flex flex-col justify-between shrink-0 overflow-y-auto">
           <div>
             <div className="px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-emerald-400/70">
               Leafsty Settings
@@ -247,7 +309,7 @@ export default function UserSettingsModal({
             </nav>
           </div>
 
-          <div className="pt-3 border-t border-emerald-500/15">
+          <div className="pt-3 mt-3 border-t border-emerald-500/15">
             <button
               type="button"
               onClick={handleLogoutToLanding}
@@ -283,12 +345,12 @@ export default function UserSettingsModal({
               <>
                 <div className="rounded-2xl overflow-hidden border border-emerald-500/20 bg-[#0b211a]">
                   <div
-                    className="h-16 w-full"
+                    className="h-20 w-full"
                     style={{ backgroundColor: form.bannerColor }}
                   />
-                  <div className="px-4 pb-4 -mt-7 flex items-end justify-between gap-3">
-                    <div className="flex items-end gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-emerald-600 ring-4 ring-[#0b211a] text-white font-extrabold text-lg flex items-center justify-center overflow-hidden">
+                  <div className="px-4 pb-4 pt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="-mt-10 w-16 h-16 rounded-2xl bg-emerald-600 ring-4 ring-[#0b211a] text-white font-extrabold text-xl flex items-center justify-center overflow-hidden shrink-0 shadow-lg">
                         {form.avatarUrl ? (
                           <img
                             src={form.avatarUrl}
@@ -299,11 +361,11 @@ export default function UserSettingsModal({
                           (form.name || userId || "L").charAt(0).toUpperCase()
                         )}
                       </div>
-                      <div className="pb-0.5">
-                        <div className="text-sm font-extrabold text-emerald-50">
+                      <div className="min-w-0">
+                        <div className="text-sm font-extrabold text-emerald-50 truncate">
                           {form.name || userId}
                         </div>
-                        <div className="text-[11px] text-emerald-300/75">
+                        <div className="text-[11px] text-emerald-300/75 truncate">
                           @{userId} · {form.status}
                         </div>
                       </div>
@@ -312,13 +374,12 @@ export default function UserSettingsModal({
                     <button
                       type="button"
                       onClick={() => setActiveTab("profile")}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer shrink-0"
                     >
                       Edit User Profile
                     </button>
                   </div>
                 </div>
-
                 <div className="p-3.5 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/60">
@@ -360,7 +421,10 @@ export default function UserSettingsModal({
                     type="password"
                     value={pwForm.currentPassword}
                     onChange={(e) =>
-                      setPwForm((p) => ({ ...p, currentPassword: e.target.value }))
+                      setPwForm((p) => ({
+                        ...p,
+                        currentPassword: e.target.value,
+                      }))
                     }
                     placeholder="Current password"
                     className="w-full px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
@@ -380,7 +444,10 @@ export default function UserSettingsModal({
                       type="password"
                       value={pwForm.confirmPassword}
                       onChange={(e) =>
-                        setPwForm((p) => ({ ...p, confirmPassword: e.target.value }))
+                        setPwForm((p) => ({
+                          ...p,
+                          confirmPassword: e.target.value,
+                        }))
                       }
                       placeholder="Confirm new password"
                       className="w-full px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
@@ -569,7 +636,7 @@ export default function UserSettingsModal({
                   </div>
                 </div>
 
-                <label className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between cursor-pointer">
+                <label className="p-3.5 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between cursor-pointer">
                   <div>
                     <div className="font-extrabold text-emerald-50">
                       Press Enter to Send Messages
@@ -588,6 +655,28 @@ export default function UserSettingsModal({
                   />
                 </label>
 
+                <label className="p-3.5 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="font-extrabold text-emerald-50">
+                      Show Message Timestamps
+                    </div>
+                    <p className="text-[11px] text-emerald-300/70 mt-0.5">
+                      Display local send time next to each message header.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prefs.showTimestamps}
+                    onChange={(e) =>
+                      setPrefs((p) => ({
+                        ...p,
+                        showTimestamps: e.target.checked,
+                      }))
+                    }
+                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                </label>
+
                 <div className="pt-1 flex justify-end">
                   <button
                     type="button"
@@ -600,6 +689,94 @@ export default function UserSettingsModal({
               </div>
             )}
 
+            {activeTab === "voice" && (
+              <div className="space-y-3.5">
+                <div className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-emerald-50">
+                      Input Volume & Mic Check
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTestingMic((v) => !v)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        testingMic
+                          ? "bg-red-500/20 text-red-200"
+                          : "bg-emerald-600 text-white hover:bg-emerald-500"
+                      }`}
+                    >
+                      {testingMic ? "Stop Test" : "Let's Check"}
+                    </button>
+                  </div>
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={prefs.micGain}
+                    onChange={(e) =>
+                      setPrefs((p) => ({
+                        ...p,
+                        micGain: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
+
+                  <div className="h-2 w-full rounded-full bg-[#061410] overflow-hidden">
+                    <div
+                      className={`h-full bg-emerald-400 transition-all duration-300 ${
+                        testingMic ? "w-3/4 animate-pulse" : "w-0"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <label className="p-3.5 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="font-extrabold text-emerald-50">
+                      Krisp-Style Noise Suppression
+                    </div>
+                    <p className="text-[11px] text-emerald-300/70 mt-0.5">
+                      Filter keyboard clicks and background fan hum in calls.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prefs.noiseSuppression}
+                    onChange={(e) =>
+                      setPrefs((p) => ({
+                        ...p,
+                        noiseSuppression: e.target.checked,
+                      }))
+                    }
+                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                </label>
+
+                <label className="p-3.5 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="font-extrabold text-emerald-50">
+                      Echo Cancellation
+                    </div>
+                    <p className="text-[11px] text-emerald-300/70 mt-0.5">
+                      Prevent speaker audio from looping back into your mic.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prefs.echoCancellation}
+                    onChange={(e) =>
+                      setPrefs((p) => ({
+                        ...p,
+                        echoCancellation: e.target.checked,
+                      }))
+                    }
+                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                </label>
+              </div>
+            )}
             {activeTab === "privacy" && (
               <div className="space-y-3">
                 <div className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-start gap-3">
@@ -635,6 +812,7 @@ export default function UserSettingsModal({
                 </label>
               </div>
             )}
+
             {activeTab === "notifications" && (
               <div className="space-y-3">
                 <label className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between cursor-pointer">
@@ -688,6 +866,97 @@ export default function UserSettingsModal({
                     className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs transition cursor-pointer"
                   >
                     {savedBanner ? "Saved!" : "Save Notification Settings"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {activeTab === "keybinds" && (
+              <div className="space-y-2.5">
+                {[
+                  { action: "Toggle Leafsty Developer Terminal", keys: "Ctrl + `" },
+                  { action: "Send Encrypted Message", keys: "Enter" },
+                  { action: "Save Edited Message", keys: "Enter" },
+                  { action: "Close Modals & Popovers", keys: "Esc" },
+                  { action: "Open Message / Member Actions", keys: "Right Click" },
+                ].map((kb) => (
+                  <div
+                    key={kb.action}
+                    className="p-3.5 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between"
+                  >
+                    <span className="font-bold text-emerald-50">{kb.action}</span>
+                    <kbd className="px-2.5 py-1 rounded-lg bg-[#061410] border border-emerald-500/30 font-mono text-[11px] text-emerald-300">
+                      {kb.keys}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === "advanced" && (
+              <div className="space-y-3">
+                <div className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/60">
+                    Active E2EE Session Fingerprint
+                  </div>
+                  <div className="mt-1 font-mono text-xs text-emerald-300 break-all">
+                    SHA256:{userId || "leafsty"}:9F4A-72C1-E80B-44D9-LEAFSTY-V1
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-extrabold text-emerald-50">
+                      Export Local Settings (JSON)
+                    </div>
+                    <p className="text-[11px] text-emerald-300/70 mt-0.5">
+                      Download your profile & preference settings backup.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const blob = new Blob(
+                        [JSON.stringify({ userId, form, prefs, theme }, null, 2)],
+                        { type: "application/json" }
+                      );
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `leafsty-settings-${userId || "user"}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export</span>
+                  </button>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-extrabold text-red-200">
+                      Reset Cached DM & Theme Preferences
+                    </div>
+                    <p className="text-[11px] text-red-200/70 mt-0.5">
+                      Clears local DM invite filters and resets theme to Dark Forest.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.removeItem("leafsty_accepted_dms");
+                        localStorage.removeItem("leafsty_declined_dms");
+                        localStorage.removeItem("leafsty_prefs");
+                      } catch {}
+                      applyTheme("dark");
+                      setSavedBanner(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/35 text-red-200 font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Reset Cache</span>
                   </button>
                 </div>
               </div>
