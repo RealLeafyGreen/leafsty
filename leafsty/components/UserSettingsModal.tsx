@@ -12,8 +12,9 @@ import {
   KeyRound,
   Bell,
   Palette,
-  Sparkles,
   BadgeCheck,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 type SettingsTab = "account" | "profile" | "appearance" | "privacy" | "notifications";
@@ -48,6 +49,7 @@ export default function UserSettingsModal({
   const userId = String(sourceUser.id || "");
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("account");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [form, setForm] = useState({
     name: "",
     avatarUrl: "",
@@ -57,7 +59,6 @@ export default function UserSettingsModal({
     bio: "",
   });
   const [prefs, setPrefs] = useState({
-    compactMode: false,
     enterToSend: true,
     soundEffects: true,
     dmNotifications: true,
@@ -89,6 +90,11 @@ export default function UserSettingsModal({
       bio: sourceUser.bio || "",
     });
     try {
+      const savedTheme = localStorage.getItem("leafsty_theme");
+      if (savedTheme === "light" || savedTheme === "dark") {
+        setTheme(savedTheme);
+        document.documentElement.setAttribute("data-theme", savedTheme);
+      }
       const savedPrefs = JSON.parse(localStorage.getItem("leafsty_prefs") || "null");
       if (savedPrefs) setPrefs((p) => ({ ...p, ...savedPrefs }));
     } catch {}
@@ -107,6 +113,14 @@ export default function UserSettingsModal({
   ]);
 
   if (!isOpen) return null;
+
+  const applyTheme = (nextTheme: "dark" | "light") => {
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem("leafsty_theme", nextTheme);
+    } catch {}
+    document.documentElement.setAttribute("data-theme", nextTheme);
+  };
 
   const handleSave = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -511,20 +525,48 @@ export default function UserSettingsModal({
               </form>
             )}
             {activeTab === "appearance" && (
-              <div className="space-y-3">
-                <div className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between">
-                  <div>
-                    <div className="font-extrabold text-emerald-50 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-emerald-400" />
-                      <span>Dark Forest Emerald Theme</span>
-                    </div>
-                    <p className="text-[11px] text-emerald-300/70 mt-0.5">
-                      Active across all Leafsty spaces, DMs, and call rooms.
-                    </p>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70 mb-2">
+                    Color Theme
                   </div>
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
-                    Active
-                  </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => applyTheme("dark")}
+                      className={`p-4 rounded-2xl border text-left transition cursor-pointer ${
+                        theme === "dark"
+                          ? "bg-emerald-500/20 border-emerald-400"
+                          : "bg-[#0b211a] border-emerald-500/20 opacity-75 hover:opacity-100"
+                      }`}
+                    >
+                      <Moon className="w-5 h-5 text-emerald-400 mb-2" />
+                      <div className="font-extrabold text-emerald-50">
+                        Dark Forest
+                      </div>
+                      <div className="text-[11px] text-emerald-300/70 mt-0.5">
+                        Deep emerald low-glare mode
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyTheme("light")}
+                      className={`p-4 rounded-2xl border text-left transition cursor-pointer ${
+                        theme === "light"
+                          ? "bg-emerald-500/20 border-emerald-400"
+                          : "bg-[#0b211a] border-emerald-500/20 opacity-75 hover:opacity-100"
+                      }`}
+                    >
+                      <Sun className="w-5 h-5 text-emerald-400 mb-2" />
+                      <div className="font-extrabold text-emerald-50">
+                        Light Mint
+                      </div>
+                      <div className="text-[11px] text-emerald-300/70 mt-0.5">
+                        Crisp daylight sage palette
+                      </div>
+                    </button>
+                  </div>
                 </div>
 
                 <label className="p-4 rounded-2xl bg-[#0b211a] border border-emerald-500/20 flex items-center justify-between cursor-pointer">
@@ -546,7 +588,7 @@ export default function UserSettingsModal({
                   />
                 </label>
 
-                <div className="pt-2 flex justify-end">
+                <div className="pt-1 flex justify-end">
                   <button
                     type="button"
                     onClick={() => handleSave()}

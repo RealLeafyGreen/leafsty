@@ -151,3 +151,40 @@ html.dark .via-white {
   height: 100%;
   min-width: 0;
 }
+
+/* Light Sage Mint Theme Override */
+html[data-theme="light"] .bg-\[\#071410\],
+html[data-theme="light"] .bg-\[\#04120e\],
+html[data-theme="light"] .bg-\[\#05110d\],
+html[data-theme="light"] .bg-\[\#040f0b\] {
+  background-color: #e6f4ee !important;
+}
+
+html[data-theme="light"] .bg-\[\#081914\],
+html[data-theme="light"] .bg-\[\#061410\],
+html[data-theme="light"] .bg-\[\#061611\] {
+  background-color: #f0faf5 !important;
+}
+
+html[data-theme="light"] .bg-\[\#0a1d17\],
+html[data-theme="light"] .bg-\[\#0b211a\] {
+  background-color: #ffffff !important;
+}
+
+html[data-theme="light"] .bg-\[\#0d261e\] {
+  background-color: #e9f6f0 !important;
+}
+
+html[data-theme="light"] .text-emerald-50,
+html[data-theme="light"] .text-emerald-100,
+html[data-theme="light"] .text-emerald-200 {
+  color: #062c21 !important;
+}
+
+html[data-theme="light"] .text-emerald-300,
+html[data-theme="light"] .text-emerald-300\/75,
+html[data-theme="light"] .text-emerald-300\/70,
+html[data-theme="light"] .text-emerald-300\/65,
+html[data-theme="light"] .text-emerald-300\/60 {
+  color: #16654e !important;
+}
