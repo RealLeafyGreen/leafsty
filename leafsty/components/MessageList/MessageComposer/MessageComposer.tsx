@@ -138,7 +138,7 @@ export default function CustomMessageComposer({
   ]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
+    useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(RECENT_KEY) || "null");
       if (Array.isArray(saved) && saved.length > 0) setRecentEmojis(saved);
@@ -152,8 +152,10 @@ export default function CustomMessageComposer({
       }
     } catch {}
 
+    if (fullCatalog.length > 500) return;
+
     let cancelled = false;
-    fetch("/api/unicode-emojis")
+    fetch("/api/unicode-emojis", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !Array.isArray(data?.emojis)) return;
@@ -172,7 +174,8 @@ export default function CustomMessageComposer({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showEmojiPicker, fullCatalog.length]);
+
 
   const skinMod = SKIN_TONES.at(skinIdx)?.mod || "";
 
