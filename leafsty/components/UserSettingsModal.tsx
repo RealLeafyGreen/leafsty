@@ -531,7 +531,6 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
                     </button>
                   </div>
                 </div>
-              </div>
                            <div className="p-4 rounded-2xl bg-[#0d261e] border border-emerald-500/20 space-y-3">
                <div className="flex items-center justify-between gap-3">
                  <div>
