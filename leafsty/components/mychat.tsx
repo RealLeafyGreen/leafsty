@@ -152,7 +152,17 @@ export default function MyChat() {
       }
     })();
 
-      const syncFromChannel = (event?: any) => {
+    const markActiveRead = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible" &&
+        typeof activeChannel?.markRead === "function"
+      ) {
+        activeChannel.markRead().catch(() => {});
+      }
+    };
+
+    const syncFromChannel = (event?: any) => {
       const stateMsgs = Array.isArray(activeChannel?.state?.messages)
         ? [...activeChannel.state.messages]
         : [];
@@ -170,6 +180,7 @@ export default function MyChat() {
         }
       }
       mergeMessages(stateMsgs);
+      markActiveRead();
     };
 
     const handleDeleted = (e: any) => {
@@ -251,6 +262,8 @@ export default function MyChat() {
     activeChannel?.on?.("typing.stop", handleTypingStop);
     const clientSub = client?.on?.(handleClientEvent);
     window.addEventListener("leafsty:message-sent", handleSent);
+    window.addEventListener("focus", markActiveRead);
+    document.addEventListener("visibilitychange", markActiveRead);
 
     return () => {
       cancelled = true;
@@ -261,6 +274,8 @@ export default function MyChat() {
       activeChannel?.off?.("typing.stop", handleTypingStop);
       clientSub?.unsubscribe?.();
       window.removeEventListener("leafsty:message-sent", handleSent);
+      window.removeEventListener("focus", markActiveRead);
+      document.removeEventListener("visibilitychange", markActiveRead);
     };
   }, [activeChannel?.id, client, currentUserId]);
 
