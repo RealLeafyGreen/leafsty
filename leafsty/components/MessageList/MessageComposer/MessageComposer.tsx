@@ -515,3 +515,389 @@ export default function CustomMessageComposer({
   const activePreview = hoveredEmoji || displayedEmojis.at(0) || null;
   const channelLabel =
     (channel?.data as any)?.name || channel?.id || "encrypted chat";
+  return (
+    <div className="relative shrink-0 bg-[#081914] border-t border-emerald-500/15 px-4 py-3 text-emerald-50">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        onChange={(e) => {
+          if (e.target.files) addFiles(e.target.files);
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
+
+      {showGifPicker && (
+        <div className="absolute bottom-full left-4 mb-2 z-40">
+          <KlipyGifPicker
+            onSelectGif={handleSelectGif}
+            onClose={() => setShowGifPicker(false)}
+          />
+        </div>
+      )}
+
+      {showEmojiPicker && (
+        <div className="absolute bottom-full right-14 mb-2 z-40 w-80 sm:w-96 rounded-2xl bg-[#081914] border border-emerald-500/25 shadow-2xl overflow-hidden">
+          <div className="p-2.5 bg-[#061410] border-b border-emerald-500/15 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={emojiSearch}
+                  onChange={(e) => setEmojiSearch(e.target.value)}
+                  placeholder={
+                    activePreview
+                      ? `:${activePreview.shortcode}:`
+                      : `Search ${fullCatalog.length.toLocaleString()} emojis...`
+                  }
+                  autoFocus
+                  className="w-full pl-8 pr-6 py-1 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+                />
+                {emojiSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setEmojiSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-300/60 hover:text-emerald-100"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 bg-[#0d261e] px-1.5 py-1 rounded-lg border border-emerald-500/20">
+                {SKIN_TONES.map((st, idx) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setSkinIdx(idx)}
+                    title={st.label}
+                    style={{ backgroundColor: st.swatch }}
+                    className={`w-3 h-3 rounded-full transition cursor-pointer ${
+                      skinIdx === idx
+                        ? "ring-2 ring-white scale-110"
+                        : "opacity-75 hover:opacity-100"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(false)}
+                className="p-1 rounded-lg text-emerald-300/60 hover:text-emerald-50 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {!emojiSearch.trim() && (
+              <div className="flex flex-wrap items-center gap-1">
+                {(
+                  [
+                    "Recent",
+                    "Smileys",
+                    "Hands",
+                    "Nature",
+                    "Food",
+                    "Objects",
+                    "Symbols",
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setEmojiTab(tab)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      emojiTab === tab
+                        ? "bg-emerald-600 text-white"
+                        : "text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-2.5 h-52 overflow-y-auto grid grid-cols-7 gap-1 content-start">
+            {displayedEmojis.length === 0 ? (
+              <div className="col-span-7 py-8 text-center text-xs text-emerald-300/60">
+                No matching emojis found.
+              </div>
+            ) : (
+              displayedEmojis.map((item, idx) => {
+                const ch = applyTone(item);
+                return (
+                  <button
+                    key={`${item.shortcode}-${idx}`}
+                    type="button"
+                    onMouseEnter={() => setHoveredEmoji(item)}
+                    onFocus={() => setHoveredEmoji(item)}
+                    onClick={() => handleInsertEmoji(ch)}
+                    className="text-xl p-1 rounded-lg hover:bg-emerald-500/20 hover:scale-110 transition cursor-pointer flex items-center justify-center"
+                  >
+                    {ch}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <div className="px-3 py-2 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between gap-2.5 min-h-[40px]">
+            {activePreview ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-2xl leading-none">
+                  {applyTone(activePreview)}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-mono text-xs font-bold text-emerald-200 truncate">
+                    :{activePreview.shortcode}:
+                  </div>
+                  <div className="text-[10px] text-emerald-400/65 truncate capitalize">
+                    {activePreview.name}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <span className="text-[11px] text-emerald-400/70">
+                Click an emoji to insert
+              </span>
+            )}
+            <span className="text-[10px] text-emerald-400/55 shrink-0 font-mono">
+              {fullCatalog.length.toLocaleString()}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {mentionQuery !== null && mentionCandidates.length > 0 && (
+        <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
+          <div className="px-3 py-1.5 bg-[#04120e] border-b border-emerald-500/15 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80">
+            Members Matching @{mentionQuery}
+          </div>
+          <div className="p-1.5 space-y-0.5 max-h-48 overflow-y-auto">
+            {mentionCandidates.map((item, idx) => (
+              <button
+                key={item.id}
+                type="button"
+                onMouseEnter={() => setMentionIndex(idx)}
+                onClick={() => handleSelectMention(item.tag)}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs transition cursor-pointer ${
+                  idx === mentionIndex
+                    ? "bg-emerald-500/25 text-white"
+                    : "text-emerald-100/85 hover:bg-emerald-500/15"
+                }`}
+              >
+                <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-[10px] flex items-center justify-center overflow-hidden shrink-0">
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    item.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <span className="font-bold truncate">{item.name}</span>
+                <span className="ml-auto font-mono text-[11px] text-emerald-400/80">
+                  {item.tag}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {pendingFiles.length > 0 && (
+        <div className="mb-2.5 flex flex-wrap gap-2 p-2 rounded-xl bg-[#061410] border border-emerald-500/20">
+          {pendingFiles.map((item) => (
+            <div
+              key={item.id}
+              className="relative group flex items-center gap-2 bg-[#0d261e] border border-emerald-500/25 rounded-xl p-1.5 pr-7 max-w-[200px]"
+            >
+              {item.isImage && item.previewUrl ? (
+                <img
+                  src={item.previewUrl}
+                  alt={item.name}
+                  className="w-10 h-10 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-emerald-100 truncate">
+                  {item.name}
+                </div>
+                <div className="text-[10px] text-emerald-400/70">
+                  {formatFileSize(item.size)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removePendingFile(item.id)}
+                title="Remove attachment"
+                className="absolute top-1 right-1 p-1 rounded-full bg-red-500/80 hover:bg-red-500 text-white cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {sendError && (
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-between text-xs text-red-300">
+          <span>{sendError}</span>
+          <button
+            type="button"
+            onClick={() => setSendError(null)}
+            className="p-0.5 text-red-300 hover:text-red-100 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {replyTarget && (
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-[#0d261e] border border-emerald-500/20 flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <CornerUpLeft className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="text-emerald-300/80 shrink-0">
+              Replying to{" "}
+              <strong className="text-emerald-100">
+                {replyTarget.userName || "message"}
+              </strong>
+              :
+            </span>
+            <span className="text-emerald-200/70 truncate">
+              {replyTarget.text}
+            </span>
+          </div>
+          {onCancelReply && (
+            <button
+              type="button"
+              onClick={onCancelReply}
+              className="p-0.5 rounded text-emerald-300/60 hover:text-emerald-100 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
+      <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach Files or Images"
+          className="p-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50 transition cursor-pointer shrink-0 flex items-center justify-center"
+        >
+          <Paperclip className="w-4 h-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowEmojiPicker(false);
+            setShowGifPicker((v) => !v);
+          }}
+          title="GIFs & Favorites"
+          className={`px-2.5 py-2 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer shrink-0 ${
+            showGifPicker
+              ? "bg-emerald-500/25 border-emerald-400 text-emerald-100"
+              : "bg-[#0d261e] border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50"
+          }`}
+        >
+          <ImageIcon className="w-3.5 h-3.5" />
+          <span>GIF</span>
+        </button>
+
+        <div className="relative flex-1">
+          <input
+            ref={inputRef}
+            type="text"
+            value={text}
+            onPaste={(e) => {
+              const items = e.clipboardData?.files;
+              if (items && items.length > 0) {
+                e.preventDefault();
+                addFiles(items);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (mentionQuery !== null && mentionCandidates.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setMentionIndex((i) => (i + 1) % mentionCandidates.length);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setMentionIndex(
+                    (i) =>
+                      (i - 1 + mentionCandidates.length) %
+                      mentionCandidates.length
+                  );
+                } else if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  const chosen = mentionCandidates.at(mentionIndex);
+                  if (chosen) handleSelectMention(chosen.tag);
+                } else if (e.key === "Escape") {
+                  setMentionQuery(null);
+                }
+              }
+            }}
+            onChange={(e) => {
+              const val = e.target.value;
+              setText(val);
+              const match = val.match(/(?:^|\s)@([a-zA-Z0-9_.-]*)$/);
+              if (match) {
+                setMentionQuery(match.at(1) ?? "");
+                setMentionIndex(0);
+              } else {
+                setMentionQuery(null);
+              }
+              if (val.trim()) {
+                channel?.keystroke?.().catch(() => {});
+              } else {
+                channel?.stopTyping?.().catch(() => {});
+              }
+            }}
+            placeholder={`Message ${channelLabel} (E2EE)...`}
+            className="w-full pl-3.5 pr-16 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowGifPicker(false);
+              setShowEmojiPicker((v) => !v);
+            }}
+            title="Emojis"
+            className="p-1.5 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 absolute right-8 top-1/2 -translate-y-1/2 transition cursor-pointer"
+          >
+            <Smile className="w-4 h-4" />
+          </button>
+
+          <Lock className="w-3.5 h-3.5 text-emerald-400/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isUploading || (!text.trim() && pendingFiles.length === 0)}
+          title="Send Encrypted Message"
+          className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white transition cursor-pointer shrink-0 flex items-center justify-center"
+        >
+          {isUploading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+        </button>
+      </form>
+    </div>
+  );
+}
