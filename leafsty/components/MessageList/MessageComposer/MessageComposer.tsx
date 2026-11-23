@@ -620,7 +620,7 @@ const stopAndSendRecording = () => {
     rec.stop();
   }
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+    const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isUploading) return;
     setShowEmojiPicker(false);
@@ -646,68 +646,55 @@ const stopAndSendRecording = () => {
       return;
     }
 
+    const trimmed = text.trim();
+    if (trimmed.toLowerCase().startsWith("/poll")) {
+      const rawPoll = trimmed.slice(5).trim();
+      const parts = rawPoll
+        .split("|")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (parts.length < 3) {
+        setSendError(
+          "Format: /poll Question? | Option 1 | Option 2 (at least 2 options)"
+        );
+        return;
+      }
+      const [question, ...options] = parts;
+      await sendPayload(`📊 ${question}`, [
+        {
+          type: "leafsty_poll",
+          question,
+          options: options.slice(0, 6),
+        },
+      ]);
+      return;
+    }
+
+    if (trimmed.toLowerCase() === "/roll") {
+      const rolled = Math.floor(Math.random() * 100) + 1;
+      await sendPayload(`🎲 Rolled **${rolled}** (1–100)`);
+      return;
+    }
+
+    if (trimmed.toLowerCase() === "/coinflip") {
+      const side = Math.random() < 0.5 ? "Heads" : "Tails";
+      await sendPayload(`🪙 Flipped **${side}**!`);
+      return;
+    }
+
+    if (trimmed.toLowerCase().startsWith("/shrug")) {
+      const rest = trimmed.slice(6).trim();
+      await sendPayload(`${rest ? `${rest} ` : ""}¯\\_(ツ)_/¯`);
+      return;
+    }
+
+    if (trimmed.toLowerCase().startsWith("/tableflip")) {
+      const rest = trimmed.slice(10).trim();
+      await sendPayload(`${rest ? `${rest} ` : ""}(╯°□°)╯︵ ┻━┻`);
+      return;
+    }
+
     await sendPayload(text);
-  };
- const trimmed = text.trim();
- if (trimmed.toLowerCase().startsWith("/poll")) {
-   const rawPoll = trimmed.slice(5).trim();
-   const parts = rawPoll
-     .split("|")
-     .map((p) => p.trim())
-     .filter(Boolean);
-   if (parts.length < 3) {
-     setSendError(
-       "Format: /poll Question? | Option 1 | Option 2 (at least 2 options)"
-     );
-     return;
-   }
-   const [question, ...options] = parts;
-   await sendPayload(`📊 ${question}`, [
-     {
-       type: "leafsty_poll",
-       question,
-       options: options.slice(0, 6),
-     },
-   ]);
-   return;
- }
-
- if (trimmed.toLowerCase() === "/roll") {
-   const rolled = Math.floor(Math.random() * 100) + 1;
-   await sendPayload(`🎲 Rolled **${rolled}** (1–100)`);
-   return;
- }
-
- if (trimmed.toLowerCase() === "/coinflip") {
-   const side = Math.random() < 0.5 ? "Heads" : "Tails";
-   await sendPayload(`🪙 Flipped **${side}**!`);
-   return;
- }
-
- if (trimmed.toLowerCase().startsWith("/shrug")) {
-   const rest = trimmed.slice(6).trim();
-   await sendPayload(`${rest ? `${rest} ` : ""}¯\\_(ツ)_/¯`);
-   return;
- }
-
- if (trimmed.toLowerCase().startsWith("/tableflip")) {
-   const rest = trimmed.slice(10).trim();
-   await sendPayload(`${rest ? `${rest} ` : ""}(╯°□°)╯︵ ┻━┻`);
-   return;
- }
-
- await sendPayload(text);
-};
-  const handleSelectGif = async (gif: KlipyGifItem) => {
-    setShowGifPicker(false);
-    await sendPayload("", [
-      {
-        type: "image",
-        image_url: gif.fullUrl,
-        thumb_url: gif.previewUrl || gif.fullUrl,
-        title: gif.title || "GIF",
-      },
-    ]);
   };
 
   const handleInsertEmoji = (char: string) => {
