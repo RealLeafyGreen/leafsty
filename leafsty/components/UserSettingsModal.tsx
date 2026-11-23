@@ -607,8 +607,8 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
                      </select>
                    </div>
                  </div>
-                 </div>
                )}
+             </div>
              </div>
             )}
             {activeTab === "account" && (
