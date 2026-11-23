@@ -619,8 +619,6 @@ export default function CustomMessageComposer({
             : client && channel?.id
             ? client.channel(channel.type || "messaging", channel.id)
             : null;
-
-                const file = new File([blob], `voice-note-${Date.now()}.webm`, {
           type: blob.type || "audio/webm",
         });
 
