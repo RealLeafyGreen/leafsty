@@ -1,288 +1,166 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
-import * as e2ee from "../../../lib/e2ee";
+import { ReplyTarget } from "../CustomMessage/CustomMessage";
+import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
 import {
-  CornerUpLeft,
-  Lock,
-  Pencil,
-  SmilePlus,
-  Check,
-  CheckCheck,
+  Send,
   X,
+  Lock,
+  CornerUpLeft,
+  Image as ImageIcon,
+  Smile,
+  Search,
+  Paperclip,
   FileText,
-  Download,
+  Loader2,
 } from "lucide-react";
 
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👀", "💀"];
+interface EmojiEntry {
+  char: string;
+  name: string;
+  shortcode: string;
+  cat: "Smileys" | "Hands" | "Nature" | "Food" | "Objects" | "Symbols";
+  skinTones?: boolean;
+}
 
-export interface ReplyTarget {
+interface PendingAttachment {
   id: string;
-  text: string;
-  userName?: string;
+  file: File;
+  name: string;
+  size: number;
+  isImage: boolean;
+  previewUrl?: string;
 }
 
-export interface CustomMessageProps {
-  message?: any;
-  isLastOwnMessage?: boolean;
-  onReply?: (target: ReplyTarget) => void;
-  onSelectUser?: (user: { id: string; name: string; image?: string }) => void;
+const EMOJI_SET: EmojiEntry[] = [
+  { char: "😀", name: "grinning face smile happy", shortcode: "grinning", cat: "Smileys" },
+  { char: "😂", name: "joy laugh tears lol", shortcode: "joy", cat: "Smileys" },
+  { char: "🤣", name: "rofl rolling laughing", shortcode: "rofl", cat: "Smileys" },
+  { char: "🥹", name: "holding back tears proud", shortcode: "holding_back_tears", cat: "Smileys" },
+  { char: "😊", name: "blush smiling happy", shortcode: "blush", cat: "Smileys" },
+  { char: "😍", name: "heart eyes love", shortcode: "heart_eyes", cat: "Smileys" },
+  { char: "🥰", name: "smiling hearts love", shortcode: "smiling_hearts", cat: "Smileys" },
+  { char: "😎", name: "sunglasses cool", shortcode: "sunglasses", cat: "Smileys" },
+  { char: "🥳", name: "partying celebrate birthday", shortcode: "partying_face", cat: "Smileys" },
+  { char: "🤔", name: "thinking hmm", shortcode: "thinking", cat: "Smileys" },
+  { char: "😴", name: "sleeping tired zzz", shortcode: "sleeping", cat: "Smileys" },
+  { char: "😭", name: "sob crying sad", shortcode: "sob", cat: "Smileys" },
+  { char: "😱", name: "scream shocked", shortcode: "scream", cat: "Smileys" },
+  { char: "🤯", name: "exploding head mind blown", shortcode: "exploding_head", cat: "Smileys" },
+  { char: "🥶", name: "cold freezing", shortcode: "cold_face", cat: "Smileys" },
+  { char: "🥵", name: "hot sweating", shortcode: "hot_face", cat: "Smileys" },
+  { char: "🫠", name: "melting face", shortcode: "melting_face", cat: "Smileys" },
+  { char: "🫡", name: "saluting face respect", shortcode: "saluting_face", cat: "Smileys" },
+  { char: "🤡", name: "clown", shortcode: "clown", cat: "Smileys" },
+  { char: "👻", name: "ghost spooky", shortcode: "ghost", cat: "Smileys" },
+  { char: "💀", name: "skull dead", shortcode: "skull", cat: "Smileys" },
+  { char: "👍", name: "thumbs up like yes", shortcode: "thumbsup", cat: "Hands", skinTones: true },
+  { char: "👎", name: "thumbs down dislike no", shortcode: "thumbsdown", cat: "Hands", skinTones: true },
+  { char: "👏", name: "clap applause", shortcode: "clap", cat: "Hands", skinTones: true },
+  { char: "🙌", name: "raised hands hooray", shortcode: "raised_hands", cat: "Hands", skinTones: true },
+  { char: "🤝", name: "handshake deal", shortcode: "handshake", cat: "Hands" },
+  { char: "✌️", name: "peace victory", shortcode: "v", cat: "Hands", skinTones: true },
+  { char: "🤞", name: "crossed fingers luck", shortcode: "crossed_fingers", cat: "Hands", skinTones: true },
+  { char: "🫶", name: "heart hands love", shortcode: "heart_hands", cat: "Hands", skinTones: true },
+  { char: "👋", name: "wave hello hi bye", shortcode: "wave", cat: "Hands", skinTones: true },
+  { char: "💪", name: "muscle strong flex", shortcode: "muscle", cat: "Hands", skinTones: true },
+  { char: "🙏", name: "pray please thanks", shortcode: "pray", cat: "Hands", skinTones: true },
+  { char: "👀", name: "eyes look watching", shortcode: "eyes", cat: "Hands" },
+  { char: "🌿", name: "herb leaf green leafsty", shortcode: "herb", cat: "Nature" },
+  { char: "🍃", name: "leaves wind flutter", shortcode: "leaves", cat: "Nature" },
+  { char: "🌱", name: "seedling sprout plant", shortcode: "seedling", cat: "Nature" },
+  { char: "🌲", name: "evergreen pine tree", shortcode: "evergreen_tree", cat: "Nature" },
+  { char: "🍀", name: "four leaf clover lucky", shortcode: "four_leaf_clover", cat: "Nature" },
+  { char: "🐱", name: "cat kitty", shortcode: "cat", cat: "Nature" },
+  { char: "🐶", name: "dog puppy", shortcode: "dog", cat: "Nature" },
+  { char: "🦊", name: "fox", shortcode: "fox", cat: "Nature" },
+  { char: "🐸", name: "frog", shortcode: "frog", cat: "Nature" },
+  { char: "🌙", name: "moon night", shortcode: "crescent_moon", cat: "Nature" },
+  { char: "⭐", name: "star", shortcode: "star", cat: "Nature" },
+  { char: "✨", name: "sparkles magic shine", shortcode: "sparkles", cat: "Nature" },
+  { char: "🔥", name: "fire flame lit", shortcode: "fire", cat: "Nature" },
+  { char: "🥬", name: "leafy green kale", shortcode: "leafy_green", cat: "Food" },
+  { char: "🍕", name: "pizza", shortcode: "pizza", cat: "Food" },
+  { char: "🍔", name: "hamburger burger", shortcode: "hamburger", cat: "Food" },
+  { char: "🍣", name: "sushi", shortcode: "sushi", cat: "Food" },
+  { char: "🍩", name: "donut doughnut", shortcode: "doughnut", cat: "Food" },
+  { char: "☕", name: "coffee hot", shortcode: "coffee", cat: "Food" },
+  { char: "🧋", name: "bubble tea boba", shortcode: "bubble_tea", cat: "Food" },
+  { char: "🎮", name: "video game controller", shortcode: "video_game", cat: "Objects" },
+  { char: "🎧", name: "headphones music", shortcode: "headphones", cat: "Objects" },
+  { char: "🏆", name: "trophy winner", shortcode: "trophy", cat: "Objects" },
+  { char: "🎉", name: "party popper tada", shortcode: "tada", cat: "Objects" },
+  { char: "💻", name: "laptop computer code", shortcode: "computer", cat: "Objects" },
+  { char: "🔒", name: "lock encrypted secure", shortcode: "lock", cat: "Objects" },
+  { char: "🚀", name: "rocket launch", shortcode: "rocket", cat: "Objects" },
+  { char: "💎", name: "gem diamond", shortcode: "gem", cat: "Objects" },
+  { char: "❤️", name: "red heart love", shortcode: "heart", cat: "Symbols" },
+  { char: "💚", name: "green heart leafsty", shortcode: "green_heart", cat: "Symbols" },
+  { char: "💯", name: "100 hundred perfect", shortcode: "100", cat: "Symbols" },
+  { char: "⚡", name: "zap lightning bolt", shortcode: "zap", cat: "Symbols" },
+];
+
+const SKIN_TONES = [
+  { id: "default", label: "Default", mod: "", swatch: "#facc15" },
+  { id: "light", label: "Light", mod: "\u{1F3FB}", swatch: "#f7d7c4" },
+  { id: "med-light", label: "Medium-Light", mod: "\u{1F3FC}", swatch: "#d8b094" },
+  { id: "medium", label: "Medium", mod: "\u{1F3FD}", swatch: "#bb9167" },
+  { id: "med-dark", label: "Medium-Dark", mod: "\u{1F3FE}", swatch: "#8e562e" },
+  { id: "dark", label: "Dark", mod: "\u{1F3FF}", swatch: "#5a3825" },
+];
+
+const RECENT_KEY = "leafsty_recent_emojis";
+const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog_v3";
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function CustomMessage({
-  message,
-  onReply,
-  onSelectUser,
-}: CustomMessageProps) {
-  const { client } = useChatContext() as any;
-  const discordCtx = useDiscordContext() as any;
-  const activeChannel = discordCtx?.activeChannel || null;
+function compressImageUnder65KB(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxDim = 900;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas unavailable"));
+      ctx.drawImage(img, 0, 0, width, height);
 
-  const [decryptedText, setDecryptedText] = useState<string>("");
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState("");
-  const [showReactBar, setShowReactBar] = useState(false);
-  const [localReactions, setLocalReactions] = useState<Record<string, number>>(
-    {}
-  );
-  const [myReactions, setMyReactions] = useState<Record<string, boolean>>({});
-  const [, setReadTick] = useState(0);
-
-  const currentUserId = String(client?.userID || client?.user?.id || "");
-  const myUsername = String(
-    (client?.user as any)?.name || currentUserId || ""
-  ).toLowerCase();
-
-  const msgUser = message?.user || {};
-  const senderId = String(msgUser.id || "");
-  const senderName = msgUser.name || senderId || "LeafyUser";
-  const senderImage = msgUser.image || "";
-  const isOwn = senderId === currentUserId;
-
-  const rawText = typeof message?.text === "string" ? message.text : "";
-  const cidParts = String(message?.cid || "").split(":");
-  const roomId = cidParts.at(1) || "leafsty-default-room";
-
-  useEffect(() => {
-    if (!activeChannel?.on) return;
-    const bump = () => setReadTick((t) => t + 1);
-    const sub = activeChannel.on("message.read", bump);
-    return () => sub?.unsubscribe?.();
-  }, [activeChannel]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!rawText) {
-      setDecryptedText("");
-      return;
-    }
-
-    (async () => {
-      try {
-        const mod = e2ee as any;
-        const decryptFn =
-          mod.decryptRoomText ||
-          mod.decryptMessage ||
-          mod.decryptText ||
-          mod.decrypt;
-        const plain =
-          typeof decryptFn === "function"
-            ? await decryptFn(rawText, roomId)
-            : rawText;
-        if (!cancelled) {
-          setDecryptedText(typeof plain === "string" && plain ? plain : rawText);
-        }
-      } catch {
-        if (!cancelled) {
-          setDecryptedText(rawText);
+      for (const quality of [0.75, 0.55, 0.35]) {
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        if (dataUrl.length <= 65_000) {
+          return resolve(dataUrl);
         }
       }
-    })();
-
-    return () => {
-      cancelled = true;
+      reject(new Error("Image too large for inline fallback"));
     };
-  }, [rawText, roomId]);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read image"));
+    };
+    img.src = objectUrl;
+  });
+}
 
-  useEffect(() => {
-    const counts: Record<string, number> = {};
-    const mine: Record<string, boolean> = {};
-
-    if (message?.reaction_counts && typeof message.reaction_counts === "object") {
-      for (const [k, v] of Object.entries(message.reaction_counts)) {
-        if (typeof v === "number" && v > 0) counts[k] = v;
-      }
-    }
-    if (Array.isArray(message?.own_reactions)) {
-      for (const r of message.own_reactions) {
-        if (r?.type) mine[String(r.type)] = true;
-      }
-    }
-    setLocalReactions(counts);
-    setMyReactions(mine);
-  }, [message?.id, message?.reaction_counts, message?.own_reactions]);
-
-  if (!message) return null;
-
-  const formattedTime = (() => {
-    const rawDate =
-      message.created_at ?? message.createdAt ?? message.updated_at;
-    if (!rawDate) return "";
-    const parsed =
-      rawDate instanceof Date
-        ? rawDate
-        : typeof rawDate === "number"
-        ? new Date(rawDate)
-        : new Date(String(rawDate));
-    if (Number.isNaN(parsed.getTime())) return "";
-    return parsed.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  })();
-
-  const seenByUsers = (() => {
-    if (!isOwn || !activeChannel?.state?.read || !message.created_at) return [];
-    const msgTime = new Date(message.created_at).getTime();
-    if (Number.isNaN(msgTime)) return [];
-
-    const stateMessages: any[] = Array.isArray(activeChannel.state.messages)
-      ? activeChannel.state.messages
-      : [];
-    const nextOwnMsg = stateMessages.find(
-      (m: any) =>
-        String(m?.user?.id || "") === currentUserId &&
-        new Date(m?.created_at || 0).getTime() > msgTime
-    );
-    const nextOwnTime = nextOwnMsg
-      ? new Date(nextOwnMsg.created_at).getTime()
-      : Infinity;
-
-    const readers: Array<{ id: string; name: string; image?: string }> = [];
-    for (const [uid, entry] of Object.entries(
-      activeChannel.state.read as Record<string, any>
-    )) {
-      if (!uid || uid === currentUserId) continue;
-      const readTime = entry?.last_read
-        ? new Date(entry.last_read).getTime()
-        : 0;
-      if (readTime >= msgTime && readTime < nextOwnTime) {
-        readers.push({
-          id: uid,
-          name: entry?.user?.name || uid,
-          image: entry?.user?.image,
-        });
-      }
-    }
-    return readers;
-  })();
-
-  const attachments = Array.isArray(message.attachments)
-    ? message.attachments
-    : [];
-
-  const hasMediaAttachment = attachments.some((att: any) =>
-    Boolean(att?.image_url || att?.thumb_url || att?.asset_url)
-  );
-
-  const displayBody = (decryptedText || rawText).trim();
-  const shouldShowText =
-    Boolean(displayBody) &&
-    !(displayBody.toUpperCase() === "GIF" && hasMediaAttachment);
-
-  const isEdited = Boolean(
-    message.message_text_updated_at ||
-      (message.updated_at &&
-        message.created_at &&
-        new Date(message.updated_at).getTime() -
-          new Date(message.created_at).getTime() >
-          2000)
-  );
-
-  const handleToggleReaction = async (emoji: string) => {
-    setShowReactBar(false);
-    const already = Boolean(myReactions[emoji]);
-
-    setMyReactions((prev) => ({ ...prev, [emoji]: !already }));
-    setLocalReactions((prev) => {
-      const nextCount = Math.max(0, (prev[emoji] || 0) + (already ? -1 : 1));
-      const copy = { ...prev };
-      if (nextCount === 0) delete copy[emoji];
-      else copy[emoji] = nextCount;
-      return copy;
-    });
-
-    try {
-      if (already) {
-        await activeChannel?.deleteReaction?.(message.id, emoji);
-      } else {
-        await activeChannel?.sendReaction?.(message.id, { type: emoji });
-      }
-    } catch {}
-  };
-
-  const handleSaveEdit = async () => {
-    const nextText = editDraft.trim();
-    if (!nextText || nextText === displayBody) {
-      setIsEditing(false);
-      return;
-    }
-    setDecryptedText(nextText);
-    setIsEditing(false);
-    try {
-      await client?.updateMessage?.({
-        id: message.id,
-        text: nextText,
-      });
-    } catch {}
-  };
-
-  const renderFormattedText = (text: string) => {
-    const tokens = text.split(/(https?:\/\/[^\s]+|@[a-zA-Z0-9_.-]+)/g);
-    return tokens.map((part, i) => {
-      if (!part) return null;
-
-      if (/^https?:\/\//.test(part)) {
-        return (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-300 underline hover:text-emerald-200 break-all"
-          >
-            {part}
-          </a>
-        );
-      }
-
-      if (/^@[a-zA-Z0-9_.-]+$/.test(part)) {
-        const handle = part.slice(1).toLowerCase();
-        const isMe =
-          handle === "everyone" ||
-          handle === "here" ||
-          (myUsername && handle === myUsername) ||
-          (currentUserId && handle === currentUserId.toLowerCase());
-
-        return (
-          <span
-            key={i}
-            className={`inline-block px-1.5 py-0.2 rounded-md font-bold transition ${
-              isMe
-                ? "bg-amber-400/25 text-amber-200 border border-amber-400/40"
-                : "bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"
-            }`}
-          >
-            {part}
-          </span>
-        );
-      }
-
-      return <React.Fragment key={i}>{part}</React.Fragment>;
-    });
-  };
+export interface CustomMessageComposerProps {
+  replyTarget?: ReplyTarget | null;
+  onCancelReply?: () => void;
+}
 
 export default function CustomMessageComposer({
   replyTarget,
