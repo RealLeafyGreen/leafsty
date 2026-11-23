@@ -49,7 +49,7 @@ export default function TwemojiChar({
 
   return (
     <img
-      src={`/api/twemoji/${code}`}
+          src={`/api/twemoji?code=${code}`}
       alt={emoji}
       draggable={false}
       loading="lazy"
