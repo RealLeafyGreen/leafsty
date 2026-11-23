@@ -312,18 +312,39 @@ export default function MyChat() {
     }).catch(() => {});
   };
 
-  const handleSaveProfile = async (updated: any) => {
+   const handleSaveProfile = async (updated: any) => {
     if (!client || !currentUserId) return;
+    const normalized = {
+      ...updated,
+      aboutMe: updated.bio ?? updated.aboutMe ?? "",
+      statusText: updated.status ?? updated.statusText ?? "",
+    };
+
     try {
-      await (client as any).partialUpdateUser?.({
-        id: currentUserId,
-        set: updated,
+      await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUserId,
+          updates: normalized,
+        }),
       });
+
+      if (client.user) {
+        Object.assign(client.user, normalized);
+      }
+
       const raw = localStorage.getItem("leafsty_user");
       const parsed = raw ? JSON.parse(raw) : { id: currentUserId };
       localStorage.setItem(
         "leafsty_user",
-        JSON.stringify({ ...parsed, ...updated })
+        JSON.stringify({ ...parsed, ...normalized })
+      );
+
+      setProfileUser((prev: any) =>
+        prev && String(prev.id) === String(currentUserId)
+          ? { ...prev, ...normalized }
+          : prev
       );
     } catch (err) {
       console.error("Failed to save user settings:", err);
