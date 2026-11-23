@@ -16,6 +16,9 @@ import {
   Paperclip,
   FileText,
   Loader2,
+  Mic,
+  Square,
+  Trash2,
 } from "lucide-react";
 
 interface EmojiEntry {
@@ -195,6 +198,17 @@ export default function CustomMessageComposer({
   const [isUploading, setIsUploading] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+const [recordSeconds, setRecordSeconds] = useState(0);
+const [liveLevels, setLiveLevels] = useState<number[]>(Array(24).fill(22));
+const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+const audioChunksRef = useRef<Blob[]>([]);
+const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+const analyserFrameRef = useRef<number | null>(null);
+const audioCtxRef = useRef<AudioContext | null>(null);
+const sampledWaveRef = useRef<number[]>([]);
+const recordStartRef = useRef<number>(0);
+
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -389,6 +403,190 @@ export default function CustomMessageComposer({
       setSendError(err?.message || "Could not send message");
     }
   };
+const cleanupAudioMonitor = () => {
+  if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+  if (analyserFrameRef.current) cancelAnimationFrame(analyserFrameRef.current);
+  if (audioCtxRef.current) {
+    audioCtxRef.current.close().catch(() => {});
+    audioCtxRef.current = null;
+  }
+};
+
+const startRecording = async () => {
+  if (isRecording || isUploading) return;
+  setSendError(null);
+  setShowEmojiPicker(false);
+  setShowGifPicker(false);
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+      ? "audio/webm"
+      : "";
+
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
+
+    audioChunksRef.current = [];
+    sampledWaveRef.current = [];
+    recordStartRef.current = Date.now();
+    setRecordSeconds(0);
+    setIsRecording(true);
+
+    const AudioCtx =
+      window.AudioContext || (window as any).webkitAudioContext;
+    const audioCtx = new AudioCtx();
+    audioCtxRef.current = audioCtx;
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    const dataArr = new Uint8Array(analyser.frequencyBinCount);
+
+    const tickWave = () => {
+      analyser.getByteFrequencyData(dataArr);
+      let sum = 0;
+      for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
+      const avg = sum / Math.max(1, dataArr.length);
+      const pct = Math.max(18, Math.min(100, Math.round((avg / 140) * 100)));
+      sampledWaveRef.current.push(pct);
+      setLiveLevels((prev) => [...prev.slice(1), pct]);
+      analyserFrameRef.current = requestAnimationFrame(tickWave);
+    };
+    tickWave();
+
+    recordTimerRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordStartRef.current) / 1000);
+      setRecordSeconds(elapsed);
+      if (elapsed >= 60) {
+        stopAndSendRecording();
+      }
+    }, 250);
+
+    recorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) {
+        audioChunksRef.current.push(ev.data);
+      }
+    };
+
+    mediaRecorderRef.current = recorder;
+    recorder.start(200);
+  } catch {
+    setSendError("Microphone permission denied or unavailable.");
+    setIsRecording(false);
+  }
+};
+
+const cancelRecording = () => {
+  cleanupAudioMonitor();
+  const rec = mediaRecorderRef.current;
+  if (rec) {
+    rec.onstop = null;
+    rec.stream?.getTracks().forEach((t) => t.stop());
+    if (rec.state !== "inactive") rec.stop();
+  }
+  mediaRecorderRef.current = null;
+  audioChunksRef.current = [];
+  setIsRecording(false);
+  setRecordSeconds(0);
+};
+
+const stopAndSendRecording = () => {
+  const rec = mediaRecorderRef.current;
+  if (!rec) return;
+
+  cleanupAudioMonitor();
+  const durationSec = Math.max(
+    1,
+    Math.round((Date.now() - recordStartRef.current) / 1000)
+  );
+
+  // Downsample captured levels into 26 clean waveform bars
+  const rawSamples = sampledWaveRef.current;
+  const targetBars = 26;
+  const waveform: number[] = [];
+  if (rawSamples.length === 0) {
+    for (let i = 0; i < targetBars; i++) waveform.push(35);
+  } else {
+    for (let i = 0; i < targetBars; i++) {
+      const idx = Math.min(
+        rawSamples.length - 1,
+        Math.floor((i / targetBars) * rawSamples.length)
+      );
+      waveform.push(rawSamples[idx]);
+    }
+  }
+
+  rec.onstop = async () => {
+    rec.stream?.getTracks().forEach((t) => t.stop());
+    const blob = new Blob(audioChunksRef.current, {
+      type: rec.mimeType || "audio/webm",
+    });
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordSeconds(0);
+
+    if (blob.size < 400) return;
+
+    setIsUploading(true);
+    setSendError(null);
+    try {
+      const file = new File([blob], `voice-note-${Date.now()}.webm`, {
+        type: blob.type || "audio/webm",
+      });
+
+      const liveChannel =
+        typeof channel?.sendFile === "function"
+          ? channel
+          : client && channel?.id
+          ? client.channel(channel.type || "messaging", channel.id)
+          : null;
+
+      let assetUrl = "";
+      try {
+        if (typeof liveChannel?.sendFile === "function") {
+          const res = await liveChannel.sendFile(file);
+          if (res?.file) assetUrl = res.file;
+        }
+      } catch {}
+
+      if (!assetUrl && blob.size <= 65_000) {
+        assetUrl = await new Promise<string>((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result || ""));
+          r.readAsDataURL(blob);
+        });
+      }
+
+      if (!assetUrl) {
+        throw new Error(
+          "Voice upload failed (enable File Uploads in Stream Dashboard for long recordings)."
+        );
+      }
+
+      await sendPayload("", [
+        {
+          type: "leafsty_voice",
+          asset_url: assetUrl,
+          duration: durationSec,
+          waveform,
+          title: "Voice Message",
+        },
+      ]);
+    } catch (err: any) {
+      setSendError(err?.message || "Could not send voice message");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  if (rec.state !== "inactive") {
+    rec.stop();
+  }
+};
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -790,114 +988,164 @@ export default function CustomMessageComposer({
         </div>
       )}
 
-      <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          title="Attach Files or Images"
-          className="p-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50 transition cursor-pointer shrink-0 flex items-center justify-center"
-        >
-          <Paperclip className="w-4 h-4" />
-        </button>
+        {isRecording ? (
+        <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-[#0d261e] border border-red-400/50">
+          <button
+            type="button"
+            onClick={cancelRecording}
+            title="Discard Voice Note"
+            className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-red-300 transition cursor-pointer shrink-0"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowEmojiPicker(false);
-            setShowGifPicker((v) => !v);
-          }}
-          title="GIFs & Favorites"
-          className={`px-2.5 py-2 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer shrink-0 ${
-            showGifPicker
-              ? "bg-emerald-500/25 border-emerald-400 text-emerald-100"
-              : "bg-[#0d261e] border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50"
-          }`}
-        >
-          <ImageIcon className="w-3.5 h-3.5" />
-          <span>GIF</span>
-        </button>
+          <span className="inline-flex items-center gap-1.5 text-xs font-mono font-extrabold text-red-300 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+            {Math.floor(recordSeconds / 60)}:
+            {recordSeconds % 60 < 10 ? "0" : ""}
+            {recordSeconds % 60}
+          </span>
 
-        <div className="relative flex-1">
-          <input
-            ref={inputRef}
-            type="text"
-            value={text}
-            onPaste={(e) => {
-              const items = e.clipboardData?.files;
-              if (items && items.length > 0) {
-                e.preventDefault();
-                addFiles(items);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (mentionQuery !== null && mentionCandidates.length > 0) {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setMentionIndex((i) => (i + 1) % mentionCandidates.length);
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setMentionIndex(
-                    (i) =>
-                      (i - 1 + mentionCandidates.length) %
-                      mentionCandidates.length
-                  );
-                } else if (e.key === "Enter" || e.key === "Tab") {
-                  e.preventDefault();
-                  const chosen = mentionCandidates.at(mentionIndex);
-                  if (chosen) handleSelectMention(chosen.tag);
-                } else if (e.key === "Escape") {
-                  setMentionQuery(null);
-                }
-              }
-            }}
-            onChange={(e) => {
-              const val = e.target.value;
-              setText(val);
-              const match = val.match(/(?:^|\s)@([a-zA-Z0-9_.-]*)$/);
-              if (match) {
-                setMentionQuery(match.at(1) ?? "");
-                setMentionIndex(0);
-              } else {
-                setMentionQuery(null);
-              }
-              if (val.trim()) {
-                channel?.keystroke?.().catch(() => {});
-              } else {
-                channel?.stopTyping?.().catch(() => {});
-              }
-            }}
-            placeholder={`Message ${channelLabel} (E2EE)...`}
-            className="w-full pl-3.5 pr-16 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
-          />
+          <div className="flex-1 flex items-center justify-center gap-1 h-7 overflow-hidden">
+            {liveLevels.map((lvl, i) => (
+              <span
+                key={i}
+                style={{ height: `${lvl}%` }}
+                className="w-1 rounded-full bg-emerald-400 transition-all duration-75"
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={stopAndSendRecording}
+            title="Send Voice Message"
+            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
+            <span>Send</span>
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach Files or Images"
+            className="p-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50 transition cursor-pointer shrink-0 flex items-center justify-center"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
 
           <button
             type="button"
             onClick={() => {
-              setShowGifPicker(false);
-              setShowEmojiPicker((v) => !v);
+              setShowEmojiPicker(false);
+              setShowGifPicker((v) => !v);
             }}
-            title="Emojis"
-            className="p-1.5 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 absolute right-8 top-1/2 -translate-y-1/2 transition cursor-pointer"
+            title="GIFs & Favorites"
+            className={`px-2.5 py-2 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer shrink-0 ${
+              showGifPicker
+                ? "bg-emerald-500/25 border-emerald-400 text-emerald-100"
+                : "bg-[#0d261e] border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50"
+            }`}
           >
-            <Smile className="w-4 h-4" />
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span>GIF</span>
           </button>
 
-          <Lock className="w-3.5 h-3.5 text-emerald-400/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-        </div>
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              type="text"
+              value={text}
+              onPaste={(e) => {
+                const items = e.clipboardData?.files;
+                if (items && items.length > 0) {
+                  e.preventDefault();
+                  addFiles(items);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (mentionQuery !== null && mentionCandidates.length > 0) {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setMentionIndex((i) => (i + 1) % mentionCandidates.length);
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setMentionIndex(
+                      (i) =>
+                        (i - 1 + mentionCandidates.length) %
+                        mentionCandidates.length
+                    );
+                  } else if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    const chosen = mentionCandidates.at(mentionIndex);
+                    if (chosen) handleSelectMention(chosen.tag);
+                  } else if (e.key === "Escape") {
+                    setMentionQuery(null);
+                  }
+                }
+              }}
+              onChange={(e) => {
+                const val = e.target.value;
+                setText(val);
+                const match = val.match(/(?:^|\s)@([a-zA-Z0-9_.-]*)$/);
+                if (match) {
+                  setMentionQuery(match.at(1) ?? "");
+                  setMentionIndex(0);
+                } else {
+                  setMentionQuery(null);
+                }
+                if (val.trim()) {
+                  channel?.keystroke?.().catch(() => {});
+                } else {
+                  channel?.stopTyping?.().catch(() => {});
+                }
+              }}
+              placeholder={`Message ${channelLabel} (E2EE)...`}
+              className="w-full pl-3.5 pr-16 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+            />
 
-        <button
-          type="submit"
-          disabled={isUploading || (!text.trim() && pendingFiles.length === 0)}
-          title="Send Encrypted Message"
-          className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white transition cursor-pointer shrink-0 flex items-center justify-center"
-        >
-          {isUploading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-        </button>
-      </form>
+            <button
+              type="button"
+              onClick={() => {
+                setShowGifPicker(false);
+                setShowEmojiPicker((v) => !v);
+              }}
+              title="Emojis"
+              className="p-1.5 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 absolute right-8 top-1/2 -translate-y-1/2 transition cursor-pointer"
+            >
+              <Smile className="w-4 h-4" />
+            </button>
+
+            <Lock className="w-3.5 h-3.5 text-emerald-400/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          <button
+            type="button"
+            onClick={startRecording}
+            disabled={isUploading}
+            title="Record Voice Message"
+            className="p-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50 disabled:opacity-40 transition cursor-pointer shrink-0 flex items-center justify-center"
+          >
+            <Mic className="w-4 h-4" />
+          </button>
+
+          <button
+            type="submit"
+            disabled={isUploading || (!text.trim() && pendingFiles.length === 0)}
+            title="Send Encrypted Message"
+            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white transition cursor-pointer shrink-0 flex items-center justify-center"
+          >
+            {isUploading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

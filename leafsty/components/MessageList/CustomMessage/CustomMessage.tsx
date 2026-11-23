@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import * as e2ee from "../../../lib/e2ee";
+import VoiceNotePlayer from "../VoiceNotePlayer";
 import {
   CornerUpLeft,
   Lock,
@@ -468,6 +469,16 @@ export default function CustomMessage({
         {att.withVideo ? "video" : "voice"} call
       </span>
     </div>
+  );
+}
+if (att?.type === "leafsty_voice" && att?.asset_url) {
+  return (
+    <VoiceNotePlayer
+      key={idx}
+      src={att.asset_url}
+      duration={Number(att.duration || 0)}
+      waveform={att.waveform}
+    />
   );
 }
 
