@@ -5,6 +5,7 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
+import { TwemojiPicker } from "../../TwemojiSystem";
 import {
   Send,
   X,
@@ -141,7 +142,7 @@ export default function CustomMessageComposer({
 
       {showEmojiPicker && (
         <div className="absolute bottom-full right-14 mb-2 z-40">
-          <UnicodeEmojiPicker
+          <TwemojiPicker
             onSelectEmoji={handleInsertEmoji}
             onClose={() => setShowEmojiPicker(false)}
           />
@@ -230,7 +231,7 @@ export default function CustomMessageComposer({
               setShowGifPicker(false);
               setShowEmojiPicker((v) => !v);
             }}
-            title="Unicode Emojis"
+            title="Twemoji Picker"
             className="p-1.5 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 absolute right-8 top-1/2 -translate-y-1/2 transition cursor-pointer"
           >
             <Smile className="w-4 h-4" />

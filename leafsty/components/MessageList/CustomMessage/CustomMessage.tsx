@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import * as e2ee from "../../../lib/e2ee";
+import { TwemojiImg, TwemojiMessageText } from "../../TwemojiSystem";
 import {
   CornerUpLeft,
   Lock,
@@ -54,7 +55,7 @@ export default function CustomMessage({
 
   const rawText = typeof message?.text === "string" ? message.text : "";
   const cidParts = String(message?.cid || "").split(":");
-  const roomId = cidParts || "leafsty-default-room";
+  const roomId = cidParts[1] || "leafsty-default-room";
 
   useEffect(() => {
     let cancelled = false;
@@ -200,7 +201,7 @@ export default function CustomMessage({
           {part}
         </a>
       ) : (
-        <TwemojiText key={i} text={part} />
+        <TwemojiMessageText key={i} text={part} />
       )
     );
   };
@@ -308,7 +309,7 @@ export default function CustomMessage({
                 onClick={() => handleToggleReaction(emoji)}
                 className="hover:scale-125 transition-transform p-1 cursor-pointer flex items-center justify-center"
               >
-                <TwemojiChar emoji={emoji} className="w-5 h-5" />
+                <TwemojiImg emoji={emoji} className="w-5 h-5" />
               </button>
             ))}
           </div>
@@ -397,7 +398,7 @@ export default function CustomMessage({
                     : "bg-[#0d261e] border-emerald-500/20 text-emerald-200/80 hover:border-emerald-400/40"
                 }`}
               >
-                <TwemojiChar emoji={emoji} className="w-4 h-4" />
+                <TwemojiImg emoji={emoji} className="w-4 h-4" />
                 <span className="text-[11px]">{count}</span>
               </button>
             ))}
