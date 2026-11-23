@@ -19,10 +19,13 @@ export interface LeafstyProfileUser {
   aboutMe?: string;
   status?: string;
   statusText?: string;
+  isCurrentUser?: boolean;
   created_at?: string;
   roles?: string[];
   custom?: Record<string, any>;
+  [key: string]: any;
 }
+
 
 export default function UserProfilePopover({
   user,
