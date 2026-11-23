@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
-import TwemojiObserver from "../components/TwemojiObserver";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,11 +28,6 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#071410] text-emerald-50`}
       >
         {children}
-        <TwemojiObserver />
-        <Script
-          src="https://jsdelivr.net"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );
