@@ -61,7 +61,7 @@ export default function MyChat() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
-  
+
   useEffect(() => {
     const syncTheme = () => {
       try {
@@ -147,25 +147,31 @@ export default function MyChat() {
 
     setLocalMessages([...(activeChannel?.state?.messages || [])]);
 
-    (async () => {
+      (async () => {
       try {
-        const res = await activeChannel.query?.({
-          messages: { limit: 100 },
+        const params = new URLSearchParams({
+          channelType: String(activeChannel.type || "messaging"),
+          channelId: String(activeChannel.id),
+          limit: "300",
         });
+        const res = await fetch(`/api/history?${params.toString()}`);
+        const data = await res.json().catch(() => ({}));
         if (!cancelled) {
-          const history =
-            res?.messages || activeChannel?.state?.messages || [];
+          const history = Array.isArray(data?.messages)
+            ? data.messages
+            : activeChannel?.state?.messages || [];
           mergeMessages(history);
         }
       } catch {
         try {
-          await activeChannel.watch?.();
+          await activeChannel.watch?.({ messages: { limit: 100 } });
           if (!cancelled) {
             mergeMessages(activeChannel?.state?.messages || []);
           }
         } catch {}
       }
     })();
+
 
     const markActiveRead = () => {
       if (
