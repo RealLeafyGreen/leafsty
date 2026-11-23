@@ -5,15 +5,7 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
-import { TwemojiPicker } from "../../TwemojiSystem";
-import {
-  Send,
-  X,
-  Lock,
-  CornerUpLeft,
-  Image as ImageIcon,
-  Smile,
-} from "lucide-react";
+import { Send, X, Lock, CornerUpLeft, Image as ImageIcon } from "lucide-react";
 
 export interface CustomMessageComposerProps {
   replyTarget?: ReplyTarget | null;
@@ -31,13 +23,9 @@ export default function CustomMessageComposer({
   const [text, setText] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const sendPayload = async (
-    rawText: string,
-    attachments: any[] = []
-  ) => {
+  const sendPayload = async (rawText: string, attachments: any[] = []) => {
     const trimmed = rawText.trim();
     if ((!trimmed && attachments.length === 0) || !channel) return;
 
@@ -46,8 +34,6 @@ export default function CustomMessageComposer({
     );
 
     const tempId = `temp-${Date.now()}`;
-    const nowIso = new Date().toISOString();
-
     const optimisticMsg = {
       id: tempId,
       text: trimmed,
@@ -59,7 +45,7 @@ export default function CustomMessageComposer({
         name: (client?.user as any)?.name || currentUserId,
         image: (client?.user as any)?.image,
       },
-      created_at: nowIso,
+      created_at: new Date().toISOString(),
     };
 
     window.dispatchEvent(
@@ -99,13 +85,12 @@ export default function CustomMessageComposer({
         );
       }
     } catch (err: any) {
-      console.error("Failed to send message:", err);
       setSendError(err?.message || "Could not send message");
     }
   };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setShowEmojiPicker(false);
     await sendPayload(text);
   };
 
@@ -121,11 +106,6 @@ export default function CustomMessageComposer({
     ]);
   };
 
-  const handleInsertEmoji = (emoji: string) => {
-    setText((prev) => `${prev}${emoji}`);
-    inputRef.current?.focus();
-  };
-
   const channelLabel =
     (channel?.data as any)?.name || channel?.id || "encrypted chat";
 
@@ -136,15 +116,6 @@ export default function CustomMessageComposer({
           <KlipyGifPicker
             onSelectGif={handleSelectGif}
             onClose={() => setShowGifPicker(false)}
-          />
-        </div>
-      )}
-
-      {showEmojiPicker && (
-        <div className="absolute bottom-full right-14 mb-2 z-40">
-          <TwemojiPicker
-            onSelectEmoji={handleInsertEmoji}
-            onClose={() => setShowEmojiPicker(false)}
           />
         </div>
       )}
@@ -192,10 +163,7 @@ export default function CustomMessageComposer({
       <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => {
-            setShowEmojiPicker(false);
-            setShowGifPicker((v) => !v);
-          }}
+          onClick={() => setShowGifPicker((v) => !v)}
           title="GIFs & Favorites"
           className={`px-2.5 py-2 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer shrink-0 ${
             showGifPicker
@@ -222,20 +190,8 @@ export default function CustomMessageComposer({
               }
             }}
             placeholder={`Message ${channelLabel} (E2EE)...`}
-            className="w-full pl-3.5 pr-16 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+            className="w-full pl-3.5 pr-9 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
           />
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowGifPicker(false);
-              setShowEmojiPicker((v) => !v);
-            }}
-            title="Twemoji Picker"
-            className="p-1.5 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 absolute right-8 top-1/2 -translate-y-1/2 transition cursor-pointer"
-          >
-            <Smile className="w-4 h-4" />
-          </button>
 
           <Lock className="w-3.5 h-3.5 text-emerald-400/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>

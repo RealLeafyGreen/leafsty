@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import * as e2ee from "../../../lib/e2ee";
-import { TwemojiImg, TwemojiMessageText } from "../../TwemojiSystem";
 import {
   CornerUpLeft,
   Lock,
@@ -55,7 +54,7 @@ export default function CustomMessage({
 
   const rawText = typeof message?.text === "string" ? message.text : "";
   const cidParts = String(message?.cid || "").split(":");
-  const roomId = cidParts[1] || "leafsty-default-room";
+  const roomId = cidParts.at(1) || "leafsty-default-room";
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +89,7 @@ export default function CustomMessage({
       cancelled = true;
     };
   }, [rawText, roomId]);
+
   useEffect(() => {
     const counts: Record<string, number> = {};
     const mine: Record<string, boolean> = {};
@@ -148,7 +148,6 @@ export default function CustomMessage({
           new Date(message.created_at).getTime() >
           2000)
   );
-
   const handleToggleReaction = async (emoji: string) => {
     setShowReactBar(false);
     const already = Boolean(myReactions[emoji]);
@@ -201,10 +200,11 @@ export default function CustomMessage({
           {part}
         </a>
       ) : (
-        <TwemojiMessageText key={i} text={part} />
+        <React.Fragment key={i}>{part}</React.Fragment>
       )
     );
   };
+
   return (
     <div className="group relative flex items-start gap-3 px-2 py-1.5 rounded-xl hover:bg-emerald-500/5 transition">
       <button
@@ -307,9 +307,9 @@ export default function CustomMessage({
                 key={emoji}
                 type="button"
                 onClick={() => handleToggleReaction(emoji)}
-                className="hover:scale-125 transition-transform p-1 cursor-pointer flex items-center justify-center"
+                className="text-base hover:scale-125 transition-transform px-1 cursor-pointer"
               >
-                <TwemojiImg emoji={emoji} className="w-5 h-5" />
+                {emoji}
               </button>
             ))}
           </div>
@@ -392,13 +392,13 @@ export default function CustomMessage({
                 key={emoji}
                 type="button"
                 onClick={() => handleToggleReaction(emoji)}
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border transition cursor-pointer ${
                   myReactions[emoji]
                     ? "bg-emerald-500/25 border-emerald-400/50 text-emerald-100"
                     : "bg-[#0d261e] border-emerald-500/20 text-emerald-200/80 hover:border-emerald-400/40"
                 }`}
               >
-                <TwemojiImg emoji={emoji} className="w-4 h-4" />
+                <span>{emoji}</span>
                 <span className="text-[11px]">{count}</span>
               </button>
             ))}
