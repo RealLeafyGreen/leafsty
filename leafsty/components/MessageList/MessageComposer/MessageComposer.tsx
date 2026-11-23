@@ -5,6 +5,7 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
+import { Twemoji } from "../../Twemoji";
 import {
   Send,
   X,
@@ -382,7 +383,7 @@ export default function CustomMessageComposer({
                     onClick={() => handleInsertEmoji(ch)}
                     className="text-xl p-1 rounded-lg hover:bg-emerald-500/20 hover:scale-110 transition cursor-pointer flex items-center justify-center"
                   >
-                    {ch}
+                   <Twemoji emoji={ch} className="w-6 h-6 pointer-events-none" />
                   </button>
                 );
               })
