@@ -5,7 +5,6 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
-import { Twemoji } from "../../Twemoji";
 import {
   Send,
   X,
@@ -268,6 +267,7 @@ export default function CustomMessageComposer({
     return EMOJI_SET.filter((e) => e.cat === emojiTab);
   }, [emojiSearch, emojiTab, recentEmojis]);
 
+  const activePreview = hoveredEmoji || displayedEmojis.at(0) || null;
   const channelLabel =
     (channel?.data as any)?.name || channel?.id || "encrypted chat";
   return (
@@ -292,8 +292,8 @@ export default function CustomMessageComposer({
                   value={emojiSearch}
                   onChange={(e) => setEmojiSearch(e.target.value)}
                   placeholder={
-                    hoveredEmoji
-                      ? `:${hoveredEmoji.shortcode}:`
+                    activePreview
+                      ? `:${activePreview.shortcode}:`
                       : "Search emojis..."
                   }
                   autoFocus
@@ -327,16 +327,13 @@ export default function CustomMessageComposer({
                 ))}
               </div>
 
-             <button
-  key={`${item.shortcode}-${idx}`}
-  type="button"
-  onMouseEnter={() => setHoveredEmoji(item)}
-  onMouseLeave={() => setHoveredEmoji(null)}
-  onClick={() => handleInsertEmoji(ch)}
-  className="text-xl p-1 rounded-lg hover:bg-emerald-500/20 hover:scale-110 transition cursor-pointer flex items-center justify-center"
->
-  {ch}
-</button>
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(false)}
+                className="p-1 rounded-lg text-emerald-300/60 hover:text-emerald-50 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             {!emojiSearch.trim() && (
@@ -382,24 +379,36 @@ export default function CustomMessageComposer({
                     key={`${item.shortcode}-${idx}`}
                     type="button"
                     onMouseEnter={() => setHoveredEmoji(item)}
-                    onMouseLeave={() => setHoveredEmoji(null)}
+                    onFocus={() => setHoveredEmoji(item)}
                     onClick={() => handleInsertEmoji(ch)}
                     className="text-xl p-1 rounded-lg hover:bg-emerald-500/20 hover:scale-110 transition cursor-pointer flex items-center justify-center"
                   >
-                   <Twemoji emoji={ch} className="w-6 h-6 pointer-events-none" />
+                    {ch}
                   </button>
                 );
               })
             )}
           </div>
 
-          <div className="px-3 py-1.5 bg-[#04120e] border-t border-emerald-500/15 text-[11px] text-emerald-300/80 flex items-center justify-between">
-            {hoveredEmoji ? (
-              <span className="font-mono font-bold text-emerald-200">
-                {applyTone(hoveredEmoji)} :{hoveredEmoji.shortcode}:
-              </span>
+          <div className="px-3 py-2 bg-[#04120e] border-t border-emerald-500/15 flex items-center gap-2.5 min-h-[40px]">
+            {activePreview ? (
+              <>
+                <span className="text-2xl leading-none">
+                  {applyTone(activePreview)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-xs font-bold text-emerald-200 truncate">
+                    :{activePreview.shortcode}:
+                  </div>
+                  <div className="text-[10px] text-emerald-400/65 truncate capitalize">
+                    {activePreview.name}
+                  </div>
+                </div>
+              </>
             ) : (
-              <span className="text-emerald-400/70">Click emoji to insert</span>
+              <span className="text-[11px] text-emerald-400/70">
+                Click an emoji to insert
+              </span>
             )}
           </div>
         </div>
