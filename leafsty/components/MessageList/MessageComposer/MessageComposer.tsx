@@ -619,7 +619,6 @@ const stopAndSendRecording = () => {
   if (rec.state !== "inactive") {
     rec.stop();
   }
-};
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
