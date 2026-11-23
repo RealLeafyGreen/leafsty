@@ -14,6 +14,7 @@ import UserSettingsModal from "./UserSettingsModal";
 import LeafstyCallStage from "./LeafstyCallStage";
 import LeafstyTerminal from "./LeafstyTerminal";
 import { useDiscordContext } from "../types/DiscordContext";
+const [readVersion, setReadVersion] = useState(0);
 import {
   AtSign,
   Hash,

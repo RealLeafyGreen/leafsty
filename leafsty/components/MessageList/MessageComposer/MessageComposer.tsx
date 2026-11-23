@@ -13,6 +13,9 @@ import {
   Image as ImageIcon,
   Smile,
   Search,
+  Paperclip,
+  FileText,
+  Loader2,
 } from "lucide-react";
 
 interface EmojiEntry {
@@ -21,6 +24,15 @@ interface EmojiEntry {
   shortcode: string;
   cat: "Smileys" | "Hands" | "Nature" | "Food" | "Objects" | "Symbols";
   skinTones?: boolean;
+}
+
+interface PendingAttachment {
+  id: string;
+  file: File;
+  name: string;
+  size: number;
+  isImage: boolean;
+  previewUrl?: string;
 }
 
 const EMOJI_SET: EmojiEntry[] = [
@@ -102,6 +114,21 @@ const SKIN_TONES = [
 
 const RECENT_KEY = "leafsty_recent_emojis";
 const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog_v3";
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 export interface CustomMessageComposerProps {
   replyTarget?: ReplyTarget | null;
   onCancelReply?: () => void;
@@ -136,9 +163,13 @@ export default function CustomMessageComposer({
     "👀",
     "🥳",
   ]);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-    useEffect(() => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(RECENT_KEY) || "null");
       if (Array.isArray(saved) && saved.length > 0) setRecentEmojis(saved);
@@ -152,10 +183,8 @@ export default function CustomMessageComposer({
       }
     } catch {}
 
-    if (fullCatalog.length > 500) return;
-
     let cancelled = false;
-    fetch("/api/unicode-emojis", { cache: "no-store" })
+    fetch("/api/unicode-emojis")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !Array.isArray(data?.emojis)) return;
@@ -174,8 +203,7 @@ export default function CustomMessageComposer({
     return () => {
       cancelled = true;
     };
-  }, [showEmojiPicker, fullCatalog.length]);
-
+  }, []);
 
   const skinMod = SKIN_TONES.at(skinIdx)?.mod || "";
 
@@ -183,6 +211,86 @@ export default function CustomMessageComposer({
     item.skinTones && skinMod
       ? `${item.char.replace(/\uFE0F/g, "")}${skinMod}`
       : item.char;
+
+  const addFiles = (files: FileList | File[]) => {
+    const incoming = Array.from(files);
+    if (incoming.length === 0) return;
+
+    const mapped: PendingAttachment[] = incoming.slice(0, 6).map((file) => {
+      const isImage = file.type.startsWith("image/");
+      return {
+        id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        file,
+        name: file.name,
+        size: file.size,
+        isImage,
+        previewUrl: isImage ? URL.createObjectURL(file) : undefined,
+      };
+    });
+
+    setPendingFiles((prev) => [...prev, ...mapped].slice(0, 6));
+    setSendError(null);
+    inputRef.current?.focus();
+  };
+
+  const removePendingFile = (id: string) => {
+    setPendingFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
+  const uploadSingleAttachment = async (item: PendingAttachment) => {
+    try {
+      if (item.isImage && typeof channel?.sendImage === "function") {
+        const res = await channel.sendImage(item.file);
+        if (res?.file) {
+          return {
+            type: "image",
+            image_url: res.file,
+            thumb_url: res.file,
+            title: item.name,
+            file_size: item.size,
+            mime_type: item.file.type,
+          };
+        }
+      } else if (typeof channel?.sendFile === "function") {
+        const res = await channel.sendFile(item.file);
+        if (res?.file) {
+          return {
+            type: "file",
+            asset_url: res.file,
+            title: item.name,
+            file_size: item.size,
+            mime_type: item.file.type || "application/octet-stream",
+          };
+        }
+      }
+    } catch {}
+
+    if (item.size <= 3 * 1024 * 1024) {
+      const dataUrl = await fileToDataUrl(item.file);
+      return item.isImage
+        ? {
+            type: "image",
+            image_url: dataUrl,
+            thumb_url: dataUrl,
+            title: item.name,
+            file_size: item.size,
+            mime_type: item.file.type,
+          }
+        : {
+            type: "file",
+            asset_url: dataUrl,
+            title: item.name,
+            file_size: item.size,
+            mime_type: item.file.type || "application/octet-stream",
+          };
+    }
+
+    throw new Error(`Could not upload ${item.name} (max 3 MB fallback)`);
+  };
 
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
     const trimmed = rawText.trim();
@@ -250,7 +358,29 @@ export default function CustomMessageComposer({
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isUploading) return;
     setShowEmojiPicker(false);
+
+    if (pendingFiles.length > 0) {
+      setIsUploading(true);
+      setSendError(null);
+      try {
+        const uploaded = await Promise.all(
+          pendingFiles.map((item) => uploadSingleAttachment(item))
+        );
+        pendingFiles.forEach((f) => {
+          if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+        });
+        setPendingFiles([]);
+        await sendPayload(text, uploaded);
+      } catch (err: any) {
+        setSendError(err?.message || "File upload failed");
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
     await sendPayload(text);
   };
 
@@ -306,6 +436,17 @@ export default function CustomMessageComposer({
     (channel?.data as any)?.name || channel?.id || "encrypted chat";
   return (
     <div className="relative shrink-0 bg-[#081914] border-t border-emerald-500/15 px-4 py-3 text-emerald-50">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        onChange={(e) => {
+          if (e.target.files) addFiles(e.target.files);
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
+
       {showGifPicker && (
         <div className="absolute bottom-full left-4 mb-2 z-40">
           <KlipyGifPicker
@@ -450,6 +591,44 @@ export default function CustomMessageComposer({
           </div>
         </div>
       )}
+      {pendingFiles.length > 0 && (
+        <div className="mb-2.5 flex flex-wrap gap-2 p-2 rounded-xl bg-[#061410] border border-emerald-500/20">
+          {pendingFiles.map((item) => (
+            <div
+              key={item.id}
+              className="relative group flex items-center gap-2 bg-[#0d261e] border border-emerald-500/25 rounded-xl p-1.5 pr-7 max-w-[200px]"
+            >
+              {item.isImage && item.previewUrl ? (
+                <img
+                  src={item.previewUrl}
+                  alt={item.name}
+                  className="w-10 h-10 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-emerald-100 truncate">
+                  {item.name}
+                </div>
+                <div className="text-[10px] text-emerald-400/70">
+                  {formatFileSize(item.size)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removePendingFile(item.id)}
+                title="Remove attachment"
+                className="absolute top-1 right-1 p-1 rounded-full bg-red-500/80 hover:bg-red-500 text-white cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {sendError && (
         <div className="mb-2 px-3 py-1.5 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-between text-xs text-red-300">
@@ -491,7 +670,16 @@ export default function CustomMessageComposer({
         </div>
       )}
 
-          <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+      <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach Files or Images"
+          className="p-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50 transition cursor-pointer shrink-0 flex items-center justify-center"
+        >
+          <Paperclip className="w-4 h-4" />
+        </button>
+
         <button
           type="button"
           onClick={() => {
@@ -514,6 +702,13 @@ export default function CustomMessageComposer({
             ref={inputRef}
             type="text"
             value={text}
+            onPaste={(e) => {
+              const items = e.clipboardData?.files;
+              if (items && items.length > 0) {
+                e.preventDefault();
+                addFiles(items);
+              }
+            }}
             onChange={(e) => {
               const val = e.target.value;
               setText(val);
@@ -544,11 +739,15 @@ export default function CustomMessageComposer({
 
         <button
           type="submit"
-          disabled={!text.trim()}
+          disabled={isUploading || (!text.trim() && pendingFiles.length === 0)}
           title="Send Encrypted Message"
           className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white transition cursor-pointer shrink-0 flex items-center justify-center"
         >
-          <Send className="w-4 h-4" />
+          {isUploading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
         </button>
       </form>
     </div>
