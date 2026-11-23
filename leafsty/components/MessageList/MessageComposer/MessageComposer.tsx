@@ -283,10 +283,6 @@ export default function CustomMessage({
       return <React.Fragment key={i}>{part}</React.Fragment>;
     });
   };
-export interface CustomMessageComposerProps {
-  replyTarget?: ReplyTarget | null;
-  onCancelReply?: () => void;
-}
 
 export default function CustomMessageComposer({
   replyTarget,
