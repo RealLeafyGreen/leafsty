@@ -336,7 +336,10 @@ export default function CustomMessage({
     });
   };
   return (
-    <div className="group relative flex items-start gap-3 px-2 py-1.5 rounded-xl hover:bg-emerald-500/5 transition">
+    <div
+      id={`msg-${message.id}`}
+      className="group relative flex items-start gap-3 px-2 py-1.5 rounded-xl hover:bg-emerald-500/5 transition-colors duration-300"
+    >
       <button
         type="button"
         onClick={() =>
@@ -460,12 +463,34 @@ export default function CustomMessage({
         )}
 
         {message.quoted_message && (
-          <div className="mt-1 mb-1.5 pl-2.5 border-l-2 border-emerald-400/50 text-[11px] text-emerald-300/70 truncate">
-            <span className="font-bold text-emerald-200">
-              {message.quoted_message.user?.name || "Reply"}:{" "}
+          <button
+            type="button"
+            onClick={() => {
+              const targetEl = document.getElementById(
+                `msg-${message.quoted_message.id}`
+              );
+              if (targetEl) {
+                targetEl.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+                targetEl.classList.add("bg-emerald-500/20");
+                setTimeout(
+                  () => targetEl.classList.remove("bg-emerald-500/20"),
+                  1400
+                );
+              }
+            }}
+            className="mt-1 mb-1.5 flex items-center gap-1.5 pl-2.5 py-1 pr-3 rounded-lg bg-[#0d261e]/80 border-l-2 border-emerald-400 text-[11px] text-emerald-300/80 hover:text-emerald-100 hover:bg-[#0d261e] max-w-full transition cursor-pointer text-left"
+          >
+            <CornerUpLeft className="w-3 h-3 text-emerald-400 shrink-0" />
+            <span className="font-extrabold text-emerald-200 shrink-0">
+              @{message.quoted_message.user?.name || "Reply"}
             </span>
-            <span>{message.quoted_message.text || "Attachment"}</span>
-          </div>
+            <span className="truncate opacity-85">
+              {message.quoted_message.text || "Attachment"}
+            </span>
+          </button>
         )}
 
         {isEditing ? (

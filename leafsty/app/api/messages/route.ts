@@ -25,6 +25,24 @@ export async function POST(req: Request) {
       );
     }
 
+const quotedId = body?.quoted_message_id || body?.parent_id || undefined;
+
+const sent = await channel.sendMessage({
+  const quotedId = body?.quoted_message_id || body?.parent_id || undefined;
+
+const response = await channel.sendMessage({
+  text: String(body?.text || ""),
+  user_id: String(body?.userId || ""),
+  attachments: Array.isArray(body?.attachments) ? body.attachments : [],
+  ...(quotedId ? { quoted_message_id: String(quotedId) } : {}),
+});
+
+  text: String(body?.text || ""),
+  user_id: String(body?.userId || ""),
+  attachments: Array.isArray(body?.attachments) ? body.attachments : [],
+  ...(quotedId ? { quoted_message_id: String(quotedId) } : {}),
+});
+
     const serverClient = new StreamClient(apiKey, apiSecret);
     const channel = (serverClient as any).chat.channel(channelType, channelId);
 
