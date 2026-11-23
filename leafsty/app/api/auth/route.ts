@@ -6,6 +6,10 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
 }
 
+export async function GET() {
+  return NextResponse.json({ ok: true, service: "leafsty-auth" });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -34,11 +38,14 @@ export async function POST(req: NextRequest) {
 
     const serverClient = new StreamClient(apiKey, apiSecret);
 
-    // Look up existing persistent user in Stream Chat
+    // Case-insensitive persistent user lookup in Stream Chat
     const existingRes = await serverClient.queryUsers({
-      payload: { filter_conditions: { id: { $eq: userId } } },
+      filter_conditions: {
+        id: { $in: Array.from(new Set([userId, rawUsername])) },
+      },
     });
     const existingUser: any = existingRes?.users?.[0] || null;
+    const resolvedUserId: string = existingUser?.id || userId;
     const storedHash: string =
       existingUser?.custom?.passwordHash || existingUser?.passwordHash || "";
 
@@ -60,8 +67,8 @@ export async function POST(req: NextRequest) {
       const passwordHash = hashPassword(password);
       await serverClient.upsertUsers([
         {
-          id: userId,
-          name: existingUser?.name || rawUsername || userId,
+          id: resolvedUserId,
+          name: existingUser?.name || rawUsername || resolvedUserId,
           role: "user",
           custom: {
             ...(existingUser?.custom || {}),
@@ -70,13 +77,13 @@ export async function POST(req: NextRequest) {
         },
       ]);
 
-      const token = serverClient.generateUserToken({ user_id: userId });
+      const token = serverClient.generateUserToken({ user_id: resolvedUserId });
       return NextResponse.json({
         token,
         apiKey,
         user: {
-          id: userId,
-          name: existingUser?.name || rawUsername || userId,
+          id: resolvedUserId,
+          name: existingUser?.name || rawUsername || resolvedUserId,
           image: existingUser?.image || "",
           ...(existingUser?.custom || {}),
         },
@@ -93,8 +100,8 @@ export async function POST(req: NextRequest) {
       const passwordHash = hashPassword(password);
       await serverClient.upsertUsers([
         {
-          id: userId,
-          name: existingUser?.name || rawUsername || userId,
+          id: resolvedUserId,
+          name: existingUser?.name || rawUsername || resolvedUserId,
           custom: {
             ...(existingUser?.custom || {}),
             passwordHash,
@@ -114,7 +121,6 @@ export async function POST(req: NextRequest) {
 
     const incomingHash = hashPassword(password);
 
-    // If legacy Stream user existed before passwordHash was saved, claim it on first sign-in
     if (!storedHash) {
       if (password.length < 4) {
         return NextResponse.json(
@@ -124,8 +130,8 @@ export async function POST(req: NextRequest) {
       }
       await serverClient.upsertUsers([
         {
-          id: userId,
-          name: existingUser.name || rawUsername || userId,
+          id: resolvedUserId,
+          name: existingUser.name || rawUsername || resolvedUserId,
           custom: {
             ...(existingUser.custom || {}),
             passwordHash: incomingHash,
@@ -139,13 +145,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = serverClient.generateUserToken({ user_id: userId });
+    const token = serverClient.generateUserToken({ user_id: resolvedUserId });
     return NextResponse.json({
       token,
       apiKey,
       user: {
-        id: userId,
-        name: existingUser.name || rawUsername || userId,
+        id: resolvedUserId,
+        name: existingUser.name || rawUsername || resolvedUserId,
         image: existingUser.image || "",
         ...(existingUser.custom || {}),
       },
