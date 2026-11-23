@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import TypingIndicator from "./MessageList/TypingIndicator";
 import { Channel, useChatContext } from "stream-chat-react";
 import ServerList from "./ServerList";
 import CustomChannelList from "./CustomChannelList";
@@ -511,6 +512,11 @@ export default function MyChat() {
                         </span>
                       </div>
                     )}
+<TypingIndicator />
+<CustomMessageComposer
+  replyTarget={replyTarget}
+  onCancelReply={() => setReplyTarget(null)}
+/>
 
                     <CustomMessageComposer
                       replyTarget={replyTo}
