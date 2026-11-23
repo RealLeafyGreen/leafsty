@@ -318,58 +318,102 @@ export default function CustomMessageComposer({
     });
   };
 
-  const uploadSingleAttachment = async (item: PendingAttachment) => {
-    const liveChannel =
-      typeof channel?.sendImage === "function" ||
-      typeof channel?.sendFile === "function"
-        ? channel
-        : client && channel?.id
-        ? client.channel(channel.type || "messaging", channel.id)
-        : null;
+ const uploadSingleAttachment = async (item: PendingAttachment) => {
+  const currentUserId = String(
+    client?.userID || (client?.user as any)?.id || ""
+  );
+  const resolvedChannelId = String(
+    channel?.id || channel?.cid?.split(":").at(1) || ""
+  );
 
+  // 1. Server-side /api/upload first (bypasses browser permission restrictions)
+  if (resolvedChannelId && currentUserId) {
     try {
-      if (item.isImage && typeof liveChannel?.sendImage === "function") {
-        const res = await liveChannel.sendImage(item.file);
-        if (res?.file) {
-          return {
-            type: "image",
-            image_url: res.file,
-            thumb_url: res.file,
-            title: item.name,
-            file_size: item.size,
-            mime_type: item.file.type,
-          };
-        }
-      } else if (typeof liveChannel?.sendFile === "function") {
-        const res = await liveChannel.sendFile(item.file);
-        if (res?.file) {
-          return {
-            type: "file",
-            asset_url: res.file,
-            title: item.name,
-            file_size: item.size,
-            mime_type: item.file.type || "application/octet-stream",
-          };
-        }
+      const fd = new FormData();
+      fd.append("file", item.file);
+      fd.append("channelType", String(channel?.type || "messaging"));
+      fd.append("channelId", resolvedChannelId);
+      fd.append("userId", currentUserId);
+      fd.append("kind", item.isImage ? "image" : "file");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.url) {
+        return item.isImage
+          ? {
+              type: "image",
+              image_url: data.url,
+              thumb_url: data.url,
+              title: item.name,
+              file_size: item.size,
+              mime_type: item.file.type,
+            }
+          : {
+              type: "file",
+              asset_url: data.url,
+              title: item.name,
+              file_size: item.size,
+              mime_type: item.file.type || "application/octet-stream",
+            };
       }
     } catch {}
+  }
 
-    if (item.isImage) {
-      const compactUrl = await compressImageUnder65KB(item.file);
-      return {
-        type: "image",
-        image_url: compactUrl,
-        thumb_url: compactUrl,
-        title: item.name,
-        file_size: item.size,
-        mime_type: "image/jpeg",
-      };
+  // 2. Fallback to browser Stream SDK
+  const liveChannel =
+    typeof channel?.sendImage === "function" ||
+    typeof channel?.sendFile === "function"
+      ? channel
+      : client && resolvedChannelId
+      ? client.channel(channel.type || "messaging", resolvedChannelId)
+      : null;
+
+  try {
+    if (item.isImage && typeof liveChannel?.sendImage === "function") {
+      const res = await liveChannel.sendImage(item.file);
+      if (res?.file) {
+        return {
+          type: "image",
+          image_url: res.file,
+          thumb_url: res.file,
+          title: item.name,
+          file_size: item.size,
+          mime_type: item.file.type,
+        };
+      }
+    } else if (typeof liveChannel?.sendFile === "function") {
+      const res = await liveChannel.sendFile(item.file);
+      if (res?.file) {
+        return {
+          type: "file",
+          asset_url: res.file,
+          title: item.name,
+          file_size: item.size,
+          mime_type: item.file.type || "application/octet-stream",
+        };
+      }
     }
+  } catch {}
 
-    throw new Error(
-      `File upload failed for "${item.name}". Enable File Uploads in your Stream Chat Dashboard for files over 100 KB.`
-    );
-  };
+  // 3. Final inline image fallback
+  if (item.isImage) {
+    const compactUrl = await compressImageUnder65KB(item.file);
+    return {
+      type: "image",
+      image_url: compactUrl,
+      thumb_url: compactUrl,
+      title: item.name,
+      file_size: item.size,
+      mime_type: "image/jpeg",
+    };
+  }
+
+  throw new Error(`Could not upload "${item.name}". Please try a smaller file.`);
+};
+
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
     const trimmed = rawText.trim();
     if ((!trimmed && attachments.length === 0) || !channel) return;
@@ -576,7 +620,66 @@ export default function CustomMessageComposer({
             ? client.channel(channel.type || "messaging", channel.id)
             : null;
 
+                const file = new File([blob], `voice-note-${Date.now()}.webm`, {
+          type: blob.type || "audio/webm",
+        });
+
+        const currentUserId = String(
+          client?.userID || (client?.user as any)?.id || ""
+        );
+        const resolvedChannelId = String(
+          channel?.id || channel?.cid?.split(":").at(1) || ""
+        );
+
         let assetUrl = "";
+
+        // 1. Upload via server-side /api/upload first
+        if (resolvedChannelId && currentUserId) {
+          try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("channelType", String(channel?.type || "messaging"));
+            fd.append("channelId", resolvedChannelId);
+            fd.append("userId", currentUserId);
+            fd.append("kind", "voice");
+
+            const upRes = await fetch("/api/upload", {
+              method: "POST",
+              body: fd,
+            });
+            const upData = await upRes.json().catch(() => ({}));
+            if (upRes.ok && upData?.url) {
+              assetUrl = upData.url;
+            }
+          } catch {}
+        }
+
+        // 2. Fallback to browser channel.sendFile
+        if (!assetUrl) {
+          const liveChannel =
+            typeof channel?.sendFile === "function"
+              ? channel
+              : client && resolvedChannelId
+              ? client.channel(channel.type || "messaging", resolvedChannelId)
+              : null;
+
+          try {
+            if (typeof liveChannel?.sendFile === "function") {
+              const res = await liveChannel.sendFile(file);
+              if (res?.file) assetUrl = res.file;
+            }
+          } catch {}
+        }
+
+        // 3. Final inline fallback for short clips
+        if (!assetUrl && blob.size <= 65_000) {
+          assetUrl = await new Promise<string>((resolve) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result || ""));
+            r.readAsDataURL(blob);
+          });
+        }
+
         try {
           if (typeof liveChannel?.sendFile === "function") {
             const res = await liveChannel.sendFile(file);
