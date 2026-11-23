@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(
-  _req: NextRequest,
-  context: { params: Promise<{ code: string }> }
-) {
-  const { code } = await context.params;
-  const cleanCode = (code || "")
+export async function GET(req: NextRequest) {
+  const rawCode = req.nextUrl.searchParams.get("code") || "";
+  const cleanCode = rawCode
     .replace(/\.svg$/i, "")
     .toLowerCase()
     .replace(/[^0-9a-f-]/g, "");
 
   if (!cleanCode) {
-    return new NextResponse("Invalid code", { status: 400 });
+    return new NextResponse("Missing code", { status: 400 });
   }
 
   const upstreamUrls = [
