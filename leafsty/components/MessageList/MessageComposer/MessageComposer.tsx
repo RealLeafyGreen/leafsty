@@ -5,7 +5,6 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
-import UnicodeEmojiPicker from "./UnicodeEmojiPicker";
 import {
   Send,
   X,
