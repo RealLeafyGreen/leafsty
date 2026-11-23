@@ -152,8 +152,24 @@ export default function MyChat() {
       }
     })();
 
-    const syncFromChannel = () => {
-      mergeMessages(activeChannel?.state?.messages || []);
+      const syncFromChannel = (event?: any) => {
+      const stateMsgs = Array.isArray(activeChannel?.state?.messages)
+        ? [...activeChannel.state.messages]
+        : [];
+      if (event?.message?.id) {
+        const exists = stateMsgs.some(
+          (m: any) => String(m.id) === String(event.message.id)
+        );
+        if (!exists) {
+          stateMsgs.push(event.message);
+        } else {
+          const idx = stateMsgs.findIndex(
+            (m: any) => String(m.id) === String(event.message.id)
+          );
+          if (idx !== -1) stateMsgs[idx] = { ...stateMsgs[idx], ...event.message };
+        }
+      }
+      mergeMessages(stateMsgs);
     };
 
     const handleDeleted = (e: any) => {
@@ -173,9 +189,13 @@ export default function MyChat() {
         const filtered = newMsg._replaceId
           ? prev.filter((m) => m.id !== newMsg._replaceId)
           : prev;
-        return filtered.some((m) => m.id === newMsg.id)
-          ? filtered
-          : [...filtered, newMsg];
+        const idx = filtered.findIndex((m) => m.id === newMsg.id);
+        if (idx !== -1) {
+          const copy = [...filtered];
+          copy[idx] = { ...copy[idx], ...newMsg };
+          return copy;
+        }
+        return [...filtered, newMsg];
       });
     };
 
@@ -197,23 +217,53 @@ export default function MyChat() {
       });
     };
 
-    activeChannel.on?.("message.new", syncFromChannel);
-    activeChannel.on?.("message.updated", syncFromChannel);
-    activeChannel.on?.("message.deleted", handleDeleted);
-    activeChannel.on?.("typing.start", handleTypingStart);
-    activeChannel.on?.("typing.stop", handleTypingStop);
+    const matchesActiveChannel = (e: any) => {
+      const eventCid = e?.cid || e?.message?.cid || "";
+      const eventChannelId = e?.channel_id || e?.message?.channel?.id || "";
+      if (activeChannel?.cid && eventCid) return eventCid === activeChannel.cid;
+      if (activeChannel?.id && eventChannelId) {
+        return String(eventChannelId) === String(activeChannel.id);
+      }
+      return false;
+    };
+
+    const handleClientEvent = (e: any) => {
+      if (!matchesActiveChannel(e)) return;
+      if (e?.type === "message.new" || e?.type === "message.updated") {
+        syncFromChannel(e);
+      } else if (e?.type === "message.deleted") {
+        handleDeleted(e);
+      } else if (e?.type === "typing.start") {
+        handleTypingStart(e);
+      } else if (e?.type === "typing.stop") {
+        handleTypingStop(e);
+      }
+    };
+
+    activeChannel?.watch?.({ state: true }).then(() => {
+      if (!cancelled) syncFromChannel();
+    }).catch(() => {});
+
+    activeChannel?.on?.("message.new", syncFromChannel);
+    activeChannel?.on?.("message.updated", syncFromChannel);
+    activeChannel?.on?.("message.deleted", handleDeleted);
+    activeChannel?.on?.("typing.start", handleTypingStart);
+    activeChannel?.on?.("typing.stop", handleTypingStop);
+    const clientSub = client?.on?.(handleClientEvent);
     window.addEventListener("leafsty:message-sent", handleSent);
 
     return () => {
       cancelled = true;
-      activeChannel.off?.("message.new", syncFromChannel);
-      activeChannel.off?.("message.updated", syncFromChannel);
-      activeChannel.off?.("message.deleted", handleDeleted);
-      activeChannel.off?.("typing.start", handleTypingStart);
-      activeChannel.off?.("typing.stop", handleTypingStop);
+      activeChannel?.off?.("message.new", syncFromChannel);
+      activeChannel?.off?.("message.updated", syncFromChannel);
+      activeChannel?.off?.("message.deleted", handleDeleted);
+      activeChannel?.off?.("typing.start", handleTypingStart);
+      activeChannel?.off?.("typing.stop", handleTypingStop);
+      clientSub?.unsubscribe?.();
       window.removeEventListener("leafsty:message-sent", handleSent);
     };
-  }, [activeChannel?.id, currentUserId]);
+  }, [activeChannel?.id, client, currentUserId]);
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
