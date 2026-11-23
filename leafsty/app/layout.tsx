@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
+
+<Script
+  src="https://unpkg.com"
+  crossOrigin="anonymous"
+  strategy="lazyOnload"
+/>
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -28,6 +35,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#071410] text-emerald-50`}
       >
         {children}
+        <Script
+          src="https://unpkg.com"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
