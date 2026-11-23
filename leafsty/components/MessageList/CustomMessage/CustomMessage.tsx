@@ -5,6 +5,7 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import * as e2ee from "../../../lib/e2ee";
 import VoiceNotePlayer from "../VoiceNotePlayer";
+import PollCard from "../PollCard";
 import {
   CornerUpLeft,
   Lock,
@@ -110,6 +111,20 @@ export default function CustomMessage({
   useEffect(() => {
     const counts: Record<string, number> = {};
     const mine: Record<string, boolean> = {};
+
+     if (message?.reaction_counts && typeof message.reaction_counts === "object") {
+   for (const [k, v] of Object.entries(message.reaction_counts)) {
+     if (k.startsWith("poll_vote_")) continue;
+     if (typeof v === "number" && v > 0) counts[k] = v;
+   }
+ }
+ if (Array.isArray(message?.own_reactions)) {
+   for (const r of message.own_reactions) {
+     if (r?.type && !String(r.type).startsWith("poll_vote_")) {
+       mine[String(r.type)] = true;
+     }
+   }
+ }
 
     if (message?.reaction_counts && typeof message.reaction_counts === "object") {
       for (const [k, v] of Object.entries(message.reaction_counts)) {
@@ -459,6 +474,18 @@ export default function CustomMessage({
           <div className="mt-1.5 flex flex-wrap gap-2">
             {attachments.map((att: any, idx: number) => {
               if (att?.type === "leafsty_call") {
+                if (att?.type === "leafsty_poll" && Array.isArray(att?.options)) {
+  return (
+    <PollCard
+      key={idx}
+      message={message}
+      question={String(att.question || "Poll")}
+      options={att.options.map(String)}
+      activeChannel={activeChannel}
+    />
+  );
+}
+
   return (
     <div
       key={idx}
