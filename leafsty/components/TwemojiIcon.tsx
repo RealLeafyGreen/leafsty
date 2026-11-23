@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 
 export function emojiToTwemojiCode(emoji: string): string {
   const codePoints: string[] = [];
@@ -44,12 +44,8 @@ export default function TwemojiChar({
   emoji: string;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
   const code = emojiToTwemojiCode(emoji);
-
-  if (failed || !code) {
-    return <span className="leading-none">{emoji}</span>;
-  }
+  if (!code) return null;
 
   return (
     <img
@@ -57,7 +53,6 @@ export default function TwemojiChar({
       alt={emoji}
       draggable={false}
       loading="lazy"
-      onError={() => setFailed(true)}
       className={className}
     />
   );
