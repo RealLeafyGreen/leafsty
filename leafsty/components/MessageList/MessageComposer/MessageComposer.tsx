@@ -115,8 +115,6 @@ const SKIN_TONES = [
   { id: "dark", label: "Dark", mod: "\u{1F3FF}", swatch: "#5a3825" },
 ];
 
-const RECENT_KEY = "leafsty_recent_emojis";
-const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog_v3";
 const SLASH_COMMANDS = [
   {
     cmd: "/poll",
@@ -149,6 +147,9 @@ const SLASH_COMMANDS = [
     template: "/tableflip ",
   },
 ];
+
+const RECENT_KEY = "leafsty_recent_emojis";
+const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog_v3";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -191,7 +192,6 @@ function compressImageUnder65KB(file: File): Promise<string> {
     img.src = objectUrl;
   });
 }
-
 export interface CustomMessageComposerProps {
   replyTarget?: ReplyTarget | null;
   onCancelReply?: () => void;
@@ -231,17 +231,17 @@ export default function CustomMessageComposer({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
-const [recordSeconds, setRecordSeconds] = useState(0);
-const [liveLevels, setLiveLevels] = useState<number[]>(Array(24).fill(22));
-const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-const audioChunksRef = useRef<Blob[]>([]);
-const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
-const analyserFrameRef = useRef<number | null>(null);
-const audioCtxRef = useRef<AudioContext | null>(null);
-const sampledWaveRef = useRef<number[]>([]);
-const recordStartRef = useRef<number>(0);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const [liveLevels, setLiveLevels] = useState<number[]>(Array(24).fill(22));
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const analyserFrameRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sampledWaveRef = useRef<number[]>([]);
+  const recordStartRef = useRef<number>(0);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -317,6 +317,7 @@ const recordStartRef = useRef<number>(0);
       return prev.filter((f) => f.id !== id);
     });
   };
+
   const uploadSingleAttachment = async (item: PendingAttachment) => {
     const liveChannel =
       typeof channel?.sendImage === "function" ||
@@ -351,9 +352,7 @@ const recordStartRef = useRef<number>(0);
           };
         }
       }
-    } catch (err) {
-      console.warn("Stream CDN upload fallback:", err);
-    }
+    } catch {}
 
     if (item.isImage) {
       const compactUrl = await compressImageUnder65KB(item.file);
@@ -371,7 +370,6 @@ const recordStartRef = useRef<number>(0);
       `File upload failed for "${item.name}". Enable File Uploads in your Stream Chat Dashboard for files over 100 KB.`
     );
   };
-
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
     const trimmed = rawText.trim();
     if ((!trimmed && attachments.length === 0) || !channel) return;
@@ -436,191 +434,191 @@ const recordStartRef = useRef<number>(0);
       setSendError(err?.message || "Could not send message");
     }
   };
-const cleanupAudioMonitor = () => {
-  if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-  if (analyserFrameRef.current) cancelAnimationFrame(analyserFrameRef.current);
-  if (audioCtxRef.current) {
-    audioCtxRef.current.close().catch(() => {});
-    audioCtxRef.current = null;
-  }
-};
 
-const startRecording = async () => {
-  if (isRecording || isUploading) return;
-  setSendError(null);
-  setShowEmojiPicker(false);
-  setShowGifPicker(false);
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-      ? "audio/webm;codecs=opus"
-      : MediaRecorder.isTypeSupported("audio/webm")
-      ? "audio/webm"
-      : "";
-
-    const recorder = mimeType
-      ? new MediaRecorder(stream, { mimeType })
-      : new MediaRecorder(stream);
-
-    audioChunksRef.current = [];
-    sampledWaveRef.current = [];
-    recordStartRef.current = Date.now();
-    setRecordSeconds(0);
-    setIsRecording(true);
-
-    const AudioCtx =
-      window.AudioContext || (window as any).webkitAudioContext;
-    const audioCtx = new AudioCtx();
-    audioCtxRef.current = audioCtx;
-    const source = audioCtx.createMediaStreamSource(stream);
-    const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 64;
-    source.connect(analyser);
-    const dataArr = new Uint8Array(analyser.frequencyBinCount);
-
-    const tickWave = () => {
-      analyser.getByteFrequencyData(dataArr);
-      let sum = 0;
-      for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
-      const avg = sum / Math.max(1, dataArr.length);
-      const pct = Math.max(18, Math.min(100, Math.round((avg / 140) * 100)));
-      sampledWaveRef.current.push(pct);
-      setLiveLevels((prev) => [...prev.slice(1), pct]);
-      analyserFrameRef.current = requestAnimationFrame(tickWave);
-    };
-    tickWave();
-
-    recordTimerRef.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - recordStartRef.current) / 1000);
-      setRecordSeconds(elapsed);
-      if (elapsed >= 60) {
-        stopAndSendRecording();
-      }
-    }, 250);
-
-    recorder.ondataavailable = (ev) => {
-      if (ev.data && ev.data.size > 0) {
-        audioChunksRef.current.push(ev.data);
-      }
-    };
-
-    mediaRecorderRef.current = recorder;
-    recorder.start(200);
-  } catch {
-    setSendError("Microphone permission denied or unavailable.");
-    setIsRecording(false);
-  }
-};
-
-const cancelRecording = () => {
-  cleanupAudioMonitor();
-  const rec = mediaRecorderRef.current;
-  if (rec) {
-    rec.onstop = null;
-    rec.stream?.getTracks().forEach((t) => t.stop());
-    if (rec.state !== "inactive") rec.stop();
-  }
-  mediaRecorderRef.current = null;
-  audioChunksRef.current = [];
-  setIsRecording(false);
-  setRecordSeconds(0);
-};
-
-const stopAndSendRecording = () => {
-  const rec = mediaRecorderRef.current;
-  if (!rec) return;
-
-  cleanupAudioMonitor();
-  const durationSec = Math.max(
-    1,
-    Math.round((Date.now() - recordStartRef.current) / 1000)
-  );
-
-  // Downsample captured levels into 26 clean waveform bars
-  const rawSamples = sampledWaveRef.current;
-  const targetBars = 26;
-  const waveform: number[] = [];
-  if (rawSamples.length === 0) {
-    for (let i = 0; i < targetBars; i++) waveform.push(35);
-  } else {
-    for (let i = 0; i < targetBars; i++) {
-      const idx = Math.min(
-        rawSamples.length - 1,
-        Math.floor((i / targetBars) * rawSamples.length)
-      );
-      waveform.push(rawSamples[idx]);
-    }
-  }
-
-  rec.onstop = async () => {
-    rec.stream?.getTracks().forEach((t) => t.stop());
-    const blob = new Blob(audioChunksRef.current, {
-      type: rec.mimeType || "audio/webm",
-    });
-    audioChunksRef.current = [];
-    setIsRecording(false);
-    setRecordSeconds(0);
-
-    if (blob.size < 400) return;
-
-    setIsUploading(true);
-    setSendError(null);
-    try {
-      const file = new File([blob], `voice-note-${Date.now()}.webm`, {
-        type: blob.type || "audio/webm",
-      });
-
-      const liveChannel =
-        typeof channel?.sendFile === "function"
-          ? channel
-          : client && channel?.id
-          ? client.channel(channel.type || "messaging", channel.id)
-          : null;
-
-      let assetUrl = "";
-      try {
-        if (typeof liveChannel?.sendFile === "function") {
-          const res = await liveChannel.sendFile(file);
-          if (res?.file) assetUrl = res.file;
-        }
-      } catch {}
-
-      if (!assetUrl && blob.size <= 65_000) {
-        assetUrl = await new Promise<string>((resolve) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result || ""));
-          r.readAsDataURL(blob);
-        });
-      }
-
-      if (!assetUrl) {
-        throw new Error(
-          "Voice upload failed (enable File Uploads in Stream Dashboard for long recordings)."
-        );
-      }
-
-      await sendPayload("", [
-        {
-          type: "leafsty_voice",
-          asset_url: assetUrl,
-          duration: durationSec,
-          waveform,
-          title: "Voice Message",
-        },
-      ]);
-    } catch (err: any) {
-      setSendError(err?.message || "Could not send voice message");
-    } finally {
-      setIsUploading(false);
+  const cleanupAudioMonitor = () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    if (analyserFrameRef.current) cancelAnimationFrame(analyserFrameRef.current);
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
     }
   };
 
-  if (rec.state !== "inactive") {
-    rec.stop();
-  }
+  const startRecording = async () => {
+    if (isRecording || isUploading) return;
+    setSendError(null);
+    setShowEmojiPicker(false);
+    setShowGifPicker(false);
 
-    const handleFormSubmit = async (e: React.FormEvent) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "";
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      audioChunksRef.current = [];
+      sampledWaveRef.current = [];
+      recordStartRef.current = Date.now();
+      setRecordSeconds(0);
+      setIsRecording(true);
+
+      const AudioCtx =
+        window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      audioCtxRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      const dataArr = new Uint8Array(analyser.frequencyBinCount);
+
+      const tickWave = () => {
+        analyser.getByteFrequencyData(dataArr);
+        let sum = 0;
+        for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
+        const avg = sum / Math.max(1, dataArr.length);
+        const pct = Math.max(18, Math.min(100, Math.round((avg / 140) * 100)));
+        sampledWaveRef.current.push(pct);
+        setLiveLevels((prev) => [...prev.slice(1), pct]);
+        analyserFrameRef.current = requestAnimationFrame(tickWave);
+      };
+      tickWave();
+
+      recordTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordStartRef.current) / 1000);
+        setRecordSeconds(elapsed);
+        if (elapsed >= 60) {
+          stopAndSendRecording();
+        }
+      }, 250);
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(200);
+    } catch {
+      setSendError("Microphone permission denied or unavailable.");
+      setIsRecording(false);
+    }
+  };
+
+  const cancelRecording = () => {
+    cleanupAudioMonitor();
+    const rec = mediaRecorderRef.current;
+    if (rec) {
+      rec.onstop = null;
+      rec.stream?.getTracks().forEach((t) => t.stop());
+      if (rec.state !== "inactive") rec.stop();
+    }
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordSeconds(0);
+  };
+
+  const stopAndSendRecording = () => {
+    const rec = mediaRecorderRef.current;
+    if (!rec) return;
+
+    cleanupAudioMonitor();
+    const durationSec = Math.max(
+      1,
+      Math.round((Date.now() - recordStartRef.current) / 1000)
+    );
+
+    const rawSamples = sampledWaveRef.current;
+    const targetBars = 26;
+    const waveform: number[] = [];
+    if (rawSamples.length === 0) {
+      for (let i = 0; i < targetBars; i++) waveform.push(35);
+    } else {
+      for (let i = 0; i < targetBars; i++) {
+        const idx = Math.min(
+          rawSamples.length - 1,
+          Math.floor((i / targetBars) * rawSamples.length)
+        );
+        waveform.push(rawSamples[idx]);
+      }
+    }
+
+    rec.onstop = async () => {
+      rec.stream?.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(audioChunksRef.current, {
+        type: rec.mimeType || "audio/webm",
+      });
+      audioChunksRef.current = [];
+      setIsRecording(false);
+      setRecordSeconds(0);
+
+      if (blob.size < 400) return;
+
+      setIsUploading(true);
+      setSendError(null);
+      try {
+        const file = new File([blob], `voice-note-${Date.now()}.webm`, {
+          type: blob.type || "audio/webm",
+        });
+
+        const liveChannel =
+          typeof channel?.sendFile === "function"
+            ? channel
+            : client && channel?.id
+            ? client.channel(channel.type || "messaging", channel.id)
+            : null;
+
+        let assetUrl = "";
+        try {
+          if (typeof liveChannel?.sendFile === "function") {
+            const res = await liveChannel.sendFile(file);
+            if (res?.file) assetUrl = res.file;
+          }
+        } catch {}
+
+        if (!assetUrl && blob.size <= 65_000) {
+          assetUrl = await new Promise<string>((resolve) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result || ""));
+            r.readAsDataURL(blob);
+          });
+        }
+
+        if (!assetUrl) {
+          throw new Error(
+            "Voice upload failed (enable File Uploads in Stream Dashboard for long recordings)."
+          );
+        }
+
+        await sendPayload("", [
+          {
+            type: "leafsty_voice",
+            asset_url: assetUrl,
+            duration: durationSec,
+            waveform,
+            title: "Voice Message",
+          },
+        ]);
+      } catch (err: any) {
+        setSendError(err?.message || "Could not send voice message");
+      } finally {
+        setIsUploading(false);
+      }
+    };
+
+    if (rec.state !== "inactive") {
+      rec.stop();
+    }
+  };
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isUploading) return;
     setShowEmojiPicker(false);
@@ -695,6 +693,18 @@ const stopAndSendRecording = () => {
     }
 
     await sendPayload(text);
+  };
+
+  const handleSelectGif = async (gif: KlipyGifItem) => {
+    setShowGifPicker(false);
+    await sendPayload("", [
+      {
+        type: "image",
+        image_url: gif.fullUrl,
+        thumb_url: gif.previewUrl || gif.fullUrl,
+        title: gif.title || "GIF",
+      },
+    ]);
   };
 
   const handleInsertEmoji = (char: string) => {
@@ -772,11 +782,11 @@ const stopAndSendRecording = () => {
   }, [mentionQuery, channel?.state?.members]);
 
   const slashMatches = useMemo(() => {
-  const trimmed = text.trimStart();
-  if (!trimmed.startsWith("/") || trimmed.includes(" ")) return [];
-  const q = trimmed.toLowerCase();
-  return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(q));
-}, [text]);
+    const trimmed = text.trimStart();
+    if (!trimmed.startsWith("/") || trimmed.includes(" ")) return [];
+    const q = trimmed.toLowerCase();
+    return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(q));
+  }, [text]);
 
   const handleSelectMention = (tag: string) => {
     setText((prev) => prev.replace(/(^|\s)@[a-zA-Z0-9_.-]*$/, `$1${tag} `));
@@ -945,43 +955,44 @@ const stopAndSendRecording = () => {
           </div>
         </div>
       )}
-   {slashMatches.length > 0 && (
-     <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
-       <div className="px-3 py-1.5 bg-[#04120e] border-b border-emerald-500/15 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80">
-         Leafsty Slash Commands
-       </div>
-       <div className="p-1.5 space-y-0.5">
-         {slashMatches.map((item, idx) => (
-           <button
-             key={item.cmd}
-             type="button"
-             onMouseEnter={() => setSlashIndex(idx)}
-             onClick={() => {
-               setText(item.template);
-               inputRef.current?.focus();
-             }}
-             className={`w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl text-left text-xs transition cursor-pointer ${
-               idx === slashIndex
-                 ? "bg-emerald-500/25 text-white"
-                 : "text-emerald-100/85 hover:bg-emerald-500/15"
-             }`}
-           >
-             <div className="min-w-0">
-               <div className="font-mono font-extrabold text-emerald-300">
-                 {item.cmd}
-               </div>
-               <div className="text-[11px] text-emerald-200/75 truncate">
-                 {item.desc}
-               </div>
-             </div>
-             <span className="font-mono text-[10px] text-emerald-400/70 shrink-0 hidden sm:inline">
-               {item.usage}
-             </span>
-           </button>
-         ))}
-       </div>
-     </div>
-   )}
+
+      {slashMatches.length > 0 && (
+        <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
+          <div className="px-3 py-1.5 bg-[#04120e] border-b border-emerald-500/15 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80">
+            Leafsty Slash Commands
+          </div>
+          <div className="p-1.5 space-y-0.5">
+            {slashMatches.map((item, idx) => (
+              <button
+                key={item.cmd}
+                type="button"
+                onMouseEnter={() => setSlashIndex(idx)}
+                onClick={() => {
+                  setText(item.template);
+                  inputRef.current?.focus();
+                }}
+                className={`w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl text-left text-xs transition cursor-pointer ${
+                  idx === slashIndex
+                    ? "bg-emerald-500/25 text-white"
+                    : "text-emerald-100/85 hover:bg-emerald-500/15"
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="font-mono font-extrabold text-emerald-300">
+                    {item.cmd}
+                  </div>
+                  <div className="text-[11px] text-emerald-200/75 truncate">
+                    {item.desc}
+                  </div>
+                </div>
+                <span className="font-mono text-[10px] text-emerald-400/70 shrink-0 hidden sm:inline">
+                  {item.usage}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {mentionQuery !== null && mentionCandidates.length > 0 && (
         <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
@@ -1100,7 +1111,7 @@ const stopAndSendRecording = () => {
         </div>
       )}
 
-        {isRecording ? (
+      {isRecording ? (
         <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-[#0d261e] border border-red-400/50">
           <button
             type="button"
@@ -1179,6 +1190,27 @@ const stopAndSendRecording = () => {
                 }
               }}
               onKeyDown={(e) => {
+                if (slashMatches.length > 0) {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSlashIndex((i) => (i + 1) % slashMatches.length);
+                    return;
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSlashIndex(
+                      (i) =>
+                        (i - 1 + slashMatches.length) % slashMatches.length
+                    );
+                    return;
+                  }
+                  if (e.key === "Tab") {
+                    e.preventDefault();
+                    const picked = slashMatches.at(slashIndex);
+                    if (picked) setText(picked.template);
+                    return;
+                  }
+                }
                 if (mentionQuery !== null && mentionCandidates.length > 0) {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
@@ -1202,6 +1234,7 @@ const stopAndSendRecording = () => {
               onChange={(e) => {
                 const val = e.target.value;
                 setText(val);
+                setSlashIndex(0);
                 const match = val.match(/(?:^|\s)@([a-zA-Z0-9_.-]*)$/);
                 if (match) {
                   setMentionQuery(match.at(1) ?? "");
@@ -1215,7 +1248,7 @@ const stopAndSendRecording = () => {
                   channel?.stopTyping?.().catch(() => {});
                 }
               }}
-              placeholder={`Message ${channelLabel} (E2EE)...`}
+              placeholder={`Message ${channelLabel} or type /poll...`}
               className="w-full pl-3.5 pr-16 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
             />
 
