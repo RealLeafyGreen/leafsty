@@ -27,62 +27,76 @@ export async function GET() {
     return NextResponse.json({ emojis: cachedList });
   }
 
-  try {
-    const res = await fetch(
-      "https://jsdelivr.net",
-      { signal: AbortSignal.timeout(10000) }
-    );
-    if (!res.ok) throw new Error(`Twemoji JSON fetch failed (${res.status})`);
+  const urls = [
+    "https://githubusercontent.com",
+    "https://unpkg.com",
+    "https://jsdelivr.net",
+  ];
 
-    const rawItems = await res.json();
-    if (!Array.isArray(rawItems)) throw new Error("Invalid Twemoji JSON");
+  let rawItems: any[] | null = null;
+  let lastErr = "All sources failed";
 
-    const catMap: Record<string, FullEmojiRecord["cat"]> = {
-      "Smileys & Emotion": "Smileys",
-      "People & Body": "Hands",
-      "Animals & Nature": "Nature",
-      "Food & Drink": "Food",
-      Activities: "Objects",
-      "Travel & Places": "Objects",
-      Objects: "Objects",
-      Symbols: "Symbols",
-      Flags: "Symbols",
-    };
-
-    const sorted = [...rawItems].sort(
-      (a: any, b: any) => (a?.sort_order ?? 9999) - (b?.sort_order ?? 9999)
-    );
-
-    const emojis: FullEmojiRecord[] = [];
-
-    for (const item of sorted) {
-      if (!item?.unified || !item?.short_name) continue;
-      if (item.category === "Component") continue;
-
-      const char = unifiedToChar(String(item.unified));
-      if (!char) continue;
-
-      const cat = catMap[String(item.category)] || "Symbols";
-      const shortcode = String(item.short_name).toLowerCase();
-      const name = String(item.name || shortcode)
-        .toLowerCase()
-        .replace(/_/g, " ");
-
-      emojis.push({
-        char,
-        name,
-        shortcode,
-        cat,
-        skinTones: Boolean(item.skin_variations),
-      });
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const parsed = await res.json();
+        if (Array.isArray(parsed) && parsed.length > 500) {
+          rawItems = parsed;
+          break;
+        }
+      } else {
+        lastErr = `${url} -> HTTP ${res.status}`;
+      }
+    } catch (e: any) {
+      lastErr = e?.message || url;
     }
-
-    cachedList = emojis;
-    return NextResponse.json({ emojis: cachedList });
-  } catch (err: any) {
-    return NextResponse.json(
-      { emojis: [], error: err?.message || "Failed to load Twemoji dataset" },
-      { status: 502 }
-    );
   }
+
+  if (!rawItems) {
+    return NextResponse.json({ emojis: [], error: lastErr }, { status: 502 });
+  }
+
+  const catMap: Record<string, FullEmojiRecord["cat"]> = {
+    "Smileys & Emotion": "Smileys",
+    "People & Body": "Hands",
+    "Animals & Nature": "Nature",
+    "Food & Drink": "Food",
+    Activities: "Objects",
+    "Travel & Places": "Objects",
+    Objects: "Objects",
+    Symbols: "Symbols",
+    Flags: "Symbols",
+  };
+
+  const sorted = [...rawItems].sort(
+    (a: any, b: any) => (a?.sort_order ?? 9999) - (b?.sort_order ?? 9999)
+  );
+
+  const emojis: FullEmojiRecord[] = [];
+
+  for (const item of sorted) {
+    if (!item?.unified || !item?.short_name) continue;
+    if (item.category === "Component") continue;
+
+    const char = unifiedToChar(String(item.unified));
+    if (!char) continue;
+
+    const cat = catMap[String(item.category)] || "Symbols";
+    const shortcode = String(item.short_name).toLowerCase();
+    const name = String(item.name || shortcode)
+      .toLowerCase()
+      .replace(/_/g, " ");
+
+    emojis.push({
+      char,
+      name,
+      shortcode,
+      cat,
+      skinTones: Boolean(item.skin_variations),
+    });
+  }
+
+  cachedList = emojis;
+  return NextResponse.json({ emojis: cachedList });
 }
