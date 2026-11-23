@@ -10,6 +10,20 @@ export interface UserProfilePopoverProps {
   onSendQuickMessage?: (text: string) => Promise<void> | void;
 }
 
+export interface LeafstyProfileUser {
+  id: string;
+  name?: string;
+  image?: string;
+  pronouns?: string;
+  bio?: string;
+  aboutMe?: string;
+  status?: string;
+  statusText?: string;
+  created_at?: string;
+  roles?: string[];
+  custom?: Record<string, any>;
+}
+
 export default function UserProfilePopover({
   user,
   onClose,
