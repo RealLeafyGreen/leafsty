@@ -27,7 +27,6 @@ export async function POST(req: Request) {
 
 const quotedId = body?.quoted_message_id || body?.parent_id || undefined;
 
-const sent = await channel.sendMessage({
   const quotedId = body?.quoted_message_id || body?.parent_id || undefined;
 
 const response = await channel.sendMessage({
