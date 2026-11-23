@@ -512,11 +512,6 @@ export default function MyChat() {
                         </span>
                       </div>
                     )}
-<TypingIndicator />
-<CustomMessageComposer
-  replyTarget={replyTarget}
-  onCancelReply={() => setReplyTarget(null)}
-/>
 
                     <CustomMessageComposer
                       replyTarget={replyTo}
