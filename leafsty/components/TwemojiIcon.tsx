@@ -52,6 +52,7 @@ export default function TwemojiChar({
   const urls = [
     `https://jsdelivr.net{code}.svg`,
     `https://jsdelivr.net{code}.svg`,
+    `https://cloudflare.com{code}.svg`,
   ];
 
   if (step >= urls.length) {
