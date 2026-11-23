@@ -77,8 +77,7 @@ export async function GET() {
       const hashIdx = rest.indexOf("#");
       if (hashIdx === -1) continue;
 
-      const afterHash = rest.slice(hashIdx + 1).trim();
-      // Format: "😀 E1.0 grinning face"
+          const afterHash = rest.slice(hashIdx + 1).trim();
       const match = afterHash.match(/^(\S+)\s+E[\d.]+\s+(.+)$/);
       if (!match) continue;
 

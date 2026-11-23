@@ -8,7 +8,7 @@ export function emojiToTwemojiCode(emoji: string): string {
     const cp = symbol.codePointAt(0);
     if (!cp) continue;
     if (cp === 0xfe0f && !emoji.includes("\u200d")) continue;
-    codePoints.push(cp.toString(16));
+    codePoints.push(cp.toString(16).toLowerCase());
   }
   return codePoints.join("-");
 }
@@ -16,28 +16,12 @@ export function emojiToTwemojiCode(emoji: string): string {
 export function getTwemojiUrls(emoji: string): string[] {
   const code = emojiToTwemojiCode(emoji);
   return [
-    `https://cloudflare.com{code}.svg`,
     `https://jsdelivr.net{code}.svg`,
+    `https://cloudflare.com{code}.svg`,
   ];
 }
 
-export function isEmojiOnlyMessage(text: string): boolean {
-  const stripped = text.replace(/\s+/g, "");
-  if (!stripped) return false;
-  const withoutEmojis = stripped.replace(
-    /(\p{Extended_Pictographic}|\uFE0F|\u200D|\p{Emoji_Modifier}|[\u{1F1E6}-\u{1F1FF}])/gu,
-    ""
-  );
-  return withoutEmojis.length === 0;
-}
-
-export function TwemojiText({
-  text,
-  jumbo = false,
-}: {
-  text: string;
-  jumbo?: boolean;
-}) {
+export function TwemojiText({ text }: { text: string }) {
   const parts = text.split(
     /((?:[\u{1F1E6}-\u{1F1FF}]{2})|\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*)/gu
   );
@@ -51,11 +35,7 @@ export function TwemojiText({
             <TwemojiChar
               key={idx}
               emoji={part}
-              className={
-                jumbo
-                  ? "inline-block w-11 h-11 align-middle mx-0.5 select-all"
-                  : "inline-block w-5 h-5 align-[-0.25em] mx-0.5 select-all"
-              }
+              className="inline-block w-5 h-5 align-[-0.25em] mx-0.5 select-all"
             />
           );
         }
