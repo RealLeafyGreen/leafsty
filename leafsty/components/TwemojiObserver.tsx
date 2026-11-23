@@ -4,30 +4,49 @@ import { useEffect } from "react";
 
 export default function TwemojiObserver() {
   useEffect(() => {
-    let rafId: number | null = null;
+    let isParsing = false;
+    let timer: number | null = null;
 
     const runTwemojiParse = () => {
+      if (isParsing) return;
       const tw = (window as any).twemoji;
       if (!tw?.parse || !document.body) return;
-      tw.parse(document.body, {
-        folder: "svg",
-        ext: ".svg",
-      });
+
+      isParsing = true;
+      try {
+        tw.parse(document.body, {
+          base: "https://jsdelivr.net",
+          folder: "svg",
+          ext: ".svg",
+        });
+      } finally {
+        isParsing = false;
+      }
     };
 
     const scheduleParse = () => {
-      if (rafId !== null) return;
-      rafId = window.requestAnimationFrame(() => {
-        rafId = null;
+      if (timer !== null) return;
+      timer = window.setTimeout(() => {
+        timer = null;
         runTwemojiParse();
-      });
+      }, 120);
     };
 
     runTwemojiParse();
-    const interval = window.setInterval(runTwemojiParse, 800);
+    const poll = window.setInterval(runTwemojiParse, 1000);
 
-    const observer = new MutationObserver(() => {
-      scheduleParse();
+    const observer = new MutationObserver((mutations) => {
+      if (isParsing) return;
+      const hasTextOrElementChange = mutations.some(
+        (m) =>
+          m.type === "characterData" ||
+          Array.from(m.addedNodes).some(
+            (n) => !(n instanceof HTMLImageElement && n.classList.contains("emoji"))
+          )
+      );
+      if (hasTextOrElementChange) {
+        scheduleParse();
+      }
     });
 
     observer.observe(document.body, {
@@ -37,8 +56,8 @@ export default function TwemojiObserver() {
     });
 
     return () => {
-      window.clearInterval(interval);
-      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      window.clearInterval(poll);
+      if (timer !== null) window.clearTimeout(timer);
       observer.disconnect();
     };
   }, []);
