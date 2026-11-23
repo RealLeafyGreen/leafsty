@@ -619,8 +619,6 @@ export default function CustomMessageComposer({
             : client && channel?.id
             ? client.channel(channel.type || "messaging", channel.id)
             : null;
-          type: blob.type || "audio/webm",
-        });
 
         const currentUserId = String(
           client?.userID || (client?.user as any)?.id || ""
