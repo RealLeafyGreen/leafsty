@@ -117,6 +117,38 @@ const SKIN_TONES = [
 
 const RECENT_KEY = "leafsty_recent_emojis";
 const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog_v3";
+const SLASH_COMMANDS = [
+  {
+    cmd: "/poll",
+    usage: "/poll Best snack? | Pizza | Sushi | Boba",
+    desc: "Create a live interactive poll in chat",
+    template: "/poll ",
+  },
+  {
+    cmd: "/roll",
+    usage: "/roll",
+    desc: "Roll a random 1–100 number",
+    template: "/roll",
+  },
+  {
+    cmd: "/coinflip",
+    usage: "/coinflip",
+    desc: "Flip a coin (Heads or Tails)",
+    template: "/coinflip",
+  },
+  {
+    cmd: "/shrug",
+    usage: "/shrug [message]",
+    desc: "Append ¯\\_(ツ)_/¯ to your message",
+    template: "/shrug ",
+  },
+  {
+    cmd: "/tableflip",
+    usage: "/tableflip [message]",
+    desc: "Append (╯°□°)╯︵ ┻━┻ to your message",
+    template: "/tableflip ",
+  },
+];
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -198,6 +230,7 @@ export default function CustomMessageComposer({
   const [isUploading, setIsUploading] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [slashIndex, setSlashIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
 const [recordSeconds, setRecordSeconds] = useState(0);
 const [liveLevels, setLiveLevels] = useState<number[]>(Array(24).fill(22));
@@ -616,6 +649,55 @@ const stopAndSendRecording = () => {
 
     await sendPayload(text);
   };
+ const trimmed = text.trim();
+ if (trimmed.toLowerCase().startsWith("/poll")) {
+   const rawPoll = trimmed.slice(5).trim();
+   const parts = rawPoll
+     .split("|")
+     .map((p) => p.trim())
+     .filter(Boolean);
+   if (parts.length < 3) {
+     setSendError(
+       "Format: /poll Question? | Option 1 | Option 2 (at least 2 options)"
+     );
+     return;
+   }
+   const [question, ...options] = parts;
+   await sendPayload(`📊 ${question}`, [
+     {
+       type: "leafsty_poll",
+       question,
+       options: options.slice(0, 6),
+     },
+   ]);
+   return;
+ }
+
+ if (trimmed.toLowerCase() === "/roll") {
+   const rolled = Math.floor(Math.random() * 100) + 1;
+   await sendPayload(`🎲 Rolled **${rolled}** (1–100)`);
+   return;
+ }
+
+ if (trimmed.toLowerCase() === "/coinflip") {
+   const side = Math.random() < 0.5 ? "Heads" : "Tails";
+   await sendPayload(`🪙 Flipped **${side}**!`);
+   return;
+ }
+
+ if (trimmed.toLowerCase().startsWith("/shrug")) {
+   const rest = trimmed.slice(6).trim();
+   await sendPayload(`${rest ? `${rest} ` : ""}¯\\_(ツ)_/¯`);
+   return;
+ }
+
+ if (trimmed.toLowerCase().startsWith("/tableflip")) {
+   const rest = trimmed.slice(10).trim();
+   await sendPayload(`${rest ? `${rest} ` : ""}(╯°□°)╯︵ ┻━┻`);
+   return;
+ }
+
+ await sendPayload(text);
 
   const handleSelectGif = async (gif: KlipyGifItem) => {
     setShowGifPicker(false);
@@ -702,6 +784,13 @@ const stopAndSendRecording = () => {
       )
       .slice(0, 7);
   }, [mentionQuery, channel?.state?.members]);
+
+  const slashMatches = useMemo(() => {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith("/") || trimmed.includes(" ")) return [];
+  const q = trimmed.toLowerCase();
+  return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(q));
+}, [text]);
 
   const handleSelectMention = (tag: string) => {
     setText((prev) => prev.replace(/(^|\s)@[a-zA-Z0-9_.-]*$/, `$1${tag} `));
@@ -870,6 +959,43 @@ const stopAndSendRecording = () => {
           </div>
         </div>
       )}
+   {slashMatches.length > 0 && (
+     <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
+       <div className="px-3 py-1.5 bg-[#04120e] border-b border-emerald-500/15 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80">
+         Leafsty Slash Commands
+       </div>
+       <div className="p-1.5 space-y-0.5">
+         {slashMatches.map((item, idx) => (
+           <button
+             key={item.cmd}
+             type="button"
+             onMouseEnter={() => setSlashIndex(idx)}
+             onClick={() => {
+               setText(item.template);
+               inputRef.current?.focus();
+             }}
+             className={`w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl text-left text-xs transition cursor-pointer ${
+               idx === slashIndex
+                 ? "bg-emerald-500/25 text-white"
+                 : "text-emerald-100/85 hover:bg-emerald-500/15"
+             }`}
+           >
+             <div className="min-w-0">
+               <div className="font-mono font-extrabold text-emerald-300">
+                 {item.cmd}
+               </div>
+               <div className="text-[11px] text-emerald-200/75 truncate">
+                 {item.desc}
+               </div>
+             </div>
+             <span className="font-mono text-[10px] text-emerald-400/70 shrink-0 hidden sm:inline">
+               {item.usage}
+             </span>
+           </button>
+         ))}
+       </div>
+     </div>
+   )}
 
       {mentionQuery !== null && mentionCandidates.length > 0 && (
         <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
