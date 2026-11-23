@@ -147,7 +147,7 @@ export default function MyChat() {
 
     setLocalMessages([...(activeChannel?.state?.messages || [])]);
 
-      (async () => {
+          (async () => {
       try {
         const params = new URLSearchParams({
           channelType: String(activeChannel.type || "messaging"),
@@ -156,10 +156,19 @@ export default function MyChat() {
         });
         const res = await fetch(`/api/history?${params.toString()}`);
         const data = await res.json().catch(() => ({}));
+        if (!cancelled && Array.isArray(data?.messages) && data.messages.length > 0) {
+          mergeMessages(data.messages);
+          return;
+        }
+      } catch {}
+
+      try {
+        const res = await activeChannel.query?.({
+          messages: { limit: 300 },
+        });
         if (!cancelled) {
-          const history = Array.isArray(data?.messages)
-            ? data.messages
-            : activeChannel?.state?.messages || [];
+          const history =
+            res?.messages || activeChannel?.state?.messages || [];
           mergeMessages(history);
         }
       } catch {
@@ -171,7 +180,6 @@ export default function MyChat() {
         } catch {}
       }
     })();
-
 
     const markActiveRead = () => {
       if (
