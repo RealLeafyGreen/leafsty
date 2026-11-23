@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
-let cachedCatalog: Array<{
+interface UnicodeEmojiRecord {
   char: string;
   name: string;
   shortcode: string;
   category: string;
   skinTones: boolean;
-}> | null = null;
+}
+
+let cachedCatalog: UnicodeEmojiRecord[] | null = null;
 
 export async function GET() {
   if (cachedCatalog && cachedCatalog.length > 500) {
@@ -41,13 +43,7 @@ export async function GET() {
     };
 
     let currentGroup = "Smileys";
-    const items: Array<{
-      char: string;
-      name: string;
-      shortcode: string;
-      category: string;
-      skinTones: boolean;
-    }> = [];
+    const items: Array<UnicodeEmojiRecord & { _key: string }> = [];
     const seenBase = new Set<string>();
 
     for (const line of lines) {
@@ -57,27 +53,27 @@ export async function GET() {
         continue;
       }
       if (!line || line.startsWith("#")) continue;
-
-      // Only keep fully-qualified standard emojis (skip skin-tone duplicates; picker handles skin tones)
       if (!line.includes("; fully-qualified")) continue;
-      if (/1F3F[B-F]/.test(line.split(";")[0])) {
-        const baseKey = line
-          .split(";")[0]
+
+      const splitIdx = line.indexOf(";");
+      if (splitIdx === -1) continue;
+      const codePart = line.slice(0, splitIdx).trim();
+      const rest = line.slice(splitIdx + 1);
+
+      if (/1F3F[B-F]/.test(codePart)) {
+        const baseKey = codePart
           .replace(/\b1F3F[B-F]\b/g, "")
           .replace(/\s+/g, " ")
           .trim();
-        const existing = items.find((it) => (it as any)._key === baseKey);
+        const existing = items.find((it) => it._key === baseKey);
         if (existing) existing.skinTones = true;
         continue;
       }
 
-      const [codePart, rest] = line.split(";");
-      if (!codePart || !rest) continue;
-
       const hashIdx = rest.indexOf("#");
       if (hashIdx === -1) continue;
 
-          const afterHash = rest.slice(hashIdx + 1).trim();
+      const afterHash = rest.slice(hashIdx + 1).trim();
       const match = afterHash.match(/^(\S+)\s+E[\d.]+\s+(.+)$/);
       if (!match) continue;
 
@@ -87,22 +83,20 @@ export async function GET() {
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_|_$/g, "");
 
-      const key = codePart.trim();
-      if (seenBase.has(key)) continue;
-      seenBase.add(key);
+      if (seenBase.has(codePart)) continue;
+      seenBase.add(codePart);
 
-      const entry: any = {
+      items.push({
         char,
         name: cldrName,
         shortcode,
         category: currentGroup,
         skinTones: false,
-        _key: key,
-      };
-      items.push(entry);
+        _key: codePart,
+      });
     }
 
-    cachedCatalog = items.map(({ _key, ...clean }: any) => clean);
+    cachedCatalog = items.map(({ _key, ...clean }) => clean);
     return NextResponse.json({
       emojis: cachedCatalog,
       source: "unicode.org",
