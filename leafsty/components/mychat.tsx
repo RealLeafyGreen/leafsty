@@ -145,7 +145,6 @@ export default function MyChat() {
       });
     };
     if (!activeChannel) return;
-    let cancelled = false;
 
     setLocalMessages([...(activeChannel?.state?.messages || [])]);
 
