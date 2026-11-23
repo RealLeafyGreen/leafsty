@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import * as e2ee from "../../../lib/e2ee";
-import TwemojiChar, { TwemojiText } from "../../TwemojiIcon";
 import {
   CornerUpLeft,
   Lock,
