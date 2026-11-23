@@ -121,12 +121,39 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function fileToDataUrl(file: File): Promise<string> {
+function compressImageUnder65KB(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxDim = 900;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas unavailable"));
+      ctx.drawImage(img, 0, 0, width, height);
+
+      for (const quality of [0.75, 0.55, 0.35]) {
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        if (dataUrl.length <= 65_000) {
+          return resolve(dataUrl);
+        }
+      }
+      reject(new Error("Image too large for inline fallback"));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read image"));
+    };
+    img.src = objectUrl;
   });
 }
 export interface CustomMessageComposerProps {
@@ -242,9 +269,17 @@ export default function CustomMessageComposer({
   };
 
   const uploadSingleAttachment = async (item: PendingAttachment) => {
+    const liveChannel =
+      typeof channel?.sendImage === "function" ||
+      typeof channel?.sendFile === "function"
+        ? channel
+        : client && channel?.id
+        ? client.channel(channel.type || "messaging", channel.id)
+        : null;
+
     try {
-      if (item.isImage && typeof channel?.sendImage === "function") {
-        const res = await channel.sendImage(item.file);
+      if (item.isImage && typeof liveChannel?.sendImage === "function") {
+        const res = await liveChannel.sendImage(item.file);
         if (res?.file) {
           return {
             type: "image",
@@ -255,8 +290,8 @@ export default function CustomMessageComposer({
             mime_type: item.file.type,
           };
         }
-      } else if (typeof channel?.sendFile === "function") {
-        const res = await channel.sendFile(item.file);
+      } else if (typeof liveChannel?.sendFile === "function") {
+        const res = await liveChannel.sendFile(item.file);
         if (res?.file) {
           return {
             type: "file",
@@ -267,29 +302,25 @@ export default function CustomMessageComposer({
           };
         }
       }
-    } catch {}
-
-    if (item.size <= 3 * 1024 * 1024) {
-      const dataUrl = await fileToDataUrl(item.file);
-      return item.isImage
-        ? {
-            type: "image",
-            image_url: dataUrl,
-            thumb_url: dataUrl,
-            title: item.name,
-            file_size: item.size,
-            mime_type: item.file.type,
-          }
-        : {
-            type: "file",
-            asset_url: dataUrl,
-            title: item.name,
-            file_size: item.size,
-            mime_type: item.file.type || "application/octet-stream",
-          };
+    } catch (err) {
+      console.warn("Stream CDN upload fallback:", err);
     }
 
-    throw new Error(`Could not upload ${item.name} (max 3 MB fallback)`);
+    if (item.isImage) {
+      const compactUrl = await compressImageUnder65KB(item.file);
+      return {
+        type: "image",
+        image_url: compactUrl,
+        thumb_url: compactUrl,
+        title: item.name,
+        file_size: item.size,
+        mime_type: "image/jpeg",
+      };
+    }
+
+    throw new Error(
+      `File upload failed for "${item.name}". Enable File Uploads in your Stream Chat Dashboard for files over 100 KB.`
+    );
   };
 
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
