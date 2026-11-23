@@ -14,6 +14,7 @@ import UserProfilePopover, { LeafstyProfileUser } from "./UserProfilePopover";
 import UserSettingsModal from "./UserSettingsModal";
 import LeafstyCallStage from "./LeafstyCallStage";
 import LeafstyTerminal from "./LeafstyTerminal";
+import IncomingCallBanner, { IncomingCallAlert } from "./IncomingCallBanner";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
   AtSign,
@@ -365,6 +366,35 @@ export default function MyChat() {
     !activeServer?.id &&
     !activeChannel?.data?.serverId &&
     !activeChannel?.data?.server;
+
+    const startOrToggleCall = (withVideo: boolean) => {
+  setActiveCall((prev: any) => {
+    const next =
+      prev && Boolean(prev.startWithVideo) === withVideo
+        ? null
+        : { startWithVideo: withVideo };
+
+    if (next && activeChannel?.id) {
+      const payload = {
+        type: "leafsty.call_ring",
+        channelId: String(activeChannel.id),
+        channelType: String(activeChannel.type || "messaging"),
+        callerId: currentUserId,
+        callerName: (client?.user as any)?.name || currentUserId,
+        roomLabel: channelTitle || String(activeChannel.id),
+        withVideo,
+      };
+      activeChannel.sendEvent?.(payload).catch(() => {});
+      try {
+        const bc = new BroadcastChannel("leafsty-global-calls");
+        bc.postMessage({ ...payload, type: "ring" });
+        bc.close();
+      } catch {}
+    }
+    return next;
+  });
+};
+
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">
       <ServerList />
@@ -668,6 +698,22 @@ export default function MyChat() {
       {typeof document !== "undefined" &&
         createPortal(
           <>
+          <IncomingCallBanner
+  currentUserId={currentUserId}
+  activeCallChannelId={activeCall ? String(activeChannel?.id || "") : null}
+  onAccept={async (alert: IncomingCallAlert) => {
+    if (client && alert.channelId) {
+      const targetCh = client.channel(
+        alert.channelType || "messaging",
+        alert.channelId
+      );
+      await targetCh.watch?.().catch(() => {});
+      discordCtx?.setActiveChannel?.(targetCh);
+    }
+    setActiveCall({ startWithVideo: alert.withVideo });
+  }}
+/>
+
             <UserContextMenu
               user={targetUserMenu?.user || null}
               position={targetUserMenu?.position || null}

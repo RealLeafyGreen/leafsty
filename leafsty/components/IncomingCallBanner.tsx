@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useChatContext } from "stream-chat-react";
 import { Phone, Video, PhoneOff } from "lucide-react";
 
 export interface IncomingCallAlert {
   channelId: string;
+  channelType?: string;
   callerId: string;
   callerName: string;
   roomLabel: string;
@@ -20,16 +22,20 @@ export default function IncomingCallBanner({
   activeCallChannelId?: string | null;
   onAccept: (alert: IncomingCallAlert) => void;
 }) {
+  const { client } = useChatContext() as any;
   const [incoming, setIncoming] = useState<IncomingCallAlert | null>(null);
   const ringIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const playRingChime = () => {
     if (typeof window === "undefined") return;
-    const prefs = JSON.parse(localStorage.getItem("leafsty_app_prefs") || "{}");
-    if (prefs.soundEffects === false) return;
-
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const prefs = JSON.parse(
+        localStorage.getItem("leafsty_app_prefs") || "{}"
+      );
+      if (prefs.soundEffects === false) return;
+
+      const AudioCtx =
+        window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioCtx();
       const now = ctx.currentTime;
 
@@ -50,20 +56,62 @@ export default function IncomingCallBanner({
   };
 
   useEffect(() => {
-    const bc = new BroadcastChannel("leafsty-global-calls");
-    bc.onmessage = (msg) => {
-      const data = msg.data;
-      if (!data || data.callerId === currentUserId) return;
+    const triggerAlert = (payload: any) => {
+      if (!payload?.channelId || !payload?.callerId) return;
+      if (String(payload.callerId) === String(currentUserId)) return;
+      if (
+        activeCallChannelId &&
+        String(payload.channelId) === String(activeCallChannelId)
+      ) {
+        return;
+      }
 
-      if (data.type === "incoming-call") {
-        if (activeCallChannelId === data.channelId) return;
-        setIncoming(data);
-      } else if (data.type === "call-ended") {
-        setIncoming((prev) => (prev?.channelId === data.channelId ? null : prev));
+      setIncoming({
+        channelId: String(payload.channelId),
+        channelType: String(payload.channelType || "messaging"),
+        callerId: String(payload.callerId),
+        callerName: String(payload.callerName || payload.callerId),
+        roomLabel: String(payload.roomLabel || "Encrypted Call"),
+        withVideo: Boolean(payload.withVideo),
+      });
+    };
+
+    const handleStreamEvent = (event: any) => {
+      if (event?.type === "leafsty.call_ring") {
+        triggerAlert({
+          channelId: event.channel_id || event.cid?.split(":").at(1),
+          channelType: event.channel_type || event.cid?.split(":").at(0),
+          callerId: event.user?.id || event.callerId,
+          callerName: event.user?.name || event.callerName || event.user?.id,
+          roomLabel: event.roomLabel || "Voice / Video Call",
+          withVideo: Boolean(event.withVideo),
+        });
+      } else if (
+        event?.type === "leafsty.call_end" &&
+        incoming &&
+        String(event.channel_id || "") === String(incoming.channelId)
+      ) {
+        setIncoming(null);
       }
     };
-    return () => bc.close();
-  }, [currentUserId, activeCallChannelId]);
+
+    const sub = client?.on?.(handleStreamEvent);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("leafsty-global-calls");
+      bc.onmessage = (msg) => {
+        if (msg?.data?.type === "ring") triggerAlert(msg.data);
+        if (msg?.data?.type === "end") setIncoming(null);
+      };
+    } catch {}
+
+    return () => {
+      sub?.unsubscribe?.();
+      bc?.close();
+    };
+  }, [client, currentUserId, activeCallChannelId, incoming]);
+
   useEffect(() => {
     if (!incoming) {
       if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
@@ -83,19 +131,17 @@ export default function IncomingCallBanner({
   if (!incoming) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 w-80 rounded-3xl bg-[#0b1914] border border-emerald-500/40 text-white p-4 shadow-2xl shadow-emerald-950/60 animate-in fade-in slide-in-from-bottom-4">
+    <div className="fixed bottom-5 right-5 z-[9999] w-80 rounded-3xl bg-[#0b1914] border border-emerald-500/40 text-white p-4 shadow-2xl">
       <div className="flex items-center gap-3 mb-3.5">
         <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white font-black text-base flex items-center justify-center shrink-0 animate-pulse">
           {incoming.callerName.charAt(0).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
-            Incoming {incoming.withVideo ? "Video" : "Voice"} Call
-          </div>
-          <div className="text-sm font-extrabold truncate">
+          <div className="text-sm font-extrabold text-emerald-50 truncate">
             {incoming.callerName}
           </div>
-          <div className="text-[11px] text-zinc-400 truncate">
+          <div className="text-xs text-emerald-300/80 truncate">
+            Incoming {incoming.withVideo ? "Video" : "Voice"} Call •{" "}
             {incoming.roomLabel}
           </div>
         </div>
@@ -104,28 +150,28 @@ export default function IncomingCallBanner({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setIncoming(null)}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-600/90 hover:bg-red-500 py-2 text-xs font-extrabold text-white transition cursor-pointer"
-        >
-          <PhoneOff className="w-3.5 h-3.5" />
-          <span>Decline</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => {
             const accepted = incoming;
             setIncoming(null);
             onAccept(accepted);
           }}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 py-2 text-xs font-extrabold text-white shadow-sm transition cursor-pointer"
+          className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer"
         >
           {incoming.withVideo ? (
-            <Video className="w-3.5 h-3.5" />
+            <Video className="w-4 h-4" />
           ) : (
-            <Phone className="w-3.5 h-3.5" />
+            <Phone className="w-4 h-4" />
           )}
-          <span>Accept</span>
+          <span>Answer</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIncoming(null)}
+          className="px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/35 border border-red-500/40 text-red-200 text-xs font-extrabold flex items-center justify-center gap-1 transition cursor-pointer"
+        >
+          <PhoneOff className="w-4 h-4" />
+          <span>Decline</span>
         </button>
       </div>
     </div>
