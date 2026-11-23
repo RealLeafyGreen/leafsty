@@ -11,6 +11,7 @@
   font-family: "TwemojiLocal", var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif !important;
 }
 
+
 /* Smooth Circle-to-Squircle Morph */
 .rounded-icon {
   border-radius: 50%;
