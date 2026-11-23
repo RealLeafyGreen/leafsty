@@ -33,6 +33,52 @@ export interface CustomMessageProps {
   onSelectUser?: (user: { id: string; name: string; image?: string }) => void;
 }
 
+function formatMessageDateTime(rawDate: any): string {
+  if (rawDate === undefined || rawDate === null || rawDate === "") return "";
+
+  let parsed: Date;
+  if (rawDate instanceof Date) {
+    parsed = rawDate;
+  } else if (typeof rawDate === "number") {
+    parsed = new Date(rawDate < 1e12 ? rawDate * 1000 : rawDate);
+  } else {
+    const asNum = Number(rawDate);
+    if (!Number.isNaN(asNum) && String(rawDate).trim() !== "") {
+      parsed = new Date(asNum < 1e12 ? asNum * 1000 : asNum);
+    } else {
+      parsed = new Date(String(rawDate));
+    }
+  }
+
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMsg = new Date(
+    parsed.getFullYear(),
+    parsed.getMonth(),
+    parsed.getDate()
+  );
+  const diffDays = Math.round(
+    (startOfToday.getTime() - startOfMsg.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  const timeStr = parsed.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  if (diffDays === 0) return `Today at ${timeStr}`;
+  if (diffDays === 1) return `Yesterday at ${timeStr}`;
+
+  const dateStr = parsed.toLocaleDateString([], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  return `${dateStr} ${timeStr}`;
+}
+
 export default function CustomMessage({
   message,
   onReply,
@@ -107,33 +153,21 @@ export default function CustomMessage({
       cancelled = true;
     };
   }, [rawText, roomId]);
-
   useEffect(() => {
     const counts: Record<string, number> = {};
     const mine: Record<string, boolean> = {};
 
-     if (message?.reaction_counts && typeof message.reaction_counts === "object") {
-   for (const [k, v] of Object.entries(message.reaction_counts)) {
-     if (k.startsWith("poll_vote_")) continue;
-     if (typeof v === "number" && v > 0) counts[k] = v;
-   }
- }
- if (Array.isArray(message?.own_reactions)) {
-   for (const r of message.own_reactions) {
-     if (r?.type && !String(r.type).startsWith("poll_vote_")) {
-       mine[String(r.type)] = true;
-     }
-   }
- }
-
     if (message?.reaction_counts && typeof message.reaction_counts === "object") {
       for (const [k, v] of Object.entries(message.reaction_counts)) {
+        if (k.startsWith("poll_vote_")) continue;
         if (typeof v === "number" && v > 0) counts[k] = v;
       }
     }
     if (Array.isArray(message?.own_reactions)) {
       for (const r of message.own_reactions) {
-        if (r?.type) mine[String(r.type)] = true;
+        if (r?.type && !String(r.type).startsWith("poll_vote_")) {
+          mine[String(r.type)] = true;
+        }
       }
     }
     setLocalReactions(counts);
@@ -142,22 +176,13 @@ export default function CustomMessage({
 
   if (!message) return null;
 
-  const formattedTime = (() => {
-    const rawDate =
-      message.created_at ?? message.createdAt ?? message.updated_at;
-    if (!rawDate) return "";
-    const parsed =
-      rawDate instanceof Date
-        ? rawDate
-        : typeof rawDate === "number"
-        ? new Date(rawDate)
-        : new Date(String(rawDate));
-    if (Number.isNaN(parsed.getTime())) return "";
-    return parsed.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  })();
+  const formattedDateTime = formatMessageDateTime(
+    message.created_at ??
+      message.createdAt ??
+      message.updated_at ??
+      message.timestamp ??
+      Date.now()
+  );
 
   const seenByUsers = (() => {
     if (!isOwn || !activeChannel?.state?.read || !message.created_at) return [];
@@ -200,12 +225,23 @@ export default function CustomMessage({
     : [];
 
   const hasMediaAttachment = attachments.some((att: any) =>
-    Boolean(att?.image_url || att?.thumb_url || att?.asset_url)
+    Boolean(
+      att?.image_url ||
+        att?.thumb_url ||
+        att?.asset_url ||
+        att?.type === "leafsty_poll" ||
+        att?.type === "leafsty_voice"
+    )
+  );
+
+  const hasPollAttachment = attachments.some(
+    (att: any) => att?.type === "leafsty_poll"
   );
 
   const displayBody = (decryptedText || rawText).trim();
   const shouldShowText =
     Boolean(displayBody) &&
+    !hasPollAttachment &&
     !(displayBody.toUpperCase() === "GIF" && hasMediaAttachment);
 
   const isEdited = Boolean(
@@ -325,7 +361,7 @@ export default function CustomMessage({
       </button>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() =>
@@ -343,9 +379,9 @@ export default function CustomMessage({
             {senderName}
           </button>
 
-          {formattedTime && (
-            <span className="text-[10px] text-emerald-300/50">
-              {formattedTime}
+          {formattedDateTime && (
+            <span className="text-[10px] text-emerald-300/55 font-medium">
+              {formattedDateTime}
             </span>
           )}
 
@@ -377,7 +413,11 @@ export default function CustomMessage({
                 onClick={() =>
                   onReply({
                     id: String(message.id),
-                    text: shouldShowText ? displayBody : "GIF",
+                    text: shouldShowText
+                      ? displayBody
+                      : hasPollAttachment
+                      ? "Live Poll"
+                      : "Attachment",
                     userName: senderName,
                   })
                 }
@@ -424,7 +464,7 @@ export default function CustomMessage({
             <span className="font-bold text-emerald-200">
               {message.quoted_message.user?.name || "Reply"}:{" "}
             </span>
-            <span>{message.quoted_message.text || "GIF"}</span>
+            <span>{message.quoted_message.text || "Attachment"}</span>
           </div>
         )}
 
@@ -473,41 +513,42 @@ export default function CustomMessage({
         {attachments.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-2">
             {attachments.map((att: any, idx: number) => {
-              if (att?.type === "leafsty_call") {
-                if (att?.type === "leafsty_poll" && Array.isArray(att?.options)) {
-  return (
-    <PollCard
-      key={idx}
-      message={message}
-      question={String(att.question || "Poll")}
-      options={att.options.map(String)}
-      activeChannel={activeChannel}
-    />
-  );
-}
+              if (att?.type === "leafsty_poll" && Array.isArray(att?.options)) {
+                return (
+                  <PollCard
+                    key={idx}
+                    message={message}
+                    question={String(att.question || "Poll")}
+                    options={att.options.map(String)}
+                    activeChannel={activeChannel}
+                  />
+                );
+              }
 
-  return (
-    <div
-      key={idx}
-      className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-emerald-500/15 border border-emerald-400/35 text-xs font-bold text-emerald-100"
-    >
-      <span>
-        {att.callerName || senderName} started a{" "}
-        {att.withVideo ? "video" : "voice"} call
-      </span>
-    </div>
-  );
-}
-if (att?.type === "leafsty_voice" && att?.asset_url) {
-  return (
-    <VoiceNotePlayer
-      key={idx}
-      src={att.asset_url}
-      duration={Number(att.duration || 0)}
-      waveform={att.waveform}
-    />
-  );
-}
+              if (att?.type === "leafsty_voice" && att?.asset_url) {
+                return (
+                  <VoiceNotePlayer
+                    key={idx}
+                    src={att.asset_url}
+                    duration={Number(att.duration || 0)}
+                    waveform={att.waveform}
+                  />
+                );
+              }
+
+              if (att?.type === "leafsty_call") {
+                return (
+                  <div
+                    key={idx}
+                    className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-emerald-500/15 border border-emerald-400/35 text-xs font-bold text-emerald-100"
+                  >
+                    <span>
+                      {att.callerName || senderName} started a{" "}
+                      {att.withVideo ? "video" : "voice"} call
+                    </span>
+                  </div>
+                );
+              }
 
               const imgSrc = att?.image_url || att?.thumb_url;
               const fileHref = att?.asset_url || imgSrc;
