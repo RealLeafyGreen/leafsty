@@ -13,14 +13,6 @@ export function emojiToTwemojiCode(emoji: string): string {
   return codePoints.join("-");
 }
 
-export function getTwemojiUrls(emoji: string): string[] {
-  const code = emojiToTwemojiCode(emoji);
-  return [
-    `https://jsdelivr.net{code}.svg`,
-    `https://cloudflare.com{code}.svg`,
-  ];
-}
-
 export function TwemojiText({ text }: { text: string }) {
   const parts = text.split(
     /((?:[\u{1F1E6}-\u{1F1FF}]{2})|\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*)/gu
@@ -52,20 +44,20 @@ export default function TwemojiChar({
   emoji: string;
   className?: string;
 }) {
-  const urls = getTwemojiUrls(emoji);
-  const [urlIndex, setUrlIndex] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const code = emojiToTwemojiCode(emoji);
 
-  if (urlIndex >= urls.length) {
+  if (failed || !code) {
     return <span className="leading-none">{emoji}</span>;
   }
 
   return (
     <img
-      src={urls[urlIndex]}
+      src={`/api/twemoji/${code}`}
       alt={emoji}
       draggable={false}
       loading="lazy"
-      onError={() => setUrlIndex((i) => i + 1)}
+      onError={() => setFailed(true)}
       className={className}
     />
   );
