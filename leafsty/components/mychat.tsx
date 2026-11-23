@@ -558,7 +558,7 @@ export default function MyChat() {
               <div className="flex-1 flex flex-col min-w-0 h-full bg-[#0a1d17]">
                 <Channel channel={activeChannel}>
                   <div className="flex-1 flex flex-col justify-between h-full min-h-0">
-                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                    <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-2">
                       <div className="pb-4 mb-4 border-b border-emerald-500/15">
                         <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-400/25 text-emerald-300 flex items-center justify-center mb-3">
                           {isDm ? (
@@ -596,7 +596,6 @@ export default function MyChat() {
                             });
                           }}
                         >
-                        <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-2">
                           <CustomMessage
                             message={msg}
                             onReply={setReplyTo}
