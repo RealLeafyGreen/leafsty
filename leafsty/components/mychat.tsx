@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import InstallAppButton from "./InstallAppButton";
 import TypingIndicator from "./MessageList/TypingIndicator";
 import { Channel, useChatContext } from "stream-chat-react";
+import SleepCurfewOverlay from "./SleepCurfewOverlay";
 import ServerList from "./ServerList";
 import CustomChannelList from "./CustomChannelList";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
@@ -780,6 +781,7 @@ export default function MyChat() {
       {typeof document !== "undefined" &&
         createPortal(
           <>
+             <SleepCurfewOverlay />
           <IncomingCallBanner
   currentUserId={currentUserId}
   activeCallChannelId={activeCall ? String(activeChannel?.id || "") : null}

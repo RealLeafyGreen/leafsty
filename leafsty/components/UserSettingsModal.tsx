@@ -2,6 +2,11 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import {
+  SLEEP_CURFEW_KEY,
+  getSleepCurfewConfig,
+  getLocalUtcLabel,
+} from "./SleepCurfewOverlay";
+import {
   X,
   User,
   Palette,
@@ -96,6 +101,18 @@ export default function UserSettingsModal({
   }>({ loading: false, error: null, success: false });
 
   const [testingMic, setTestingMic] = useState(false);
+  const [sleepCurfew, setSleepCurfew] = useState(() => getSleepCurfewConfig());
+
+const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number; endHour: number }>) => {
+  setSleepCurfew((prev) => {
+    const next = { ...prev, ...patch };
+    try {
+      localStorage.setItem(SLEEP_CURFEW_KEY, JSON.stringify(next));
+      window.dispatchEvent(new Event("leafsty:curfew-updated"));
+    } catch {}
+    return next;
+  });
+};
   const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -515,6 +532,84 @@ export default function UserSettingsModal({
                   </div>
                 </div>
               </div>
+                           <div className="p-4 rounded-2xl bg-[#0d261e] border border-emerald-500/20 space-y-3">
+               <div className="flex items-center justify-between gap-3">
+                 <div>
+                   <div className="text-sm font-extrabold text-white">
+                     Sleep Mode Curfew (10:00 PM – 4:00 AM)
+                   </div>
+                   <div className="text-xs text-emerald-300/70">
+                     Automatically locks Leafsty during bedtime in your local UTC zone:{" "}
+                     <span className="font-mono text-emerald-200">
+                       {getLocalUtcLabel()}
+                     </span>
+                   </div>
+                 </div>
+                 <button
+                   type="button"
+                   onClick={() =>
+                     updateSleepCurfew({ enabled: !sleepCurfew.enabled })
+                   }
+                   className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold transition cursor-pointer shrink-0 ${
+                     sleepCurfew.enabled
+                       ? "bg-emerald-600 text-white"
+                       : "bg-[#061410] border border-emerald-500/25 text-emerald-300/75"
+                   }`}
+                 >
+                   {sleepCurfew.enabled ? "Enabled" : "Off"}
+                 </button>
+               </div>
+
+               {sleepCurfew.enabled && (
+                 <div className="grid grid-cols-2 gap-3 pt-1">
+                   <div>
+                     <label className="block text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1">
+                       Bedtime Start
+                     </label>
+                     <select
+                       value={sleepCurfew.startHour}
+                       onChange={(e) =>
+                         updateSleepCurfew({
+                           startHour: Number(e.target.value),
+                         })
+                       }
+                       className="w-full px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50"
+                     >
+                       {[20, 21, 22, 23, 0].map((h) => (
+                         <option key={h} value={h}>
+                           {h === 0
+                             ? "12:00 AM"
+                             : h > 12
+                             ? `${h - 12}:00 PM`
+                             : `${h}:00 AM`}
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+
+                   <div>
+                     <label className="block text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1">
+                       Wake-Up Unlock
+                     </label>
+                     <select
+                       value={sleepCurfew.endHour}
+                       onChange={(e) =>
+                         updateSleepCurfew({
+                           endHour: Number(e.target.value),
+                         })
+                       }
+                       className="w-full px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50"
+                     >
+                       {[3, 4, 5, 6, 7, 8].map((h) => (
+                         <option key={h} value={h}>
+                           {`${h}:00 AM`}
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+                 </div>
+               )}
+             </div>
             )}
             {activeTab === "account" && (
               <div className="space-y-5">
