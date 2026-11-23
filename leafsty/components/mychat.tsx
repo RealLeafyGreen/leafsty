@@ -596,6 +596,7 @@ export default function MyChat() {
                             });
                           }}
                         >
+                        <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-2">
                           <CustomMessage
                             message={msg}
                             onReply={setReplyTo}

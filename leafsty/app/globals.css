@@ -201,4 +201,12 @@ html[data-theme="light"] .text-emerald-300\/60 {
   color: #16654e !important;
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
