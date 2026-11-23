@@ -101,7 +101,7 @@ const SKIN_TONES = [
 ];
 
 const RECENT_KEY = "leafsty_recent_emojis";
-const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog_v2";
+const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog_v3";
 export interface CustomMessageComposerProps {
   replyTarget?: ReplyTarget | null;
   onCancelReply?: () => void;

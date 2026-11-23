@@ -10,6 +10,18 @@ export interface FullEmojiRecord {
 
 let cachedList: FullEmojiRecord[] | null = null;
 
+function unifiedToChar(unified: string): string {
+  try {
+    const cps = unified
+      .split("-")
+      .map((hex) => parseInt(hex, 16))
+      .filter((n) => !Number.isNaN(n));
+    return String.fromCodePoint(...cps);
+  } catch {
+    return "";
+  }
+}
+
 export async function GET() {
   if (cachedList && cachedList.length > 1500) {
     return NextResponse.json({ emojis: cachedList });
@@ -17,15 +29,15 @@ export async function GET() {
 
   try {
     const res = await fetch(
-      "https://unicode.org",
+      "https://jsdelivr.net",
       { signal: AbortSignal.timeout(10000) }
     );
-    if (!res.ok) throw new Error("Failed to fetch Unicode list");
+    if (!res.ok) throw new Error(`Twemoji JSON fetch failed (${res.status})`);
 
-    const raw = await res.text();
-    const lines = raw.split(/\r?\n/);
+    const rawItems = await res.json();
+    if (!Array.isArray(rawItems)) throw new Error("Invalid Twemoji JSON");
 
-    const groupMap: Record<string, FullEmojiRecord["cat"]> = {
+    const catMap: Record<string, FullEmojiRecord["cat"]> = {
       "Smileys & Emotion": "Smileys",
       "People & Body": "Hands",
       "Animals & Nature": "Nature",
@@ -37,70 +49,39 @@ export async function GET() {
       Flags: "Symbols",
     };
 
-    let currentCat: FullEmojiRecord["cat"] = "Smileys";
-    const result: Array<FullEmojiRecord & { _base: string }> = [];
-    const seenChars = new Set<string>();
+    const sorted = [...rawItems].sort(
+      (a: any, b: any) => (a?.sort_order ?? 9999) - (b?.sort_order ?? 9999)
+    );
 
-    for (const line of lines) {
-      if (line.startsWith("# group:")) {
-        const grp = line.replace("# group:", "").trim();
-        if (groupMap[grp]) currentCat = groupMap[grp];
-        continue;
-      }
-      if (!line || line.startsWith("#")) continue;
+    const emojis: FullEmojiRecord[] = [];
 
-      const semi = line.indexOf(";");
-      if (semi === -1) continue;
-      const codePart = line.slice(0, semi).trim();
-      const rest = line.slice(semi + 1);
+    for (const item of sorted) {
+      if (!item?.unified || !item?.short_name) continue;
+      if (item.category === "Component") continue;
 
-      // Skip unqualified duplicates when fully-qualified exists, but keep minimally-qualified
-      if (rest.includes("unqualified")) continue;
+      const char = unifiedToChar(String(item.unified));
+      if (!char) continue;
 
-      // Mark skin-tone support on base emoji instead of flooding grid with 5x skin duplicates
-      if (/1F3F[B-F]/.test(codePart)) {
-        const base = codePart
-          .replace(/\b1F3F[B-F]\b/g, "")
-          .replace(/\bFE0F\b/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
-        const found = result.find((r) => r._base === base);
-        if (found) found.skinTones = true;
-        continue;
-      }
+      const cat = catMap[String(item.category)] || "Symbols";
+      const shortcode = String(item.short_name).toLowerCase();
+      const name = String(item.name || shortcode)
+        .toLowerCase()
+        .replace(/_/g, " ");
 
-      const hash = rest.indexOf("#");
-      if (hash === -1) continue;
-      const afterHash = rest.slice(hash + 1).trim();
-
-      // Match: "<emoji_char> E<version> <cldr_name>"
-      const match = afterHash.match(/^(\S+)\s+E[\d.]+\s+(.+)$/);
-      const char = match?.at(1);
-      const rawName = match?.at(2);
-      if (!char || !rawName) continue;
-
-      const normalizedKey = codePart.replace(/\bFE0F\b/g, "").replace(/\s+/g, " ").trim();
-      if (seenChars.has(normalizedKey)) continue;
-      seenChars.add(normalizedKey);
-
-      const name = rawName.trim().toLowerCase();
-      const shortcode = name.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-
-      result.push({
+      emojis.push({
         char,
         name,
         shortcode,
-        cat: currentCat,
-        skinTones: false,
-        _base: normalizedKey,
+        cat,
+        skinTones: Boolean(item.skin_variations),
       });
     }
 
-    cachedList = result.map(({ _base, ...clean }) => clean);
+    cachedList = emojis;
     return NextResponse.json({ emojis: cachedList });
   } catch (err: any) {
     return NextResponse.json(
-      { emojis: [], error: err?.message || "Fetch error" },
+      { emojis: [], error: err?.message || "Failed to load Twemoji dataset" },
       { status: 502 }
     );
   }
