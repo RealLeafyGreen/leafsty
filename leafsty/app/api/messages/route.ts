@@ -1,10 +1,17 @@
-import { NextResponse } from "next/server";
-import { StreamClient } from "@stream-io/node-sdk";
+import { NextRequest, NextResponse } from "next/server";
+import { StreamChat } from "stream-chat";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { channelId, channelType = "messaging", userId, text, attachments, parent_id, custom } =
-      await req.json();
+    const {
+      channelType = "messaging",
+      channelId,
+      userId,
+      text = "",
+      attachments = [],
+      quoted_message_id,
+      parent_id,
+    } = await req.json();
 
     if (!channelId || !userId) {
       return NextResponse.json(
@@ -15,36 +22,32 @@ export async function POST(req: Request) {
 
     const apiKey =
       process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.STREAM_API_KEY;
-    const apiSecret =
-      process.env.STREAM_API_SECRET || process.env.STREAM_SECRET_KEY;
+    const apiSecret = process.env.STREAM_API_SECRET;
 
     if (!apiKey || !apiSecret) {
       return NextResponse.json(
-        { error: "Stream credentials missing on server" },
+        { error: "Stream API credentials are not configured on the server" },
         { status: 500 }
       );
     }
 
-const quotedId = body?.quoted_message_id || body?.parent_id || undefined;
-    const serverClient = new StreamClient(apiKey, apiSecret);
+    const serverClient = StreamChat.getInstance(apiKey, apiSecret);
     const channel = (serverClient as any).chat.channel(channelType, channelId);
+
+    const quotedId = quoted_message_id || parent_id || undefined;
 
     const response = await channel.sendMessage({
       message: {
-        user_id: userId,
-        text: text || "",
-        attachments: attachments || [],
-        parent_id,
-        custom: custom || {},
+        user_id: String(userId),
+        text: String(text || ""),
+        attachments: Array.isArray(attachments) ? attachments : [],
+        ...(quotedId ? { quoted_message_id: String(quotedId) } : {}),
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      message: response?.message || response,
-    });
+    return NextResponse.json({ message: response?.message || null });
   } catch (err: any) {
-    console.error("Server sendMessage failed:", err);
+    console.error("POST /api/messages error:", err);
     return NextResponse.json(
       { error: err?.message || "Failed to send message" },
       { status: 500 }
