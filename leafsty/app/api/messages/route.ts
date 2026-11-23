@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { StreamChat } from "stream-chat";
+import { StreamClient } from "@stream-io/node-sdk";
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const serverClient = StreamChat.getInstance(apiKey, apiSecret);
+    const serverClient = new StreamClient(apiKey, apiSecret);
     const channel = (serverClient as any).chat.channel(channelType, channelId);
 
     const quotedId = quoted_message_id || parent_id || undefined;
