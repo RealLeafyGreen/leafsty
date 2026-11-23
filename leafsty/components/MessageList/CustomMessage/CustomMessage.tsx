@@ -10,7 +10,10 @@ import {
   Pencil,
   SmilePlus,
   Check,
+  CheckCheck,
   X,
+  FileText,
+  Download,
 } from "lucide-react";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👀", "💀"];
@@ -23,6 +26,7 @@ export interface ReplyTarget {
 
 export interface CustomMessageProps {
   message?: any;
+  isLastOwnMessage?: boolean;
   onReply?: (target: ReplyTarget) => void;
   onSelectUser?: (user: { id: string; name: string; image?: string }) => void;
 }
@@ -44,8 +48,13 @@ export default function CustomMessage({
     {}
   );
   const [myReactions, setMyReactions] = useState<Record<string, boolean>>({});
+  const [, setReadTick] = useState(0);
 
   const currentUserId = String(client?.userID || client?.user?.id || "");
+  const myUsername = String(
+    (client?.user as any)?.name || currentUserId || ""
+  ).toLowerCase();
+
   const msgUser = message?.user || {};
   const senderId = String(msgUser.id || "");
   const senderName = msgUser.name || senderId || "LeafyUser";
@@ -55,6 +64,13 @@ export default function CustomMessage({
   const rawText = typeof message?.text === "string" ? message.text : "";
   const cidParts = String(message?.cid || "").split(":");
   const roomId = cidParts.at(1) || "leafsty-default-room";
+
+  useEffect(() => {
+    if (!activeChannel?.on) return;
+    const bump = () => setReadTick((t) => t + 1);
+    const sub = activeChannel.on("message.read", bump);
+    return () => sub?.unsubscribe?.();
+  }, [activeChannel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +143,42 @@ export default function CustomMessage({
     });
   })();
 
+  const seenByUsers = (() => {
+    if (!isOwn || !activeChannel?.state?.read || !message.created_at) return [];
+    const msgTime = new Date(message.created_at).getTime();
+    if (Number.isNaN(msgTime)) return [];
+
+    const stateMessages: any[] = Array.isArray(activeChannel.state.messages)
+      ? activeChannel.state.messages
+      : [];
+    const nextOwnMsg = stateMessages.find(
+      (m: any) =>
+        String(m?.user?.id || "") === currentUserId &&
+        new Date(m?.created_at || 0).getTime() > msgTime
+    );
+    const nextOwnTime = nextOwnMsg
+      ? new Date(nextOwnMsg.created_at).getTime()
+      : Infinity;
+
+    const readers: Array<{ id: string; name: string; image?: string }> = [];
+    for (const [uid, entry] of Object.entries(
+      activeChannel.state.read as Record<string, any>
+    )) {
+      if (!uid || uid === currentUserId) continue;
+      const readTime = entry?.last_read
+        ? new Date(entry.last_read).getTime()
+        : 0;
+      if (readTime >= msgTime && readTime < nextOwnTime) {
+        readers.push({
+          id: uid,
+          name: entry?.user?.name || uid,
+          image: entry?.user?.image,
+        });
+      }
+    }
+    return readers;
+  })();
+
   const attachments = Array.isArray(message.attachments)
     ? message.attachments
     : [];
@@ -188,22 +240,48 @@ export default function CustomMessage({
   };
 
   const renderFormattedText = (text: string) => {
-    const parts = text.split(/(https?:\/\/[^\s]+)/g);
-    return parts.map((part, i) =>
-      /^https?:\/\//.test(part) ? (
-        <a
-          key={i}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-emerald-300 underline hover:text-emerald-200 break-all"
-        >
-          {part}
-        </a>
-      ) : (
-        <React.Fragment key={i}>{part}</React.Fragment>
-      )
-    );
+    const tokens = text.split(/(https?:\/\/[^\s]+|@[a-zA-Z0-9_.-]+)/g);
+    return tokens.map((part, i) => {
+      if (!part) return null;
+
+      if (/^https?:\/\//.test(part)) {
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-300 underline hover:text-emerald-200 break-all"
+          >
+            {part}
+          </a>
+        );
+      }
+
+      if (/^@[a-zA-Z0-9_.-]+$/.test(part)) {
+        const handle = part.slice(1).toLowerCase();
+        const isMe =
+          handle === "everyone" ||
+          handle === "here" ||
+          (myUsername && handle === myUsername) ||
+          (currentUserId && handle === currentUserId.toLowerCase());
+
+        return (
+          <span
+            key={i}
+            className={`inline-block px-1.5 py-0.2 rounded-md font-bold transition ${
+              isMe
+                ? "bg-amber-400/25 text-amber-200 border border-amber-400/40"
+                : "bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30"
+            }`}
+          >
+            {part}
+          </span>
+        );
+      }
+
+      return <React.Fragment key={i}>{part}</React.Fragment>;
+    });
   };
   return (
     <div className="group relative flex items-start gap-3 px-2 py-1.5 rounded-xl hover:bg-emerald-500/5 transition">
@@ -256,6 +334,16 @@ export default function CustomMessage({
           )}
 
           <Lock className="w-2.5 h-2.5 text-emerald-400/40" />
+
+          {isOwn && seenByUsers.length > 0 && (
+            <span
+              title={`Seen by ${seenByUsers.map((u) => u.name).join(", ")}`}
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400"
+            >
+              <CheckCheck className="w-3 h-3" />
+              <span>Seen</span>
+            </span>
+          )}
 
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-auto bg-[#081914] border border-emerald-500/20 rounded-lg px-1 py-0.5 transition">
             <button
@@ -366,17 +454,55 @@ export default function CustomMessage({
             </p>
           )
         )}
-
         {attachments.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-2">
             {attachments.map((att: any, idx: number) => {
-              const src = att?.image_url || att?.thumb_url || att?.asset_url;
-              if (!src) return null;
+              const imgSrc = att?.image_url || att?.thumb_url;
+              const fileHref = att?.asset_url || imgSrc;
+              if (!fileHref) return null;
+
+              const isFileCard =
+                att?.type === "file" || (!imgSrc && Boolean(att?.asset_url));
+
+              if (isFileCard) {
+                const sizeBytes = Number(att?.file_size || 0);
+                const sizeLabel =
+                  sizeBytes >= 1024 * 1024
+                    ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+                    : sizeBytes > 0
+                    ? `${(sizeBytes / 1024).toFixed(1)} KB`
+                    : "Attachment";
+
+                return (
+                  <a
+                    key={idx}
+                    href={fileHref}
+                    download={att?.title || "attachment"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-[#0d261e] border border-emerald-500/25 hover:border-emerald-400/60 transition max-w-xs sm:max-w-sm"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-emerald-100 truncate">
+                        {att?.title || "File Attachment"}
+                      </div>
+                      <div className="text-[10px] text-emerald-400/70">
+                        {sizeLabel}
+                      </div>
+                    </div>
+                    <Download className="w-4 h-4 text-emerald-300/75 shrink-0" />
+                  </a>
+                );
+              }
+
               return (
                 <img
                   key={idx}
-                  src={src}
-                  alt={att?.title || "GIF"}
+                  src={imgSrc}
+                  alt={att?.title || "Attachment"}
                   loading="lazy"
                   className="max-w-xs sm:max-w-sm max-h-72 rounded-2xl border border-emerald-500/20 object-contain bg-[#061410]"
                 />
@@ -401,6 +527,28 @@ export default function CustomMessage({
                 <span>{emoji}</span>
                 <span className="text-[11px]">{count}</span>
               </button>
+            ))}
+          </div>
+        )}
+
+        {isOwn && seenByUsers.length > 0 && (
+          <div className="mt-1 flex items-center justify-end gap-1">
+            {seenByUsers.map((reader) => (
+              <div
+                key={reader.id}
+                title={`Seen by ${reader.name}`}
+                className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[8px] font-extrabold flex items-center justify-center overflow-hidden ring-1 ring-[#0a1d17]"
+              >
+                {reader.image ? (
+                  <img
+                    src={reader.image}
+                    alt={reader.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  reader.name.charAt(0).toUpperCase()
+                )}
+              </div>
             ))}
           </div>
         )}
