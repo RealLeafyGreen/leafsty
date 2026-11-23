@@ -291,8 +291,11 @@ export default function CustomMessage({
     } catch {}
   };
 
-  const renderFormattedText = (text: string) => {
-    const tokens = text.split(/(https?:\/\/[^\s]+|@[a-zA-Z0-9_.-]+)/g);
+    const renderFormattedText = (text: string) => {
+    const tokenRegex =
+      /(https?:\/\/[^\s]+|@[a-zA-Z0-9_.-]+|\*\*\*[^*\n]+?\*\*\*|\*\*[^*\n]+?\*\*|\*[^*\n]+?\*|~~[^~\n]+?~~|`[^`\n]+?`|\|\|[^|\n]+?\|\|)/g;
+
+    const tokens = text.split(tokenRegex);
     return tokens.map((part, i) => {
       if (!part) return null;
 
@@ -332,9 +335,69 @@ export default function CustomMessage({
         );
       }
 
+      if (part.startsWith("***") && part.endsWith("***") && part.length > 6) {
+        return (
+          <strong key={i} className="font-extrabold italic text-white">
+            {part.slice(3, -3)}
+          </strong>
+        );
+      }
+
+      if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+        return (
+          <strong key={i} className="font-extrabold text-white">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        return (
+          <em key={i} className="italic text-emerald-100">
+            {part.slice(1, -1)}
+          </em>
+        );
+      }
+
+      if (part.startsWith("~~") && part.endsWith("~~") && part.length > 4) {
+        return (
+          <del key={i} className="line-through text-emerald-300/60">
+            {part.slice(2, -2)}
+          </del>
+        );
+      }
+
+      if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+        return (
+          <code
+            key={i}
+            className="px-1.5 py-0.5 rounded-md bg-[#04120e] border border-emerald-500/25 font-mono text-xs text-emerald-200"
+          >
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+
+      if (part.startsWith("||") && part.endsWith("||") && part.length > 4) {
+        return (
+          <span
+            key={i}
+            onClick={(e) => {
+              e.currentTarget.classList.remove("bg-emerald-950", "text-transparent");
+              e.currentTarget.classList.add("bg-emerald-500/20", "text-emerald-100");
+            }}
+            title="Click to reveal spoiler"
+            className="px-1.5 py-0.5 rounded-md bg-emerald-950 text-transparent select-none cursor-pointer transition"
+          >
+            {part.slice(2, -2)}
+          </span>
+        );
+      }
+
       return <React.Fragment key={i}>{part}</React.Fragment>;
     });
   };
+
   return (
     <div
       id={`msg-${message.id}`}
