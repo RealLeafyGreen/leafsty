@@ -118,19 +118,26 @@ export function TwemojiImg({
   className?: string;
 }) {
   const hex = hexOverride || emojiToTwemojiHex(emoji);
-  const [failed, setFailed] = useState(false);
+  const [step, setStep] = useState(0);
 
-  if (!hex || failed) {
-    return <span className="leading-none">{emoji}</span>;
-  }
+  if (!hex) return null;
+
+  const sources = [
+    `https://twimg.com{hex}.svg`,
+    `https://twimg.com{hex}.png`,
+  ];
+
+  const src = sources[Math.min(step, sources.length - 1)];
 
   return (
     <img
-      src={`https://cloudflare.com{hex}.png`}
+      src={src}
       alt={emoji}
       draggable={false}
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => {
+        if (step < sources.length - 1) setStep((s) => s + 1);
+      }}
       className={className}
     />
   );
@@ -190,7 +197,7 @@ export function TwemojiPicker({
     "🥳",
   ]);
 
-  const tone = SKIN_TONES[skinIdx] || SKIN_TONES[0];
+  const tone = SKIN_TONES[skinIdx] || SKIN_TONES;
 
   const resolveChar = (item: TwemojiEntry) =>
     item.skinTones && tone.charMod
@@ -349,7 +356,7 @@ export function TwemojiPicker({
             </span>
           </div>
         ) : (
-          <span className="text-emerald-400/70">Twemoji 72×72 Vector Set</span>
+          <span className="text-emerald-400/70">Twemoji Vector Set</span>
         )}
       </div>
     </div>
