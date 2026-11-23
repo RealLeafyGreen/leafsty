@@ -698,7 +698,7 @@ const stopAndSendRecording = () => {
  }
 
  await sendPayload(text);
-
+};
   const handleSelectGif = async (gif: KlipyGifItem) => {
     setShowGifPicker(false);
     await sendPayload("", [
