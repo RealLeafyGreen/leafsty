@@ -101,6 +101,7 @@ const SKIN_TONES = [
 ];
 
 const RECENT_KEY = "leafsty_recent_emojis";
+const CATALOG_CACHE_KEY = "leafsty_full_twemoji_catalog";
 export interface CustomMessageComposerProps {
   replyTarget?: ReplyTarget | null;
   onCancelReply?: () => void;
@@ -124,6 +125,7 @@ export default function CustomMessageComposer({
   >("Smileys");
   const [skinIdx, setSkinIdx] = useState(0);
   const [hoveredEmoji, setHoveredEmoji] = useState<EmojiEntry | null>(null);
+  const [fullCatalog, setFullCatalog] = useState<EmojiEntry[]>(EMOJI_SET);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([
     "🌿",
     "😂",
@@ -140,7 +142,36 @@ export default function CustomMessageComposer({
     try {
       const saved = JSON.parse(localStorage.getItem(RECENT_KEY) || "null");
       if (Array.isArray(saved) && saved.length > 0) setRecentEmojis(saved);
+
+      const cached = JSON.parse(
+        localStorage.getItem(CATALOG_CACHE_KEY) || "null"
+      );
+      if (Array.isArray(cached) && cached.length > 500) {
+        setFullCatalog(cached);
+        return;
+      }
     } catch {}
+
+    let cancelled = false;
+    fetch("/api/unicode-emojis")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !Array.isArray(data?.emojis)) return;
+        if (data.emojis.length > 500) {
+          setFullCatalog(data.emojis);
+          try {
+            localStorage.setItem(
+              CATALOG_CACHE_KEY,
+              JSON.stringify(data.emojis)
+            );
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const skinMod = SKIN_TONES.at(skinIdx)?.mod || "";
@@ -247,13 +278,13 @@ export default function CustomMessageComposer({
   const displayedEmojis = useMemo(() => {
     const q = emojiSearch.trim().toLowerCase().replace(/^:|:$/g, "");
     if (q) {
-      return EMOJI_SET.filter(
+      return fullCatalog.filter(
         (e) => e.name.includes(q) || e.shortcode.includes(q)
       );
     }
     if (emojiTab === "Recent") {
       return recentEmojis.map((ch) => {
-        const match = EMOJI_SET.find((e) => e.char === ch);
+        const match = fullCatalog.find((e) => e.char === ch);
         return (
           match || {
             char: ch,
@@ -264,8 +295,8 @@ export default function CustomMessageComposer({
         );
       });
     }
-    return EMOJI_SET.filter((e) => e.cat === emojiTab);
-  }, [emojiSearch, emojiTab, recentEmojis]);
+    return fullCatalog.filter((e) => e.cat === emojiTab);
+  }, [emojiSearch, emojiTab, recentEmojis, fullCatalog]);
 
   const activePreview = hoveredEmoji || displayedEmojis.at(0) || null;
   const channelLabel =
@@ -294,7 +325,7 @@ export default function CustomMessageComposer({
                   placeholder={
                     activePreview
                       ? `:${activePreview.shortcode}:`
-                      : "Search emojis..."
+                      : `Search ${fullCatalog.length.toLocaleString()} emojis...`
                   }
                   autoFocus
                   className="w-full pl-8 pr-6 py-1 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
@@ -366,7 +397,7 @@ export default function CustomMessageComposer({
             )}
           </div>
 
-          <div className="p-2.5 h-48 overflow-y-auto grid grid-cols-7 gap-1 content-start">
+          <div className="p-2.5 h-52 overflow-y-auto grid grid-cols-7 gap-1 content-start">
             {displayedEmojis.length === 0 ? (
               <div className="col-span-7 py-8 text-center text-xs text-emerald-300/60">
                 No matching emojis found.
@@ -390,13 +421,13 @@ export default function CustomMessageComposer({
             )}
           </div>
 
-          <div className="px-3 py-2 bg-[#04120e] border-t border-emerald-500/15 flex items-center gap-2.5 min-h-[40px]">
+          <div className="px-3 py-2 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between gap-2.5 min-h-[40px]">
             {activePreview ? (
-              <>
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="text-2xl leading-none">
                   {applyTone(activePreview)}
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0">
                   <div className="font-mono text-xs font-bold text-emerald-200 truncate">
                     :{activePreview.shortcode}:
                   </div>
@@ -404,12 +435,15 @@ export default function CustomMessageComposer({
                     {activePreview.name}
                   </div>
                 </div>
-              </>
+              </div>
             ) : (
               <span className="text-[11px] text-emerald-400/70">
                 Click an emoji to insert
               </span>
             )}
+            <span className="text-[10px] text-emerald-400/55 shrink-0 font-mono">
+              {fullCatalog.length.toLocaleString()}
+            </span>
           </div>
         </div>
       )}
@@ -454,7 +488,7 @@ export default function CustomMessageComposer({
         </div>
       )}
 
-      <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+          <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => {
