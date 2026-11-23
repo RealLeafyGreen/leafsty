@@ -210,3 +210,155 @@ html[data-theme="light"] .text-emerald-300\/60 {
   scrollbar-width: none;
 }
 
+/* =========================================================
+   LEAFSTY GLOBAL THEME ENGINE (Botanical Light vs Midnight Forest)
+   ========================================================= */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --leaf-bg-main: #081914;
+  --leaf-bg-sidebar: #061410;
+  --leaf-bg-elevated: #0d261e;
+  --leaf-bg-deep: #04120e;
+  --leaf-border: rgba(16, 185, 129, 0.2);
+  --leaf-text-primary: #ecfdf5;
+  --leaf-text-secondary: #a7f3d0;
+  --leaf-text-muted: rgba(110, 231, 183, 0.65);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --leaf-bg-main: #f3faf6;
+  --leaf-bg-sidebar: #e4f3eb;
+  --leaf-bg-elevated: #ffffff;
+  --leaf-bg-deep: #d7ede1;
+  --leaf-border: rgba(5, 150, 105, 0.22);
+  --leaf-text-primary: #06281e;
+  --leaf-text-secondary: #064e3b;
+  --leaf-text-muted: #2f6f58;
+}
+
+html,
+body {
+  background-color: var(--leaf-bg-main);
+  color: var(--leaf-text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* --- Light Mode Surface Remapping across the entire app --- */
+[data-theme="light"] .bg-\[\#081914\],
+[data-theme="light"] .bg-\[\#0a1d17\],
+[data-theme="light"] .bg-\[\#0b1914\] {
+  background-color: #f3faf6 !important;
+  color: #06281e !important;
+}
+
+[data-theme="light"] .bg-\[\#061410\],
+[data-theme="light"] .bg-\[\#04120e\],
+[data-theme="light"] .bg-\[\#071611\] {
+  background-color: #e4f3eb !important;
+  color: #06281e !important;
+}
+
+[data-theme="light"] .bg-\[\#0d261e\],
+[data-theme="light"] .bg-\[\#0d261e\]\/80,
+[data-theme="light"] .bg-\[\#0b211a\] {
+  background-color: #ffffff !important;
+  color: #06281e !important;
+  box-shadow: 0 1px 3px rgba(6, 40, 30, 0.06);
+}
+
+/* --- Light Mode Typography Remapping --- */
+[data-theme="light"] .text-emerald-50,
+[data-theme="light"] .text-emerald-50\/95,
+[data-theme="light"] .text-white {
+  color: #06281e !important;
+}
+
+/* Keep white text on solid emerald/red action buttons in Light Mode */
+[data-theme="light"] .bg-emerald-600,
+[data-theme="light"] .bg-emerald-600 *,
+[data-theme="light"] .bg-emerald-500,
+[data-theme="light"] .bg-emerald-500 *,
+[data-theme="light"] .bg-red-500,
+[data-theme="light"] .bg-red-500 *,
+[data-theme="light"] .bg-red-600,
+[data-theme="light"] .bg-red-600 * {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .text-emerald-100,
+[data-theme="light"] .text-emerald-100\/85,
+[data-theme="light"] .text-emerald-200,
+[data-theme="light"] .text-emerald-200\/80,
+[data-theme="light"] .text-emerald-200\/75,
+[data-theme="light"] .text-emerald-200\/70 {
+  color: #064e3b !important;
+}
+
+[data-theme="light"] .text-emerald-300,
+[data-theme="light"] .text-emerald-300\/85,
+[data-theme="light"] .text-emerald-300\/80,
+[data-theme="light"] .text-emerald-300\/75,
+[data-theme="light"] .text-emerald-300\/70,
+[data-theme="light"] .text-emerald-300\/65,
+[data-theme="light"] .text-emerald-300\/60,
+[data-theme="light"] .text-emerald-300\/55,
+[data-theme="light"] .text-emerald-300\/45,
+[data-theme="light"] .text-emerald-400,
+[data-theme="light"] .text-emerald-400\/80,
+[data-theme="light"] .text-emerald-400\/75,
+[data-theme="light"] .text-emerald-400\/70,
+[data-theme="light"] .text-emerald-400\/65,
+[data-theme="light"] .text-emerald-400\/55,
+[data-theme="light"] .text-emerald-400\/50,
+[data-theme="light"] .text-emerald-400\/40 {
+  color: #047857 !important;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #5c8d7a !important;
+}
+
+/* --- Dark Mode Remapping for White Popovers (UserProfilePopover, etc.) --- */
+[data-theme="dark"] .bg-white {
+  background-color: #081914 !important;
+  color: #ecfdf5 !important;
+}
+
+[data-theme="dark"] .bg-\[\#f7faf8\],
+[data-theme="dark"] .bg-zinc-50 {
+  background-color: #0d261e !important;
+  color: #ecfdf5 !important;
+}
+
+[data-theme="dark"] .text-zinc-900,
+[data-theme="dark"] .text-zinc-800 {
+  color: #ecfdf5 !important;
+}
+
+[data-theme="dark"] .text-zinc-600,
+[data-theme="dark"] .text-zinc-500 {
+  color: #a7f3d0 !important;
+}
+
+[data-theme="dark"] .border-emerald-100,
+[data-theme="dark"] .border-emerald-100\/80,
+[data-theme="dark"] .border-zinc-200 {
+  border-color: rgba(16, 185, 129, 0.25) !important;
+}
+
+[data-theme="dark"] .bg-emerald-50,
+[data-theme="dark"] .bg-emerald-50\/90 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #6ee7b7 !important;
+}
+
+[data-theme="dark"] .text-emerald-800,
+[data-theme="dark"] .text-emerald-700 {
+  color: #6ee7b7 !important;
+}
+
+

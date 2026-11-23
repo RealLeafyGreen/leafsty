@@ -61,6 +61,19 @@ export default function MyChat() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
+  
+  useEffect(() => {
+    const syncTheme = () => {
+      try {
+        const saved = localStorage.getItem("leafsty_theme");
+        const resolved = saved === "light" || saved === "dark" ? saved : "dark";
+        document.documentElement.setAttribute("data-theme", resolved);
+      } catch {}
+    };
+    syncTheme();
+    window.addEventListener("storage", syncTheme);
+    return () => window.removeEventListener("storage", syncTheme);
+  }, []);
 
   useEffect(() => {
     const closeMenus = () => setMsgMenu(null);
