@@ -39,11 +39,15 @@ export async function POST(req: NextRequest) {
     const serverClient = new StreamClient(apiKey, apiSecret);
 
     // Case-insensitive persistent user lookup in Stream Chat
-    const existingRes = await serverClient.queryUsers({
-      filter_conditions: {
-        id: { $in: Array.from(new Set([userId, rawUsername])) },
-      },
-    });
+   const existingRes = await serverClient.queryUsers({
+  payload: {
+    filter_conditions: {
+      id: { $in: Array.from(new Set([userId, rawUsername])) },
+    },
+  },
+});
+
+
     const existingUser: any = existingRes?.users?.[0] || null;
     const resolvedUserId: string = existingUser?.id || userId;
     const storedHash: string =
