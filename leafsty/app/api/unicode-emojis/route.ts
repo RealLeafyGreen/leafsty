@@ -11,14 +11,14 @@ export interface FullEmojiRecord {
 let cachedList: FullEmojiRecord[] | null = null;
 
 export async function GET() {
-  if (cachedList && cachedList.length > 500) {
+  if (cachedList && cachedList.length > 1500) {
     return NextResponse.json({ emojis: cachedList });
   }
 
   try {
     const res = await fetch(
       "https://unicode.org",
-      { signal: AbortSignal.timeout(8000) }
+      { signal: AbortSignal.timeout(10000) }
     );
     if (!res.ok) throw new Error("Failed to fetch Unicode list");
 
@@ -39,7 +39,7 @@ export async function GET() {
 
     let currentCat: FullEmojiRecord["cat"] = "Smileys";
     const result: Array<FullEmojiRecord & { _base: string }> = [];
-    const seen = new Set<string>();
+    const seenChars = new Set<string>();
 
     for (const line of lines) {
       if (line.startsWith("# group:")) {
@@ -47,18 +47,21 @@ export async function GET() {
         if (groupMap[grp]) currentCat = groupMap[grp];
         continue;
       }
-      if (!line || line.startsWith("#") || !line.includes("; fully-qualified")) {
-        continue;
-      }
+      if (!line || line.startsWith("#")) continue;
 
       const semi = line.indexOf(";");
       if (semi === -1) continue;
       const codePart = line.slice(0, semi).trim();
       const rest = line.slice(semi + 1);
 
+      // Skip unqualified duplicates when fully-qualified exists, but keep minimally-qualified
+      if (rest.includes("unqualified")) continue;
+
+      // Mark skin-tone support on base emoji instead of flooding grid with 5x skin duplicates
       if (/1F3F[B-F]/.test(codePart)) {
         const base = codePart
           .replace(/\b1F3F[B-F]\b/g, "")
+          .replace(/\bFE0F\b/g, "")
           .replace(/\s+/g, " ")
           .trim();
         const found = result.find((r) => r._base === base);
@@ -69,13 +72,16 @@ export async function GET() {
       const hash = rest.indexOf("#");
       if (hash === -1) continue;
       const afterHash = rest.slice(hash + 1).trim();
+
+      // Match: "<emoji_char> E<version> <cldr_name>"
       const match = afterHash.match(/^(\S+)\s+E[\d.]+\s+(.+)$/);
       const char = match?.at(1);
       const rawName = match?.at(2);
       if (!char || !rawName) continue;
 
-      if (seen.has(codePart)) continue;
-      seen.add(codePart);
+      const normalizedKey = codePart.replace(/\bFE0F\b/g, "").replace(/\s+/g, " ").trim();
+      if (seenChars.has(normalizedKey)) continue;
+      seenChars.add(normalizedKey);
 
       const name = rawName.trim().toLowerCase();
       const shortcode = name.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -86,7 +92,7 @@ export async function GET() {
         shortcode,
         cat: currentCat,
         skinTones: false,
-        _base: codePart,
+        _base: normalizedKey,
       });
     }
 
