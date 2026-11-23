@@ -5,10 +5,11 @@
   src: url("https://jsdelivr.net") format("woff2"),
        url("https://unpkg.com") format("woff2");
   font-display: swap;
+  unicode-range: U+200D, U+20E3, U+2194-2199, U+21A9-21AA, U+231A-231B, U+23E9-23F3, U+25AA-25AB, U+25FB-25FE, U+2600-27BF, U+2934-2935, U+2B05-2B55, U+3030, U+303D, U+3297, U+3299, U+FE0F, U+1F000-1FAFF;
 }
 
 body, input, textarea, button, select {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "TwemojiFont", sans-serif !important;
+  font-family: "TwemojiFont", var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif !important;
 }
 
 /* Smooth Circle-to-Squircle Morph */
@@ -200,12 +201,4 @@ html[data-theme="light"] .text-emerald-300\/60 {
   color: #16654e !important;
 }
 
-img.emoji {
-  display: inline-block;
-  height: 1.25em;
-  width: 1.25em;
-  margin: 0 0.08em;
-  vertical-align: -0.22em;
-  pointer-events: none;
-}
 
