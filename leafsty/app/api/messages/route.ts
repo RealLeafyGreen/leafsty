@@ -35,13 +35,6 @@ const response = await channel.sendMessage({
   attachments: Array.isArray(body?.attachments) ? body.attachments : [],
   ...(quotedId ? { quoted_message_id: String(quotedId) } : {}),
 });
-
-  text: String(body?.text || ""),
-  user_id: String(body?.userId || ""),
-  attachments: Array.isArray(body?.attachments) ? body.attachments : [],
-  ...(quotedId ? { quoted_message_id: String(quotedId) } : {}),
-});
-
     const serverClient = new StreamClient(apiKey, apiSecret);
     const channel = (serverClient as any).chat.channel(channelType, channelId);
 
