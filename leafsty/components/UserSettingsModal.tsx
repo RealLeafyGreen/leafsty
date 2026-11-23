@@ -20,6 +20,7 @@ import {
   Terminal,
   Download,
   Trash2,
+  Plus,
 } from "lucide-react";
 
 type SettingsTab =
@@ -98,6 +99,35 @@ export default function UserSettingsModal({
   const [savedBanner, setSavedBanner] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [testingMic, setTestingMic] = useState(false);
+const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
+
+const handleAvatarFilePick = (file?: File) => {
+  if (!file || !file.type.startsWith("image/")) return;
+  const img = new Image();
+  const objectUrl = URL.createObjectURL(file);
+
+  img.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Center-crop square
+    const minSide = Math.min(img.width, img.height);
+    const sx = (img.width - minSide) / 2;
+    const sy = (img.height - minSide) / 2;
+    ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+
+    const dataUrl = canvas.toDataURL("image/webp", 0.85);
+    setForm((prev: any) => ({ ...prev, image: dataUrl }));
+  };
+
+  img.onerror = () => URL.revokeObjectURL(objectUrl);
+  img.src = objectUrl;
+};
 
   useEffect(() => {
     if (!isOpen) return;
@@ -507,19 +537,40 @@ export default function UserSettingsModal({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-300/70 mb-1">
-                    Avatar Image URL
-                  </label>
-                  <input
-                    type="text"
-                    value={form.avatarUrl}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, avatarUrl: e.target.value }))
-                    }
-                    placeholder="https://..."
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-xs text-emerald-50 focus:outline-none focus:border-emerald-400"
-                  />
-                </div>
+  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1.5">
+    Avatar Image URL
+  </label>
+  <div className="flex items-center gap-2">
+    <input
+      ref={avatarFileInputRef}
+      type="file"
+      accept="image/*"
+      onChange={(e) => {
+        handleAvatarFilePick(e.target.files?.[0]);
+        e.target.value = "";
+      }}
+      className="hidden"
+    />
+    <input
+      type="text"
+      value={form.image}
+      onChange={(e) =>
+        setForm((prev: any) => ({ ...prev, image: e.target.value }))
+      }
+      placeholder="https://..."
+      className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+    />
+    <button
+      type="button"
+      onClick={() => avatarFileInputRef.current?.click()}
+      title="Upload Avatar Image from Device"
+      className="w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center shrink-0 transition cursor-pointer shadow-md"
+    >
+      <Plus className="w-5 h-5" />
+    </button>
+  </div>
+</div>
+
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-300/70 mb-1.5">
