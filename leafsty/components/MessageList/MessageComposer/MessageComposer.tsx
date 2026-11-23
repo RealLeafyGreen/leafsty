@@ -327,13 +327,16 @@ export default function CustomMessageComposer({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowEmojiPicker(false)}
-                className="p-1 rounded-lg text-emerald-300/60 hover:text-emerald-50 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+             <button
+  key={`${item.shortcode}-${idx}`}
+  type="button"
+  onMouseEnter={() => setHoveredEmoji(item)}
+  onMouseLeave={() => setHoveredEmoji(null)}
+  onClick={() => handleInsertEmoji(ch)}
+  className="text-xl p-1 rounded-lg hover:bg-emerald-500/20 hover:scale-110 transition cursor-pointer flex items-center justify-center"
+>
+  {ch}
+</button>
             </div>
 
             {!emojiSearch.trim() && (
