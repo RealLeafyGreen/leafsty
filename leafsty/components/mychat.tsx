@@ -144,32 +144,25 @@ export default function MyChat() {
         });
       });
     };
+    if (!activeChannel) return;
+    let cancelled = false;
 
     setLocalMessages([...(activeChannel?.state?.messages || [])]);
 
-          (async () => {
+    (async () => {
       try {
-        const params = new URLSearchParams({
-          channelType: String(activeChannel.type || "messaging"),
-          channelId: String(activeChannel.id),
-          limit: "300",
-        });
-        const res = await fetch(`/api/history?${params.toString()}`);
-        const data = await res.json().catch(() => ({}));
-        if (!cancelled && Array.isArray(data?.messages) && data.messages.length > 0) {
-          mergeMessages(data.messages);
-          return;
-        }
-      } catch {}
-
-      try {
-        const res = await activeChannel.query?.({
+        // 1. Always query/watch client channel first so member-based DMs resolve their real channel.id & messages
+        const clientRes = await activeChannel.query?.({
+          state: true,
+          watch: true,
           messages: { limit: 300 },
         });
         if (!cancelled) {
-          const history =
-            res?.messages || activeChannel?.state?.messages || [];
-          mergeMessages(history);
+          const clientHistory =
+            clientRes?.messages || activeChannel?.state?.messages || [];
+          if (clientHistory.length > 0) {
+            mergeMessages(clientHistory);
+          }
         }
       } catch {
         try {
@@ -179,7 +172,27 @@ export default function MyChat() {
           }
         } catch {}
       }
+
+      // 2. Also fetch from /api/history once activeChannel.id is resolved
+      const resolvedId = String(
+        activeChannel?.id || activeChannel?.cid?.split(":").at(1) || ""
+      );
+      if (!resolvedId || resolvedId === "undefined") return;
+
+      try {
+        const params = new URLSearchParams({
+          channelType: String(activeChannel.type || "messaging"),
+          channelId: resolvedId,
+          limit: "300",
+        });
+        const res = await fetch(`/api/history?${params.toString()}`);
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && Array.isArray(data?.messages) && data.messages.length > 0) {
+          mergeMessages(data.messages);
+        }
+      } catch {}
     })();
+
 
     const markActiveRead = () => {
       if (

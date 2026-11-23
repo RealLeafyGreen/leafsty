@@ -33,7 +33,9 @@ export async function GET(req: NextRequest) {
     const serverClient = new StreamClient(apiKey, apiSecret);
     const channel = (serverClient as any).chat.channel(channelType, channelId);
 
-    const response = await channel.query({
+       const response = await channel.query({
+      state: true,
+      watch: false,
       messages: {
         limit,
         ...(beforeId ? { id_lt: beforeId } : {}),
