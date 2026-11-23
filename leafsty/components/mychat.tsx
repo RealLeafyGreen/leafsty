@@ -368,32 +368,54 @@ export default function MyChat() {
     !activeChannel?.data?.server;
 
     const startOrToggleCall = (withVideo: boolean) => {
-  setActiveCall((prev: any) => {
-    const next =
-      prev && Boolean(prev.startWithVideo) === withVideo
-        ? null
-        : { startWithVideo: withVideo };
+    setActiveCall((prev: any) => {
+      const next =
+        prev && Boolean(prev.startWithVideo) === withVideo
+          ? null
+          : { startWithVideo: withVideo };
 
-    if (next && activeChannel?.id) {
-      const payload = {
-        type: "leafsty.call_ring",
-        channelId: String(activeChannel.id),
-        channelType: String(activeChannel.type || "messaging"),
-        callerId: currentUserId,
-        callerName: (client?.user as any)?.name || currentUserId,
-        roomLabel: channelTitle || String(activeChannel.id),
-        withVideo,
-      };
-      activeChannel.sendEvent?.(payload).catch(() => {});
-      try {
-        const bc = new BroadcastChannel("leafsty-global-calls");
-        bc.postMessage({ ...payload, type: "ring" });
-        bc.close();
-      } catch {}
-    }
-    return next;
-  });
-};
+      if (next && activeChannel?.id) {
+        const callerName = (client?.user as any)?.name || currentUserId;
+        const roomLabel = channelTitle || String(activeChannel.id);
+
+        fetch("/api/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            channelType: String(activeChannel.type || "messaging"),
+            channelId: String(activeChannel.id),
+            userId: currentUserId,
+            text: `📞 Started a ${withVideo ? "video" : "voice"} call`,
+            attachments: [
+              {
+                type: "leafsty_call",
+                withVideo,
+                callerId: currentUserId,
+                callerName,
+                roomLabel,
+              },
+            ],
+          }),
+        }).catch(() => {});
+
+        try {
+          const bc = new BroadcastChannel("leafsty-global-calls");
+          bc.postMessage({
+            type: "ring",
+            channelId: String(activeChannel.id),
+            channelType: String(activeChannel.type || "messaging"),
+            callerId: currentUserId,
+            callerName,
+            roomLabel,
+            withVideo,
+          });
+          bc.close();
+        } catch {}
+      }
+      return next;
+    });
+  };
+
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#071410] text-emerald-50">

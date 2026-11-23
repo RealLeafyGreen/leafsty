@@ -25,6 +25,7 @@ export default function IncomingCallBanner({
   const { client } = useChatContext() as any;
   const [incoming, setIncoming] = useState<IncomingCallAlert | null>(null);
   const ringIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const seenMsgIdsRef = useRef<Set<string>>(new Set());
 
   const playRingChime = () => {
     if (typeof window === "undefined") return;
@@ -77,22 +78,39 @@ export default function IncomingCallBanner({
     };
 
     const handleStreamEvent = (event: any) => {
-      if (event?.type === "leafsty.call_ring") {
-        triggerAlert({
-          channelId: event.channel_id || event.cid?.split(":").at(1),
-          channelType: event.channel_type || event.cid?.split(":").at(0),
-          callerId: event.user?.id || event.callerId,
-          callerName: event.user?.name || event.callerName || event.user?.id,
-          roomLabel: event.roomLabel || "Voice / Video Call",
-          withVideo: Boolean(event.withVideo),
-        });
-      } else if (
-        event?.type === "leafsty.call_end" &&
-        incoming &&
-        String(event.channel_id || "") === String(incoming.channelId)
+      if (
+        event?.type !== "message.new" &&
+        event?.type !== "notification.message_new"
       ) {
-        setIncoming(null);
+        return;
       }
+
+      const msg = event?.message;
+      if (!msg?.id) return;
+      if (seenMsgIdsRef.current.has(String(msg.id))) return;
+      seenMsgIdsRef.current.add(String(msg.id));
+
+      const callAtt = Array.isArray(msg.attachments)
+        ? msg.attachments.find((a: any) => a?.type === "leafsty_call")
+        : null;
+
+      if (!callAtt) return;
+
+      const cidParts = String(event?.cid || msg?.cid || "").split(":");
+      const channelType =
+        event?.channel_type || cidParts.at(0) || "messaging";
+      const channelId =
+        event?.channel_id || cidParts.at(1) || "";
+
+      triggerAlert({
+        channelId,
+        channelType,
+        callerId: callAtt.callerId || msg?.user?.id,
+        callerName:
+          callAtt.callerName || msg?.user?.name || msg?.user?.id || "User",
+        roomLabel: callAtt.roomLabel || "Encrypted Call",
+        withVideo: Boolean(callAtt.withVideo),
+      });
     };
 
     const sub = client?.on?.(handleStreamEvent);
@@ -110,7 +128,7 @@ export default function IncomingCallBanner({
       sub?.unsubscribe?.();
       bc?.close();
     };
-  }, [client, currentUserId, activeCallChannelId, incoming]);
+  }, [client, currentUserId, activeCallChannelId]);
 
   useEffect(() => {
     if (!incoming) {

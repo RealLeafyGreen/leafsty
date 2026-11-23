@@ -457,6 +457,20 @@ export default function CustomMessage({
         {attachments.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-2">
             {attachments.map((att: any, idx: number) => {
+              if (att?.type === "leafsty_call") {
+  return (
+    <div
+      key={idx}
+      className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-emerald-500/15 border border-emerald-400/35 text-xs font-bold text-emerald-100"
+    >
+      <span>
+        {att.callerName || senderName} started a{" "}
+        {att.withVideo ? "video" : "voice"} call
+      </span>
+    </div>
+  );
+}
+
               const imgSrc = att?.image_url || att?.thumb_url;
               const fileHref = att?.asset_url || imgSrc;
               if (!fileHref) return null;
