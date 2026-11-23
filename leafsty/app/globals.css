@@ -2,7 +2,7 @@
 
 @font-face {
   font-family: "TwemojiWeb";
-  src: url("/twemoji.woff2") format("woff2");
+  src: url("/twemoji.ttf") format("truetype");
   font-display: swap;
   unicode-range: U+200D, U+20E3, U+2194-2199, U+21A9-21AA, U+231A-231B, U+23E9-23F3, U+25AA-25AB, U+25FB-25FE, U+2600-27BF, U+2934-2935, U+2B05-2B55, U+3030, U+303D, U+3297, U+3299, U+FE0F, U+1F000-1FAFF;
 }
