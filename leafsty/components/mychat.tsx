@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import InstallAppButton from "./InstallAppButton";
 import TypingIndicator from "./MessageList/TypingIndicator";
 import { Channel, useChatContext } from "stream-chat-react";
 import ServerList from "./ServerList";
@@ -391,6 +392,7 @@ export default function MyChat() {
           <>
             <header className="h-14 px-4 border-b border-emerald-500/15 bg-[#081914] flex items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-2 min-w-0">
+                <InstallAppButton />
                 {isDm ? (
                   <AtSign className="w-4 h-4 text-emerald-400 shrink-0" />
                 ) : (
