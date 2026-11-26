@@ -198,13 +198,13 @@ export default function HomePage() {
     setHydrated(true);
   }, []);
 
- useEffect(() => {
+useEffect(() => {
   if (!showAuth || currentUser) return;
   const scriptId = "google-gsi-script";
   if (!document.getElementById(scriptId)) {
     const script = document.createElement("script");
     script.id = scriptId;
-    script.src = "https://google.com";
+    script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
@@ -217,6 +217,23 @@ export default function HomePage() {
   }, 250);
   return () => clearInterval(timer);
 }, [showAuth, currentUser]);
+
+const handleGoogleLogin = () => {
+  const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
+  if (!clientId) {
+    setAuthError("Google Client ID is not configured in Vercel.");
+    return;
+  }
+
+  const redirectUri = `${window.location.origin}/google-callback`;
+  const authUrl =
+    `https://accounts.google.com/o/oauth2/v2/auth` +
+    `?client_id=${encodeURIComponent(clientId)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&response_type=code` +
+    `&scope=${encodeURIComponent("openid email profile")}` +
+    `&prompt=select_account`;
+  // ... rest of your popup & message listener stays the same
 
     const handleGoogleLogin = () => {
     const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
