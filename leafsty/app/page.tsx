@@ -533,10 +533,6 @@ const handleGoogleLogin = () => {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-        <div className="mt-4 pt-4 border-t border-emerald-500/15 flex flex-col items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-emerald-300/60 font-bold">
-            Or continue with
-          </span>
           <div className="mt-4 pt-4 border-t border-emerald-500/15 flex flex-col items-center gap-2.5">
   <span className="text-[11px] uppercase tracking-wider text-emerald-300/60 font-bold">
     Or continue with
@@ -603,9 +599,9 @@ const handleGoogleLogin = () => {
                 Sign in
               </button>
             </>
-          )}
+                   )}
         </div>
       </div>
-    </div>
   );
 }
+
