@@ -227,7 +227,7 @@ export default function HomePage() {
 
     const redirectUri = `${window.location.origin}/google-callback`;
     const authUrl =
-      `https://google.com` +
+      `https://accounts.google.com` +
       `?client_id=${encodeURIComponent(clientId)}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_type=code` +
