@@ -180,7 +180,7 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
-  const googleBtnRef = useRef<HTMLDivElement | null>(null);
+  const [googleReady, setGoogleReady] = useState(false);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("leafsty_user");
@@ -198,83 +198,75 @@ export default function HomePage() {
     setHydrated(true);
   }, []);
 
-    useEffect(() => {
-    if (!showAuth || currentUser) return;
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
-
-    let cancelled = false;
-
-    const renderGoogleBtn = () => {
-      const g = (window as any).google;
-      if (cancelled || !g?.accounts?.id || !googleBtnRef.current) return false;
-
-      g.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response: any) => {
-          if (!response?.credential) return;
-          try {
-            setSubmitting(true);
-            setAuthError(null);
-            const res = await fetch("/api/google-auth", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ credential: response.credential }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(data?.error || "Google sign-in failed");
-            }
-            const userObj: SavedUser = {
-              id: String(data.user.id),
-              name: String(data.user.name || data.user.id),
-              image: data.user.image,
-            };
-            localStorage.setItem("leafsty_user", JSON.stringify(userObj));
-            setCurrentUser(userObj);
-          } catch (err: any) {
-            setAuthError(err?.message || "Google sign-in failed");
-          } finally {
-            setSubmitting(false);
-          }
-        },
-      });
-
-      googleBtnRef.current.innerHTML = "";
-      g.accounts.id.renderButton(googleBtnRef.current, {
-        theme: "outline",
-        size: "large",
-        shape: "pill",
-        width: 340,
-        text: "continue_with",
-      });
-      return true;
-    };
-
-    const scriptId = "google-gsi-script";
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.src = "https://google.com";
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
+ useEffect(() => {
+  if (!showAuth || currentUser) return;
+  const scriptId = "google-gsi-script";
+  if (!document.getElementById(scriptId)) {
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = "https://google.com";
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+  const timer = setInterval(() => {
+    if ((window as any).google?.accounts?.oauth2) {
+      setGoogleReady(true);
+      clearInterval(timer);
     }
+  }, 250);
+  return () => clearInterval(timer);
+}, [showAuth, currentUser]);
 
-    if (!renderGoogleBtn()) {
-      const timer = setInterval(() => {
-        if (renderGoogleBtn()) clearInterval(timer);
-      }, 250);
-      return () => {
-        cancelled = true;
-        clearInterval(timer);
-      };
-    }
+const handleGoogleLogin = () => {
+  const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
+  if (!clientId) {
+    setAuthError("Google Client ID is not configured in Vercel.");
+    return;
+  }
+  const oauth2 = (window as any).google?.accounts?.oauth2;
+  if (!oauth2) {
+    setAuthError("Google Sign-In is still loading — try again in a second.");
+    return;
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [showAuth, currentUser]);
+  const tokenClient = oauth2.initTokenClient({
+    client_id: clientId,
+    scope: "openid email profile",
+    callback: async (tokenResponse: any) => {
+      if (!tokenResponse?.access_token) {
+        setAuthError("Google sign-in was cancelled or blocked.");
+        return;
+      }
+      try {
+        setSubmitting(true);
+        setAuthError(null);
+        const res = await fetch("/api/google-auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accessToken: tokenResponse.access_token }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Google sign-in failed");
+
+        const userObj: SavedUser = {
+          id: String(data.user.id),
+          name: String(data.user.name || data.user.id),
+          image: data.user.image,
+        };
+        localStorage.setItem("leafsty_user", JSON.stringify(userObj));
+        setCurrentUser(userObj);
+      } catch (err: any) {
+        setAuthError(err?.message || "Google sign-in failed");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+  });
+
+  tokenClient.requestAccessToken({ prompt: "select_account" });
+};
+
 
 
   const handleLogout = useCallback(() => {
@@ -545,7 +537,26 @@ export default function HomePage() {
           <span className="text-[11px] uppercase tracking-wider text-emerald-300/60 font-bold">
             Or continue with
           </span>
-          <div ref={googleBtnRef} className="flex justify-center min-h-[40px]" />
+          <div className="mt-4 pt-4 border-t border-emerald-500/15 flex flex-col items-center gap-2.5">
+  <span className="text-[11px] uppercase tracking-wider text-emerald-300/60 font-bold">
+    Or continue with
+  </span>
+  <button
+    type="button"
+    onClick={handleGoogleLogin}
+    disabled={submitting}
+    className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-gray-100 text-gray-900 font-bold text-sm flex items-center justify-center gap-2.5 transition cursor-pointer shadow-md"
+  >
+    <svg className="w-4 h-4" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
+      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"/>
+      <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"/>
+      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"/>
+    </svg>
+    <span>{googleReady ? "Continue with Google" : "Continue with Google"}</span>
+  </button>
+</div>
+
           {!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
             <button
               type="button"
