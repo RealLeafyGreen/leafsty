@@ -219,23 +219,6 @@ useEffect(() => {
 }, [showAuth, currentUser]);
 
 const handleGoogleLogin = () => {
-  const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
-  if (!clientId) {
-    setAuthError("Google Client ID is not configured in Vercel.");
-    return;
-  }
-
-  const redirectUri = `${window.location.origin}/google-callback`;
-  const authUrl =
-    `https://accounts.google.com/o/oauth2/v2/auth` +
-    `?client_id=${encodeURIComponent(clientId)}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&response_type=code` +
-    `&scope=${encodeURIComponent("openid email profile")}` +
-    `&prompt=select_account`;
-  // ... rest of your popup & message listener stays the same
-
-    const handleGoogleLogin = () => {
     const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
     if (!clientId) {
       setAuthError("Google Client ID is not configured in Vercel.");
@@ -243,14 +226,13 @@ const handleGoogleLogin = () => {
     }
 
     const redirectUri = `${window.location.origin}/google-callback`;
-   const authUrl =
-  `https://google.com` +
-  `?client_id=${encodeURIComponent(clientId)}` +
-  `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-  `&response_type=code` +
-  `&scope=${encodeURIComponent("openid email profile")}` +
-  `&prompt=select_account`;
-
+    const authUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth` +
+      `?client_id=${encodeURIComponent(clientId)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent("openid email profile")}` +
+      `&prompt=select_account`;
 
     const width = 500;
     const height = 620;
@@ -309,7 +291,6 @@ const handleGoogleLogin = () => {
 
     window.addEventListener("message", onMessage);
   };
-;
 
 
 
