@@ -1,67 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { StreamClient } from "@stream-io/node-sdk";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const formData = await req.formData();
-    const file = formData.get("file");
-    const channelType = String(formData.get("channelType") || "messaging");
-    const channelId = String(formData.get("channelId") || "");
-    const userId = String(formData.get("userId") || "");
-    const kind = String(formData.get("kind") || "file"); // "image" | "file" | "voice"
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    const userId = String(formData.get("userId") || "leafsty-user");
 
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: "Missing file in upload request" },
-        { status: 400 }
-      );
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!channelId || !userId) {
-      return NextResponse.json(
-        { error: "Missing channelId or userId" },
-        { status: 400 }
-      );
-    }
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const contentType = file.type || "application/octet-stream";
+    const fileName = file.name || `upload-${Date.now()}`;
 
     const apiKey =
       process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.STREAM_API_KEY;
-    const apiSecret = process.env.STREAM_API_SECRET;
+    const apiSecret =
+      process.env.STREAM_API_SECRET || process.env.STREAM_SECRET_KEY;
 
-    if (!apiKey || !apiSecret) {
-      return NextResponse.json(
-        { error: "Stream credentials are not configured on the server" },
-        { status: 500 }
-      );
+    if (apiKey && apiSecret) {
+      try {
+        const serverClient = new StreamClient(apiKey, apiSecret);
+        const uploaded = await (serverClient as any).files.upload({
+          file: new Blob([buffer], { type: contentType }),
+          name: fileName,
+          user: { id: userId },
+        });
+        if (uploaded?.file) {
+          return NextResponse.json({ file: uploaded.file });
+        }
+      } catch (streamErr) {
+        console.warn("Stream file upload fallback to data URL:", streamErr);
+      }
     }
 
-    const serverClient = new StreamClient(apiKey, apiSecret);
-    const channel = (serverClient as any).chat.channel(channelType, channelId);
-
-    const isImage = kind === "image" || file.type.startsWith("image/");
-    const uploadRes = isImage
-      ? await channel.sendImage(file, file.name, file.type, { id: userId })
-      : await channel.sendFile(file, file.name, file.type, { id: userId });
-
-    const uploadedUrl = uploadRes?.file || "";
-    if (!uploadedUrl) {
-      return NextResponse.json(
-        { error: "Stream CDN did not return a file URL" },
-        { status: 502 }
-      );
+    if (buffer.byteLength <= 3_500_000) {
+      const base64 = buffer.toString("base64");
+      return NextResponse.json({
+        file: `data:${contentType};base64,${base64}`,
+      });
     }
 
-    return NextResponse.json({
-      url: uploadedUrl,
-      name: file.name,
-      size: file.size,
-      mimeType: file.type || "application/octet-stream",
-      isImage,
-    });
-  } catch (err: any) {
-    console.error("POST /api/upload error:", err);
     return NextResponse.json(
-      { error: err?.message || "File upload failed" },
+      { error: "File too large (max ~3.5 MB)" },
+      { status: 413 }
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error?.message || "Upload failed" },
       { status: 500 }
     );
   }

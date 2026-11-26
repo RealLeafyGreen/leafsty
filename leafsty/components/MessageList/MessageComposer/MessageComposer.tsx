@@ -496,15 +496,15 @@ export default function CustomMessageComposer({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "";
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+  ? "audio/webm;codecs=opus"
+  : MediaRecorder.isTypeSupported("audio/webm")
+  ? "audio/webm"
+  : "";
 
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
+const recorder = mimeType
+  ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 24000 })
+  : new MediaRecorder(stream, { audioBitsPerSecond: 24000 });
 
       audioChunksRef.current = [];
       sampledWaveRef.current = [];
