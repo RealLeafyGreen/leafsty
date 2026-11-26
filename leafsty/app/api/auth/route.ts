@@ -6,17 +6,14 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
 }
 
-export async function GET() {
-  return NextResponse.json({ ok: true, service: "leafsty-auth" });
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const action = String(body?.action || "login").toLowerCase();
-    const rawUsername = String(body?.username || "").trim();
+    const action = String(body?.mode || body?.action || "login").toLowerCase();
+    const rawUsername = String(body?.username || body?.userId || body?.id || "").trim();
     const userId = rawUsername.toLowerCase().replace(/[^a-z0-9_-]/g, "");
-    const password = String(body?.password || body?.newPassword || "");
+    const displayName = String(body?.name || rawUsername || userId).trim();
+    const password = String(body?.password || "");
 
     if (!userId) {
       return NextResponse.json(
@@ -27,7 +24,8 @@ export async function POST(req: NextRequest) {
 
     const apiKey =
       process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.STREAM_API_KEY;
-    const apiSecret = process.env.STREAM_API_SECRET;
+    const apiSecret =
+      process.env.STREAM_API_SECRET || process.env.STREAM_SECRET_KEY;
 
     if (!apiKey || !apiSecret) {
       return NextResponse.json(
@@ -38,15 +36,13 @@ export async function POST(req: NextRequest) {
 
     const serverClient = new StreamClient(apiKey, apiSecret);
 
-    // Case-insensitive persistent user lookup in Stream Chat
-   const existingRes = await serverClient.queryUsers({
-  payload: {
-    filter_conditions: {
-      id: { $in: Array.from(new Set([userId, rawUsername])) },
-    },
-  },
-});
-
+    const existingRes = await serverClient.queryUsers({
+      payload: {
+        filter_conditions: {
+          id: { $in: Array.from(new Set([userId, rawUsername])) },
+        },
+      },
+    });
 
     const existingUser: any = existingRes?.users?.[0] || null;
     const resolvedUserId: string = existingUser?.id || userId;
@@ -72,7 +68,7 @@ export async function POST(req: NextRequest) {
       await serverClient.upsertUsers([
         {
           id: resolvedUserId,
-          name: existingUser?.name || rawUsername || resolvedUserId,
+          name: existingUser?.name || displayName || resolvedUserId,
           role: "user",
           custom: {
             ...(existingUser?.custom || {}),
@@ -83,39 +79,19 @@ export async function POST(req: NextRequest) {
 
       const token = serverClient.generateUserToken({ user_id: resolvedUserId });
       return NextResponse.json({
+        ok: true,
         token,
         apiKey,
         user: {
           id: resolvedUserId,
-          name: existingUser?.name || rawUsername || resolvedUserId,
+          name: existingUser?.name || displayName || resolvedUserId,
           image: existingUser?.image || "",
           ...(existingUser?.custom || {}),
         },
       });
     }
 
-    if (action === "reset_password") {
-      if (password.length < 4) {
-        return NextResponse.json(
-          { error: "New password must be at least 4 characters." },
-          { status: 400 }
-        );
-      }
-      const passwordHash = hashPassword(password);
-      await serverClient.upsertUsers([
-        {
-          id: resolvedUserId,
-          name: existingUser?.name || rawUsername || resolvedUserId,
-          custom: {
-            ...(existingUser?.custom || {}),
-            passwordHash,
-          },
-        },
-      ]);
-      return NextResponse.json({ ok: true });
-    }
-
-    // Default: login / sign in
+    // Login mode (with seamless legacy account claiming)
     if (!existingUser) {
       return NextResponse.json(
         { error: "Account not found — click 'Create an account' below first!" },
@@ -135,7 +111,7 @@ export async function POST(req: NextRequest) {
       await serverClient.upsertUsers([
         {
           id: resolvedUserId,
-          name: existingUser.name || rawUsername || resolvedUserId,
+          name: existingUser.name || displayName || resolvedUserId,
           custom: {
             ...(existingUser.custom || {}),
             passwordHash: incomingHash,
@@ -144,24 +120,25 @@ export async function POST(req: NextRequest) {
       ]);
     } else if (storedHash !== incomingHash) {
       return NextResponse.json(
-        { error: "Incorrect password — try again or click Forgot password." },
+        { error: "Incorrect password — try again or reset it in Settings." },
         { status: 401 }
       );
     }
 
     const token = serverClient.generateUserToken({ user_id: resolvedUserId });
     return NextResponse.json({
+      ok: true,
       token,
       apiKey,
       user: {
         id: resolvedUserId,
-        name: existingUser.name || rawUsername || resolvedUserId,
+        name: existingUser.name || displayName || resolvedUserId,
         image: existingUser.image || "",
         ...(existingUser.custom || {}),
       },
     });
   } catch (err: any) {
-    console.error("POST /api/auth error:", err);
+    console.error("POST /api/register error:", err);
     return NextResponse.json(
       { error: err?.message || "Authentication failed" },
       { status: 500 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chat, useCreateChatClient } from "stream-chat-react";
 import MyChat from "../components/mychat";
 import LandingPage from "../components/landingPage";
@@ -82,6 +82,7 @@ function LeafstyEyesLoader({
     </div>
   );
 }
+
 function ConnectedWorkspace({
   currentUser,
   onLogout,
@@ -179,7 +180,7 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
-
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("leafsty_user");
@@ -197,6 +198,77 @@ export default function HomePage() {
     setHydrated(true);
   }, []);
 
+  useEffect(() => {
+    if (!showAuth || currentUser) return;
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    const initGoogle = () => {
+      const g = (window as any).google;
+      if (!g?.accounts?.id || !googleBtnRef.current) return;
+
+      g.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response: any) => {
+          if (!response?.credential) return;
+          try {
+            setSubmitting(true);
+            setAuthError(null);
+            const res = await fetch("/api/google-auth", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ credential: response.credential }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(data?.error || "Google sign-in failed");
+            }
+            const userObj: SavedUser = {
+              id: String(data.user.id),
+              name: String(data.user.name || data.user.id),
+              image: data.user.image,
+            };
+            localStorage.setItem("leafsty_user", JSON.stringify(userObj));
+            setCurrentUser(userObj);
+          } catch (err: any) {
+            setAuthError(err?.message || "Google sign-in failed");
+          } finally {
+            setSubmitting(false);
+          }
+        },
+      });
+
+      googleBtnRef.current.innerHTML = "";
+      g.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "filled_black",
+        size: "large",
+        shape: "pill",
+        width: 360,
+        text: "continue_with",
+      });
+    };
+
+    if ((window as any).google?.accounts?.id) {
+      initGoogle();
+      return;
+    }
+
+    const scriptId = "google-gsi-script";
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = "https://google.com";
+      script.async = true;
+      script.defer = true;
+      script.onload = initGoogle;
+      document.head.appendChild(script);
+    } else {
+      script.addEventListener("load", initGoogle);
+      return () => script?.removeEventListener("load", initGoogle);
+    }
+  }, [showAuth, currentUser]);
+
   const handleLogout = useCallback(() => {
     try {
       localStorage.removeItem("leafsty_user");
@@ -207,6 +279,7 @@ export default function HomePage() {
     setAuthError(null);
     setAuthNotice(null);
   }, []);
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanId = authFields.username
@@ -229,14 +302,14 @@ export default function HomePage() {
         setAuthError(null);
         setAuthNotice(null);
 
-        const res = await fetch("/api/reset-password", {
+        const res = await fetch("/api/auth", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            action: "reset_password",
             username: cleanId,
             userId: cleanId,
             currentPassword: authFields.password.trim(),
-            oldPassword: authFields.password.trim(),
             newPassword: authFields.newPassword.trim(),
           }),
         });
@@ -269,6 +342,7 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          mode,
           action: mode,
           username: cleanId,
           name: authFields.username.trim() || cleanId,
@@ -295,7 +369,6 @@ export default function HomePage() {
       setSubmitting(false);
     }
   };
-
   if (!hydrated) {
     return <LeafstyEyesLoader label="Loading Leafsty..." />;
   }
@@ -318,6 +391,7 @@ export default function HomePage() {
       />
     );
   }
+
   return (
     <div className="min-h-screen w-screen flex items-center justify-center bg-[#071410] text-emerald-50 p-4">
       <div className="w-full max-w-md rounded-3xl bg-[#081914] border border-emerald-500/25 p-7 shadow-2xl">
@@ -445,7 +519,7 @@ export default function HomePage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-lg"
           >
             <span>
               {submitting
@@ -454,13 +528,22 @@ export default function HomePage() {
                 ? "Sign In"
                 : mode === "register"
                 ? "Create Account"
-                : "Reset Password"}
+                : "Update Password"}
             </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        <div className="mt-5 pt-4 border-t border-emerald-500/15 text-center text-xs text-emerald-300/75">
+        {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+          <div className="mt-4 pt-4 border-t border-emerald-500/15 flex flex-col items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-emerald-300/60 font-bold">
+              Or continue with
+            </span>
+            <div ref={googleBtnRef} className="flex justify-center" />
+          </div>
+        )}
+
+        <div className="mt-5 text-center text-xs text-emerald-300/75">
           {mode === "login" ? (
             <>
               New to Leafsty?{" "}
@@ -478,7 +561,7 @@ export default function HomePage() {
             </>
           ) : (
             <>
-              Remembered your password?{" "}
+              Already have an account?{" "}
               <button
                 type="button"
                 onClick={() => {
@@ -488,7 +571,7 @@ export default function HomePage() {
                 }}
                 className="font-bold text-emerald-300 hover:underline cursor-pointer"
               >
-                Back to sign in
+                Sign in
               </button>
             </>
           )}

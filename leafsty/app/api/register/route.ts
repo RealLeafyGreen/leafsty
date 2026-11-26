@@ -81,11 +81,34 @@ export async function POST(request: Request) {
     }
 
     // Login mode
-    if (!existingUser || !storedHash) {
+    if (!existingUser) {
       return NextResponse.json(
         { error: "Account not found — click 'Create an account' below first!" },
         { status: 404 }
       );
+    }
+
+    // Seamlessly claim legacy accounts that exist in Stream without a passwordHash yet
+    if (!storedHash) {
+      await serverClient.upsertUsers([
+        {
+          id: cleanId,
+          name: existingUser.name || displayName || cleanId,
+          custom: {
+            ...(existingUser.custom || {}),
+            passwordHash: incomingHash,
+          },
+        },
+      ]);
+
+      return NextResponse.json({
+        ok: true,
+        user: {
+          id: cleanId,
+          name: existingUser.name || displayName || cleanId,
+          image: existingUser.image,
+        },
+      });
     }
 
     if (storedHash !== incomingHash) {
