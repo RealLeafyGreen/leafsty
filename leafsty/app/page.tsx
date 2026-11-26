@@ -218,33 +218,56 @@ export default function HomePage() {
   return () => clearInterval(timer);
 }, [showAuth, currentUser]);
 
-const handleGoogleLogin = () => {
-  const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
-  if (!clientId) {
-    setAuthError("Google Client ID is not configured in Vercel.");
-    return;
-  }
-  const oauth2 = (window as any).google?.accounts?.oauth2;
-  if (!oauth2) {
-    setAuthError("Google Sign-In is still loading — try again in a second.");
-    return;
-  }
+  const handleGoogleLogin = () => {
+    const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
+    if (!clientId) {
+      setAuthError("Google Client ID is not configured in Vercel.");
+      return;
+    }
 
-  const tokenClient = oauth2.initTokenClient({
-    client_id: clientId,
-    scope: "openid email profile",
-    callback: async (tokenResponse: any) => {
-      if (!tokenResponse?.access_token) {
-        setAuthError("Google sign-in was cancelled or blocked.");
+    const redirectUri = `${window.location.origin}/google-callback`;
+    const authUrl =
+      `https://google.com` +
+      `?client_id=${encodeURIComponent(clientId)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=token` +
+      `&scope=${encodeURIComponent("openid email profile")}` +
+      `&prompt=select_account`;
+
+    const width = 500;
+    const height = 620;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      authUrl,
+      "leafsty-google-login",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!popup) {
+      setAuthError("Popup was blocked — allow popups for this site and try again.");
+      return;
+    }
+
+    const onMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "leafsty-google-oauth") return;
+
+      window.removeEventListener("message", onMessage);
+
+      if (event.data?.error || !event.data?.accessToken) {
+        setAuthError(event.data?.error || "Google sign-in was cancelled.");
         return;
       }
+
       try {
         setSubmitting(true);
         setAuthError(null);
         const res = await fetch("/api/google-auth", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken: tokenResponse.access_token }),
+          body: JSON.stringify({ accessToken: event.data.accessToken }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || "Google sign-in failed");
@@ -261,11 +284,11 @@ const handleGoogleLogin = () => {
       } finally {
         setSubmitting(false);
       }
-    },
-  });
+    };
 
-  tokenClient.requestAccessToken({ prompt: "select_account" });
-};
+    window.addEventListener("message", onMessage);
+  };
+
 
 
 
