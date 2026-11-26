@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const emailPrefix = String(payload.email)
-      .split("@")
+      const emailPrefix = String(payload.email)
+      .split("@")[0]
       .toLowerCase()
       .replace(/[^a-z0-9_-]/g, "");
     const userId = emailPrefix || `google_${String(payload.sub).slice(0, 16)}`;
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     const existingRes = await serverClient.queryUsers({
       payload: { filter_conditions: { id: userId } },
     });
-    const existingUser: any = existingRes?.users?. || null;
+    const existingUser: any = existingRes?.users?.[0] || null;
 
     await serverClient.upsertUsers([
       {
