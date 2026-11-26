@@ -292,6 +292,7 @@ export default function HomePage() {
 
 
 
+
   const handleLogout = useCallback(() => {
     try {
       localStorage.removeItem("leafsty_user");
