@@ -198,14 +198,16 @@ export default function HomePage() {
     setHydrated(true);
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!showAuth || currentUser) return;
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) return;
 
-    const initGoogle = () => {
+    let cancelled = false;
+
+    const renderGoogleBtn = () => {
       const g = (window as any).google;
-      if (!g?.accounts?.id || !googleBtnRef.current) return;
+      if (cancelled || !g?.accounts?.id || !googleBtnRef.current) return false;
 
       g.accounts.id.initialize({
         client_id: clientId,
@@ -240,34 +242,40 @@ export default function HomePage() {
 
       googleBtnRef.current.innerHTML = "";
       g.accounts.id.renderButton(googleBtnRef.current, {
-        theme: "filled_black",
+        theme: "outline",
         size: "large",
         shape: "pill",
-        width: 360,
+        width: 340,
         text: "continue_with",
       });
+      return true;
     };
 
-    if ((window as any).google?.accounts?.id) {
-      initGoogle();
-      return;
-    }
-
     const scriptId = "google-gsi-script";
-    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-    if (!script) {
-      script = document.createElement("script");
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement("script");
       script.id = scriptId;
       script.src = "https://google.com";
       script.async = true;
       script.defer = true;
-      script.onload = initGoogle;
       document.head.appendChild(script);
-    } else {
-      script.addEventListener("load", initGoogle);
-      return () => script?.removeEventListener("load", initGoogle);
     }
+
+    if (!renderGoogleBtn()) {
+      const timer = setInterval(() => {
+        if (renderGoogleBtn()) clearInterval(timer);
+      }, 250);
+      return () => {
+        cancelled = true;
+        clearInterval(timer);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+    };
   }, [showAuth, currentUser]);
+
 
   const handleLogout = useCallback(() => {
     try {
