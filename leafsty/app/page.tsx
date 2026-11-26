@@ -533,15 +533,25 @@ export default function HomePage() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-
-        {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
-          <div className="mt-4 pt-4 border-t border-emerald-500/15 flex flex-col items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wider text-emerald-300/60 font-bold">
-              Or continue with
-            </span>
-            <div ref={googleBtnRef} className="flex justify-center" />
-          </div>
-        )}
+        <div className="mt-4 pt-4 border-t border-emerald-500/15 flex flex-col items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wider text-emerald-300/60 font-bold">
+            Or continue with
+          </span>
+          <div ref={googleBtnRef} className="flex justify-center min-h-[40px]" />
+          {!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+            <button
+              type="button"
+              onClick={() =>
+                setAuthError(
+                  "NEXT_PUBLIC_GOOGLE_CLIENT_ID is missing in this build — check Vercel Env Vars and Redeploy."
+                )
+              }
+              className="w-full py-2.5 px-4 rounded-xl bg-[#0d261e] hover:bg-[#13352a] border border-emerald-500/25 text-emerald-50 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <span>Continue with Google</span>
+            </button>
+          )}
+        </div>
 
         <div className="mt-5 text-center text-xs text-emerald-300/75">
           {mode === "login" ? (
