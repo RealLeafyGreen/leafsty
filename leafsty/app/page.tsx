@@ -226,13 +226,14 @@ export default function HomePage() {
     }
 
     const redirectUri = `${window.location.origin}/google-callback`;
-    const authUrl =
-      `https://accounts.google.com` +
-      `?client_id=${encodeURIComponent(clientId)}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&response_type=code` +
-      `&scope=${encodeURIComponent("openid email profile")}` +
-      `&prompt=select_account`;
+   const authUrl =
+  `https://google.com` +
+  `?client_id=${encodeURIComponent(clientId)}` +
+  `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+  `&response_type=code` +
+  `&scope=${encodeURIComponent("openid email profile")}` +
+  `&prompt=select_account`;
+
 
     const width = 500;
     const height = 620;
