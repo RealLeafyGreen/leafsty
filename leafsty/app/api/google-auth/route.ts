@@ -3,19 +3,27 @@ import { StreamClient } from "@stream-io/node-sdk";
 
 export async function POST(req: NextRequest) {
   try {
-    const { credential } = await req.json();
-    if (!credential) {
+    const { code, redirectUri } = await req.json();
+    if (!code || !redirectUri) {
       return NextResponse.json(
-        { error: "Missing Google credential token" },
+        { error: "Missing Google authorization code" },
         { status: 400 }
       );
     }
 
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
     const apiKey =
       process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.STREAM_API_KEY;
     const apiSecret =
       process.env.STREAM_API_SECRET || process.env.STREAM_SECRET_KEY;
+
+    if (!clientId || !clientSecret) {
+      return NextResponse.json(
+        { error: "Missing Google Client ID or GOOGLE_CLIENT_SECRET on server" },
+        { status: 500 }
+      );
+    }
 
     if (!apiKey || !apiSecret) {
       return NextResponse.json(
@@ -24,27 +32,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const verifyRes = await fetch(
-      `https://googleapis.com{encodeURIComponent(credential)}`
-    );
-    const payload = await verifyRes.json();
+    // Exchange authorization code for tokens
+    const tokenRes = await fetch("https://googleapis.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
 
-    if (!verifyRes.ok || !payload?.sub || !payload?.email) {
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData?.access_token) {
       return NextResponse.json(
-        { error: "Invalid Google sign-in token" },
+        { error: tokenData?.error_description || "Failed to exchange Google code" },
         { status: 401 }
       );
     }
 
-    if (googleClientId && payload.aud !== googleClientId) {
+    // Fetch Google user profile
+    const userRes = await fetch("https://googleapis.com", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const payload = await userRes.json();
+
+    if (!userRes.ok || !payload?.sub || !payload?.email) {
       return NextResponse.json(
-        { error: "Google Client ID mismatch" },
+        { error: "Could not load Google user profile" },
         { status: 401 }
       );
     }
 
     const emailPrefix = String(payload.email)
-      .split("@")[0]
+      .split("@")
       .toLowerCase()
       .replace(/[^a-z0-9_-]/g, "");
     const userId = emailPrefix || `google_${String(payload.sub).slice(0, 16)}`;
@@ -52,11 +75,10 @@ export async function POST(req: NextRequest) {
     const avatarUrl = String(payload.picture || "");
 
     const serverClient = new StreamClient(apiKey, apiSecret);
-
     const existingRes = await serverClient.queryUsers({
       payload: { filter_conditions: { id: userId } },
     });
-    const existingUser: any = existingRes?.users?.[0] || null;
+    const existingUser: any = existingRes?.users?. || null;
 
     await serverClient.upsertUsers([
       {

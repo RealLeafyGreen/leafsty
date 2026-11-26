@@ -4,13 +4,13 @@ import { useEffect } from "react";
 
 export default function GoogleCallbackPage() {
   useEffect(() => {
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const accessToken = hash.get("access_token");
-    const error = hash.get("error");
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const error = params.get("error");
 
     if (window.opener) {
       window.opener.postMessage(
-        { type: "leafsty-google-oauth", accessToken, error },
+        { type: "leafsty-google-oauth", code, error },
         window.location.origin
       );
       window.close();

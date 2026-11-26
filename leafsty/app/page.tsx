@@ -218,7 +218,7 @@ export default function HomePage() {
   return () => clearInterval(timer);
 }, [showAuth, currentUser]);
 
-  const handleGoogleLogin = () => {
+    const handleGoogleLogin = () => {
     const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
     if (!clientId) {
       setAuthError("Google Client ID is not configured in Vercel.");
@@ -230,7 +230,7 @@ export default function HomePage() {
       `https://google.com` +
       `?client_id=${encodeURIComponent(clientId)}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&response_type=token` +
+      `&response_type=code` +
       `&scope=${encodeURIComponent("openid email profile")}` +
       `&prompt=select_account`;
 
@@ -256,7 +256,7 @@ export default function HomePage() {
 
       window.removeEventListener("message", onMessage);
 
-      if (event.data?.error || !event.data?.accessToken) {
+      if (event.data?.error || !event.data?.code) {
         setAuthError(event.data?.error || "Google sign-in was cancelled.");
         return;
       }
@@ -267,7 +267,10 @@ export default function HomePage() {
         const res = await fetch("/api/google-auth", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken: event.data.accessToken }),
+          body: JSON.stringify({
+            code: event.data.code,
+            redirectUri,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || "Google sign-in failed");
@@ -288,6 +291,7 @@ export default function HomePage() {
 
     window.addEventListener("message", onMessage);
   };
+;
 
 
 
