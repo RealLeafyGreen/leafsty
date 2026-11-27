@@ -25,7 +25,8 @@ import {
   Mic,
   Square,
   Trash2,
-  Gamepad2
+  Gamepad2,
+  Slash,
 } from "lucide-react";
 
 interface EmojiEntry {
@@ -121,6 +122,37 @@ const SKIN_TONES = [
   { id: "med-dark", label: "Medium-Dark", mod: "\u{1F3FE}", swatch: "#8e562e" },
   { id: "dark", label: "Dark", mod: "\u{1F3FF}", swatch: "#5a3825" },
 ];
+
+const [showSlashMenu, setShowSlashMenu] = useState(false);
+
+const slashMatches = useMemo(() => {
+  const trimmed = text.trimStart();
+  if (!showSlashMenu && !trimmed.startsWith("/")) return [];
+
+  const currentUserId = String(
+    client?.userID || (client?.user as any)?.id || ""
+  );
+  const currentUserName = String((client?.user as any)?.name || "");
+  const canAdmin = isLeafstyAdmin(
+    currentUserId,
+    String((client?.user as any)?.role || ""),
+    [currentUserName]
+  );
+  const allCommands = canAdmin
+    ? [...SLASH_COMMANDS, ...ADMIN_SLASH_COMMANDS]
+    : SLASH_COMMANDS;
+
+  if (!trimmed.startsWith("/")) {
+    return allCommands;
+  }
+
+  const cmdToken = trimmed.split(/\s+/).toLowerCase();
+  const hasSpace = trimmed.includes(" ");
+  if (hasSpace) {
+    return allCommands.filter((c) => c.cmd === cmdToken);
+  }
+  return allCommands.filter((c) => c.cmd.startsWith(cmdToken));
+}, [text, client, showSlashMenu]);
 
 const SLASH_COMMANDS = [
   {
@@ -916,29 +948,40 @@ const recorder = mimeType
       .slice(0, 7);
   }, [mentionQuery, channel?.state?.members]);
 
- const slashMatches = useMemo(() => {
-  const trimmed = text.trimStart();
-  if (!trimmed.startsWith("/")) return [];
-  const cmdToken = trimmed.split(/\s+/)[0].toLowerCase();
-  const hasSpace = trimmed.includes(" ");
-  const currentUserId = String(
-    client?.userID || (client?.user as any)?.id || ""
-  );
-  const currentUserName = String((client?.user as any)?.name || "");
-  const canAdmin = isLeafstyAdmin(
-    currentUserId,
-    String((client?.user as any)?.role || ""),
-    [currentUserName]
-  );
-  const allCommands = canAdmin
-    ? [...SLASH_COMMANDS, ...ADMIN_SLASH_COMMANDS]
-    : SLASH_COMMANDS;
+   const [showSlashMenu, setShowSlashMenu] = useState(false);
 
-  if (hasSpace) {
-    return allCommands.filter((c) => c.cmd === cmdToken);
-  }
-  return allCommands.filter((c) => c.cmd.startsWith(cmdToken));
-}, [text, client]);
+  const canAdmin = useMemo(() => {
+    const currentUserId = String(
+      client?.userID || (client?.user as any)?.id || ""
+    );
+    const currentUserName = String((client?.user as any)?.name || "");
+    return isLeafstyAdmin(
+      currentUserId,
+      String((client?.user as any)?.role || ""),
+      [currentUserName]
+    );
+  }, [client]);
+
+  const slashMatches = useMemo(() => {
+    const trimmed = text.trimStart();
+    if (!showSlashMenu && !trimmed.startsWith("/")) return [];
+
+    if (showSlashMenu && !trimmed.startsWith("/")) {
+      return canAdmin ? ADMIN_SLASH_COMMANDS : [];
+    }
+
+    const allCommands = canAdmin
+      ? [...SLASH_COMMANDS, ...ADMIN_SLASH_COMMANDS]
+      : SLASH_COMMANDS;
+
+    const cmdToken = trimmed.split(/\s+/).at(0)?.toLowerCase() || "";
+    const hasSpace = trimmed.includes(" ");
+    if (hasSpace) {
+      return allCommands.filter((c) => c.cmd === cmdToken);
+    }
+    return allCommands.filter((c) => c.cmd.startsWith(cmdToken));
+  }, [text, canAdmin, showSlashMenu]);
+
 
 
   const handleSelectMention = (tag: string) => {
@@ -1445,12 +1488,35 @@ const recorder = mimeType
               className="w-full pl-3.5 pr-32 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
             />
 
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {canAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEmojiPicker(false);
+                    setShowGifPicker(false);
+                    setShowGames(false);
+                    setShowSlashMenu((v) => !v);
+                    setSlashIndex(0);
+                    inputRef.current?.focus();
+                  }}
+                  title="Admin Slash Commands (/)"
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
+                    showSlashMenu || text.trimStart().startsWith("/")
+                      ? "bg-emerald-500/30 text-emerald-100 border border-emerald-400/50"
+                      : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
+                  }`}
+                >
+                  <Slash className="w-3.5 h-3.5" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
                   setShowEmojiPicker(false);
                   setShowGifPicker(false);
+                  setShowSlashMenu(false);
                   setShowGames((v) => !v);
                 }}
                 title="Leafsty Arcade Games"
@@ -1463,38 +1529,6 @@ const recorder = mimeType
                 <Gamepad2 className="w-4 h-4" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowEmojiPicker(false);
-                  setShowGames(false);
-                  setShowGifPicker((v) => !v);
-                }}
-                title="GIFs & Favorites"
-                className={`w-7 h-7 rounded-lg border text-[10px] font-extrabold tracking-tight flex items-center justify-center transition cursor-pointer ${
-                  showGifPicker
-                    ? "bg-emerald-500/30 border-emerald-400 text-emerald-100"
-                    : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:text-emerald-50 hover:bg-emerald-500/25 hover:border-emerald-400/60"
-                }`}
-              >
-                GIF
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowGifPicker(false);
-                  setShowGames(false);
-                  setShowEmojiPicker((v) => !v);
-                }}
-                title="Emojis"
-                className="w-7 h-7 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 flex items-center justify-center transition cursor-pointer"
-              >
-                <Smile className="w-4 h-4" />
-              </button>
-
-              <Lock className="w-3.5 h-3.5 text-emerald-400/50 ml-0.5 pointer-events-none" />
-            </div>
 
           </div>
 
