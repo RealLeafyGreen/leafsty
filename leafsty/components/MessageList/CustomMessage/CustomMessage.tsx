@@ -153,6 +153,7 @@ export default function CustomMessage({
       cancelled = true;
     };
   }, [rawText, roomId]);
+
   useEffect(() => {
     const counts: Record<string, number> = {};
     const mine: Record<string, boolean> = {};
@@ -290,8 +291,7 @@ export default function CustomMessage({
       });
     } catch {}
   };
-
-    const renderFormattedText = (text: string) => {
+  const renderFormattedText = (text: string) => {
     const tokenRegex =
       /(https?:\/\/[^\s]+|@[a-zA-Z0-9_.-]+|\*\*\*[^*\n]+?\*\*\*|\*\*[^*\n]+?\*\*|\*[^*\n]+?\*|~~[^~\n]+?~~|`[^`\n]+?`|\|\|[^|\n]+?\|\|)/g;
 
@@ -445,13 +445,14 @@ export default function CustomMessage({
             {senderName}
           </button>
 
-          {formattedDateTime && (
-            <span className="text-[10px] text-emerald-300/55 font-medium">
-              {formattedDateTime}
-            </span>
-          )}
-
-          <Lock className="w-2.5 h-2.5 text-emerald-400/40" />
+          <span className="inline-flex items-center gap-1.5 shrink-0">
+            {formattedDateTime && (
+              <span className="text-[10px] text-emerald-300/70 font-medium whitespace-nowrap">
+                {formattedDateTime}
+              </span>
+            )}
+            <Lock className="w-2.5 h-2.5 text-emerald-400/50 shrink-0" />
+          </span>
 
           {isOwn && seenByUsers.length > 0 && (
             <span
@@ -462,7 +463,6 @@ export default function CustomMessage({
               <span>Seen</span>
             </span>
           )}
-
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 ml-auto bg-[#081914] border border-emerald-500/20 rounded-lg px-1 py-0.5 transition">
             <button
               type="button"
