@@ -33,17 +33,6 @@ export default function CustomChannelList() {
     discordCtx?.selectedServer ||
     null;
   const activeChannel = discordCtx?.activeChannel || null;
-  const setActiveChannel = discordCtx?.setActiveChannel;
-             const otherMember: any = Object.values(
-             ch?.state?.members || {}
-           ).find(
-             (m: any) =>
-               String(m?.user?.id || m?.user_id) !== currentUserId
-           );
-           const peerUser = otherMember?.user;
-           const peerPresence = peerUser?.invisible
-             ? "offline"
-             : peerUser?.presence_status ||
                (peerUser?.online ? "online" : "offline");
 
   const [channels, setChannels] = useState<any[]>([]);
@@ -580,50 +569,66 @@ useEffect(() => {
             <div className="px-3 py-6 text-center rounded-xl bg-[#0b211a] border border-emerald-500/15 mx-1 mt-2">
               <MessageSquare className="w-5 h-5 text-emerald-400/60 mx-auto mb-1.5" />
               <p className="text-xs font-semibold text-emerald-100">
-                {isServerView ? "No channels yet" : "No DMs yet"}
-              </p>
-              <button
-                type="button"
-                onClick={isServerView ? handleCreateServerChannel : openNewDmModal}
-                className="mt-2.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer"
-              >
-                {isServerView ? "+ Create Text Channel" : "+ Send DM Invite"}
-              </button>
-            </div>
-          ) : (
-            activeList.map((ch) => {
-              const label = getChannelDisplayName(ch);
-              const isSelected = activeChannel?.id === ch.id;
-              const unreadCount = ch.countUnread?.() || 0;
-              const isPendingOutgoing =
-                !isServerView &&
-                String(ch?.data?.invite_status || "") === "pending" &&
-                String(ch?.data?.invited_by || "") === currentUserId;
+                      activeList.map((ch) => {
+           const label = getChannelDisplayName(ch);
+           const isSelected = activeChannel?.id === ch.id;
+           const unreadCount = ch.countUnread?.() || 0;
+           const isPendingOutgoing =
+             !isServerView &&
+             String(ch?.data?.invite_status || "") === "pending" &&
+             String(ch?.data?.invited_by || "") === currentUserId;
+           const otherMember: any = Object.values(
+             ch?.state?.members || {}
+           ).find(
+             (m: any) =>
+               String(m?.user?.id || m?.user_id) !== currentUserId
+           );
+           const peerUser = otherMember?.user;
+           const peerPresence = peerUser?.invisible
+             ? "offline"
+             : peerUser?.presence_status ||
+               (peerUser?.online ? "online" : "offline");
 
-              return (
-                <button
-                  key={ch.id}
-                  type="button"
-                  onClick={() => handleSelectChannel(ch)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
-                    isSelected
-                      ? "bg-emerald-500/20 text-emerald-50 border border-emerald-400/30 shadow-sm"
-                      : "text-emerald-100/85 hover:bg-emerald-500/10 hover:text-emerald-50 border border-transparent"
-                  }`}
-                >
-                  {isServerView ? (
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
-                      <Hash className="w-4 h-4" />
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
-                      {label.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold text-emerald-50 truncate">
-                      {label}
+           return (
+             <button
+               key={ch.id}
+               type="button"
+               data-leafsty-channel={isServerView ? ch.id : undefined}
+               data-leafsty-dm={!isServerView ? ch.id : undefined}
+               data-leafsty-label={label}
+               onClick={() => handleSelectChannel(ch)}
+               className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition cursor-pointer ${
+                 isSelected
+                   ? "bg-emerald-500/20 text-emerald-50 border border-emerald-400/30 shadow-sm"
+                   : "text-emerald-100/85 hover:bg-emerald-500/10 hover:text-emerald-50 border border-transparent"
+               }`}
+             >
+               {isServerView ? (
+                 <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
+                   <Hash className="w-4 h-4" />
+                 </div>
+               ) : (
+                 <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                   <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                     {peerUser?.image ? (
+                       <img
+                         src={peerUser.image}
+                         alt={label}
+                         className="w-full h-full object-cover"
+                       />
+                     ) : (
+                       label.charAt(0).toUpperCase()
+                     )}
+                   </span>
+                   <span className="absolute -bottom-0.5 -right-0.5">
+                     <LeafstyStatusDot
+                       status={peerPresence}
+                       size="xs"
+                       ringColor="#081914"
+                     />
+                   </span>
+                 </div>
+               )}
                     </div>
                     <div className="text-[10px] text-emerald-300/65 truncate flex items-center gap-1">
                       <Lock className="w-2.5 h-2.5 text-emerald-400/80 shrink-0" />
@@ -655,13 +660,15 @@ useEffect(() => {
              onSelect={async (next) => {
                setPresence(next);
                setStoredPresence(next);
-               try {
-                 await client?.upsertUser?.({
-                   id: currentUserId,
-                   presence_status: next,
-                   invisible: next === "offline",
-                 } as any);
-               } catch {}
+                          try {
+              await client?.partialUpdateUser?.({
+                id: currentUserId,
+                set: {
+                  presence_status: next,
+                  invisible: next === "offline",
+                },
+              } as any);
+            } catch {}
              }}
              onClose={() => setShowStatusPicker(false)}
            />
