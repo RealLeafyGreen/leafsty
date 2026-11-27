@@ -10,7 +10,7 @@ import {
   PRESENCE_META,
   getStoredPresence,
   setStoredPresence,
-} from "../LeafstyStatusBadge";
+} from "./LeafstyStatusBadge";
 import {
   Hash,
   Plus,
