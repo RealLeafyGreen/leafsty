@@ -596,8 +596,6 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
             </div>
           </div>
         )}
-
-        <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
                   {!isServerView && (
           <div className="px-2 pt-2.5">
             <button
@@ -631,10 +629,6 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
             <Plus className="w-4 h-4" />
           </button>
         </div>
-
-          <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
-            {isServerView ? "Text Channels" : "Direct Messages"}
-          </span>
           <button
             type="button"
             onClick={isServerView ? handleCreateServerChannel : openNewDmModal}
