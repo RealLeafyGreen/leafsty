@@ -404,7 +404,7 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
     return String(otherMember?.user?.id || otherMember?.user_id || "");
   };
 
-  const getChannelDisplayName = (ch: any) => {
+   const getChannelDisplayName = (ch: any) => {
     if (ch?.data?.name) return ch.data.name;
     const membersObj = ch?.state?.members || {};
     const otherMember: any = Object.values(membersObj).find(
@@ -412,7 +412,16 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
     );
     if (otherMember?.user?.name) return otherMember.user.name;
     if (otherMember?.user_id) return otherMember.user_id;
-    return ch?.id || "Encrypted DM";
+
+    const rawId = String(ch?.id || "");
+    if (rawId.startsWith("dm-")) {
+      const parts = rawId.replace(/^dm-/, "").split("-").filter(Boolean);
+      const otherPart = parts.find(
+        (p) => p.toLowerCase() !== currentUserId.toLowerCase()
+      );
+      if (otherPart) return otherPart;
+    }
+    return "Encrypted DM";
   };
 
   const { activeList, incomingInvites } = useMemo(() => {
@@ -589,25 +598,40 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
         )}
 
         <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
-             {!isServerView && (
-       <div className="px-2 pt-2.5">
-         <button
-           type="button"
-           onClick={() => setShowFriends(true)}
-           className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#0d261e]/80 hover:bg-emerald-500/20 border border-emerald-500/20 text-xs font-extrabold text-emerald-100 transition cursor-pointer"
-         >
-           <span className="flex items-center gap-2">
-             <Users className="w-4 h-4 text-emerald-400" />
-             <span>Friends</span>
-           </span>
-           {pendingFriendsCount > 0 && (
-             <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 font-extrabold text-[10px]">
-               {pendingFriendsCount}
-             </span>
-           )}
-         </button>
-       </div>
-     )}
+                  {!isServerView && (
+          <div className="px-2 pt-2.5">
+            <button
+              type="button"
+              onClick={() => setShowFriends(true)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#0d261e] hover:bg-emerald-500/20 border border-emerald-500/25 text-xs font-extrabold text-emerald-100 transition cursor-pointer shadow-xs"
+            >
+              <span className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-400" />
+                <span>Friends</span>
+              </span>
+              {pendingFriendsCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 font-extrabold text-[10px]">
+                  {pendingFriendsCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
+          <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
+            {isServerView ? "Text Channels" : "Direct Messages"}
+          </span>
+          <button
+            type="button"
+            onClick={isServerView ? handleCreateServerChannel : openNewDmModal}
+            title={isServerView ? "Create Text Channel" : "Send DM Invite"}
+            className="p-1 rounded-md text-emerald-300/80 hover:text-emerald-50 hover:bg-emerald-500/20 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
           <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
             {isServerView ? "Text Channels" : "Direct Messages"}
           </span>
