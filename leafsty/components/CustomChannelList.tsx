@@ -23,6 +23,7 @@ import {
   Check,
   Inbox,
   Settings,
+  Users,
 } from "lucide-react";
 
 export default function CustomChannelList() {
@@ -876,6 +877,16 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
           </div>
         </div>
       )}
+         {showFriends && (
+     <FriendsModal
+       currentUserId={currentUserId}
+       onClose={() => setShowFriends(false)}
+       onPendingCountChange={setPendingFriendsCount}
+       onOpenDmWithUser={async (targetUserId) => {
+         await handleCreateDm(targetUserId);
+       }}
+     />
+   )}
     </>
   );
 }
