@@ -189,6 +189,13 @@ export default function CustomMessage({
   }, [message?.id, message?.reaction_counts, message?.own_reactions]);
 
   if (!message) return null;
+const formattedDateTime = formatMessageDateTime(
+  message.created_at ??
+    message.createdAt ??
+    message.updated_at ??
+    message.updatedAt ??
+    message.timestamp
+);
 
 
   const seenByUsers = (() => {
