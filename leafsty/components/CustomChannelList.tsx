@@ -460,33 +460,19 @@ useEffect(() => {
   return (
     <>
       <aside className="w-64 h-full flex flex-col bg-[#081914] border-r border-emerald-500/15 text-emerald-50 select-none shrink-0">
-        <div className="p-3 border-b border-emerald-500/15 bg-[#061410]">
-                        {isServerView ? (
-                 <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
-                   <Hash className="w-4 h-4" />
-                 </div>
-               ) : (
-                 <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
-                   <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
-                     {peerUser?.image ? (
-                       <img
-                         src={peerUser.image}
-                         alt={label}
-                         className="w-full h-full object-cover"
-                       />
-                     ) : (
-                       label.charAt(0).toUpperCase()
-                     )}
-                   </span>
-                   <span className="absolute -bottom-0.5 -right-0.5">
-                     <LeafstyStatusDot
-                       status={peerPresence}
-                       size="xs"
-                       ringColor="#081914"
-                     />
-                   </span>
-                 </div>
-               )}
+                <div className="p-3 border-b border-emerald-500/15 bg-[#061410]">
+          {isServerView ? (
+            <div className="flex items-center justify-between px-1 py-1">
+              <div className="min-w-0">
+                <h2 className="text-sm font-extrabold text-emerald-50 truncate">
+                  {activeServer?.name || "Leafsty Space"}
+                </h2>
+                <p className="text-[11px] text-emerald-400/70 flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Encrypted Space
+                </p>
+              </div>
+            </div>
+          ) : (
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
