@@ -34,7 +34,9 @@ export async function POST(req: NextRequest) {
     const cleanUserId = String(userId || "").trim().toLowerCase();
     if (!isServerAdmin(cleanUserId, userName)) {
       return NextResponse.json(
-        { error: `Permission denied for "${cleanUserId}": ${command} is restricted to admins.` },
+        {
+          error: `Permission denied for "${cleanUserId}": ${command} is restricted to admins.`,
+        },
         { status: 403 }
       );
     }
@@ -60,3 +62,106 @@ export async function POST(req: NextRequest) {
 
     const serverClient = new StreamClient(apiKey, apiSecret);
     const channel = (serverClient as any).chat.channel(channelType, channelId);
+
+    if (command === "/announce") {
+      if (!argText.trim()) {
+        return NextResponse.json(
+          { error: "Usage: /announce Your message here" },
+          { status: 400 }
+        );
+      }
+      await channel.sendMessage({
+        text: `📢 **ANNOUNCEMENT:** ${argText.trim()}`,
+        user_id: cleanUserId,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (command === "/clear") {
+      const count = Math.min(50, Math.max(1, Number(argText) || 20));
+      const res = await channel.query({
+        state: true,
+        watch: false,
+        messages: { limit: count },
+      });
+      const msgs: any[] = Array.isArray(res?.messages) ? res.messages : [];
+      for (const m of msgs) {
+        if (m?.id) {
+          await (serverClient as any).chat
+            .deleteMessage(m.id, { hard: true })
+            .catch(() => {});
+        }
+      }
+      return NextResponse.json({ ok: true, deleted: msgs.length });
+    }
+
+    if (command === "/kick") {
+      const targetId = argText.trim().replace(/^@/, "").toLowerCase();
+      if (!targetId) {
+        return NextResponse.json(
+          { error: "Usage: /kick username" },
+          { status: 400 }
+        );
+      }
+      await channel.removeMembers([targetId]);
+      await channel.sendMessage({
+        text: `🛡️ **@${targetId}** was removed from the room.`,
+        user_id: cleanUserId,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (command === "/ban") {
+      const [rawTarget, ...reasonParts] = argText.trim().split(/\s+/);
+      const targetId = (rawTarget || "").replace(/^@/, "").toLowerCase();
+      if (!targetId) {
+        return NextResponse.json(
+          { error: "Usage: /ban username [reason]" },
+          { status: 400 }
+        );
+      }
+      const reason = reasonParts.join(" ") || "Banned by admin";
+      await (serverClient as any).moderation.ban({
+        target_user_id: targetId,
+        banned_by_id: cleanUserId,
+        channel_cid: `${channelType}:${channelId}`,
+        reason,
+      });
+      await channel.sendMessage({
+        text: `🔨 **@${targetId}** was banned (${reason}).`,
+        user_id: cleanUserId,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (command === "/unban") {
+      const targetId = argText.trim().replace(/^@/, "").toLowerCase();
+      if (!targetId) {
+        return NextResponse.json(
+          { error: "Usage: /unban username" },
+          { status: 400 }
+        );
+      }
+      await (serverClient as any).moderation.unban({
+        target_user_id: targetId,
+        channel_cid: `${channelType}:${channelId}`,
+      });
+      await channel.sendMessage({
+        text: `✅ **@${targetId}** has been unbanned.`,
+        user_id: cleanUserId,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json(
+      { error: `Unknown admin command: ${command}` },
+      { status: 400 }
+    );
+  } catch (err: any) {
+    console.error("POST /api/admin error:", err);
+    return NextResponse.json(
+      { error: err?.message || "Admin command failed" },
+      { status: 500 }
+    );
+  }
+}
