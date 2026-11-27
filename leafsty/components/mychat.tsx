@@ -128,7 +128,7 @@ export default function MyChat() {
 
     let cancelled = false;
 
-    const mergeMessages = (incoming: any[]) => {
+        const mergeMessages = (incoming: any[]) => {
       if (!Array.isArray(incoming) || incoming.length === 0) return;
       setLocalMessages((prev) => {
         const map = new Map<string, any>();
@@ -136,7 +136,20 @@ export default function MyChat() {
           if (m?.id) map.set(String(m.id), m);
         }
         for (const m of incoming) {
-          if (m?.id) map.set(String(m.id), m);
+          if (!m?.id) continue;
+          // Remove any matching optimistic temp- message when the real message arrives
+          if (!String(m.id).startsWith("temp-")) {
+            for (const [k, existing] of map.entries()) {
+              if (
+                k.startsWith("temp-") &&
+                String(existing?.user?.id || "") === String(m?.user?.id || "") &&
+                String(existing?.text || "").trim() === String(m?.text || "").trim()
+              ) {
+                map.delete(k);
+              }
+            }
+          }
+          map.set(String(m.id), m);
         }
         return Array.from(map.values()).sort((a, b) => {
           const ta = new Date(a?.created_at || a?.createdAt || 0).getTime();
@@ -145,6 +158,7 @@ export default function MyChat() {
         });
       });
     };
+
     if (!activeChannel) return;
 
     setLocalMessages([...(activeChannel?.state?.messages || [])]);
