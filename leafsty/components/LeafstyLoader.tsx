@@ -51,11 +51,83 @@ export default function LeafstyLoader({
     let rafId = 0;
     let cancelled = false;
 
-    const removeOuterWhite = (
+        const removeOuterWhite = (
       ctx: CanvasRenderingContext2D,
       w: number,
       h: number
     ) => {
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+      const visited = new Uint8Array(w * h);
+      const queue = new Int32Array(w * h);
+      let head = 0;
+      let tail = 0;
+
+      const isBgColor = (idx: number) => {
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        // Catch off-white background + MP4 compression halo around the outer leaf
+        return max > 195 && max - min < 48;
+      };
+
+      const push = (x: number, y: number) => {
+        if (x < 0 || x >= w || y < 0 || y >= h) return;
+        const p = y * w + x;
+        if (visited[p]) return;
+        const idx = p * 4;
+        if (!isBgColor(idx)) return;
+        visited[p] = 1;
+        queue[tail++] = p;
+      };
+
+      for (let x = 0; x < w; x++) {
+        push(x, 0);
+        push(x, h - 1);
+      }
+      for (let y = 0; y < h; y++) {
+        push(0, y);
+        push(w - 1, y);
+      }
+
+      while (head < tail) {
+        const p = queue[head++];
+        const idx = p * 4;
+        data[idx + 3] = 0;
+        const x = p % w;
+        const y = (p - x) / w;
+        push(x + 1, y);
+        push(x - 1, y);
+        push(x, y + 1);
+        push(x, y - 1);
+      }
+
+      // 1-pixel outer fringe cleanup for anti-aliased light halo pixels
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const p = y * w + x;
+          if (visited[p]) continue;
+          const idx = p * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          // Check if adjacent to cleared background
+          const touchesBg =
+            visited[p - 1] ||
+            visited[p + 1] ||
+            visited[p - w] ||
+            visited[p + w];
+          if (touchesBg && r > 150 && b > 140) {
+            data[idx + 3] = 0;
+          }
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+    };
+    
       const imgData = ctx.getImageData(0, 0, w, h);
       const data = imgData.data;
       const visited = new Uint8Array(w * h);
