@@ -1363,7 +1363,7 @@ const recorder = mimeType
         </div>
       )}
 
-      {isRecording ? (
+         {isRecording ? (
         <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-[#0d261e] border border-red-400/50">
           <button
             type="button"
@@ -1402,7 +1402,7 @@ const recorder = mimeType
           </button>
         </div>
       ) : (
-                <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+        <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -1442,7 +1442,10 @@ const recorder = mimeType
                   if (e.key === "Tab") {
                     e.preventDefault();
                     const picked = slashMatches.at(slashIndex);
-                    if (picked) setText(picked.template);
+                    if (picked) {
+                      setText(picked.template);
+                      setShowSlashMenu(false);
+                    }
                     return;
                   }
                 }
@@ -1483,12 +1486,11 @@ const recorder = mimeType
                   channel?.stopTyping?.().catch(() => {});
                 }
               }}
-
-                          placeholder={`Message ${channelLabel} or type /poll...`}
-              className="w-full pl-3.5 pr-32 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+              placeholder={`Message ${channelLabel} or type /poll...`}
+              className="w-full pl-3.5 pr-40 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
             />
 
-                                   <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => {
@@ -1563,7 +1565,7 @@ const recorder = mimeType
 
               <Lock className="w-3.5 h-3.5 text-emerald-400/50 ml-0.5 pointer-events-none" />
             </div>
-
+          </div>
 
           <button
             type="button"
