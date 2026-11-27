@@ -1478,7 +1478,7 @@ const recorder = mimeType
                 <Gamepad2 className="w-4 h-4" />
               </button>
 
-              {canAdmin && (
+                            {canAdmin && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1490,15 +1490,16 @@ const recorder = mimeType
                     inputRef.current?.focus();
                   }}
                   title="Admin Slash Commands (/)"
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
+                  className={`w-7 h-7 rounded-lg border font-mono text-xs font-extrabold flex items-center justify-center transition cursor-pointer ${
                     showSlashMenu || text.trimStart().startsWith("/")
-                      ? "bg-emerald-500/30 text-emerald-100 border border-emerald-400/50"
-                      : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
+                      ? "bg-emerald-500/30 border-emerald-400 text-emerald-100"
+                      : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:text-emerald-50 hover:bg-emerald-500/25 hover:border-emerald-400/60"
                   }`}
                 >
-                  <Slash className="w-3.5 h-3.5" />
+                  /
                 </button>
               )}
+
 
               <button
                 type="button"
