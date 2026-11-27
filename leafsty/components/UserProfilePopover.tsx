@@ -4,6 +4,13 @@ import React, { useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../types/DiscordContext";
 import { X, Send, Pencil, ShieldCheck, Calendar } from "lucide-react";
+import {
+  LeafstyStatusDot,
+  PRESENCE_META,
+  LeafstyPresence,
+  getStoredPresence,
+} from "./LeafstyStatusBadge";
+
 
 export interface UserProfilePopoverProps {
   user: any;
@@ -114,8 +121,20 @@ export default function UserProfilePopover({
         year: "numeric",
       })
     : "Recently joined";
+const isViewingSelf =
+  String(user?.id || "") === String(client?.user?.id || client?.userID || "");
+const rawPresence: LeafstyPresence = isViewingSelf
+  ? getStoredPresence()
+  : liveMemberUser?.invisible || user?.invisible
+  ? "offline"
+  : ((liveMemberUser?.presence_status ||
+      user?.presence_status ||
+      (liveMemberUser?.online || user?.online
+        ? "online"
+        : "offline")) as LeafstyPresence);
 
-  const roles = user.roles?.length
+  
+    const roles = user.roles?.length
     ? user.roles
     : ["Leafsty Member", "E2EE Verified"];
 
@@ -160,10 +179,16 @@ export default function UserProfilePopover({
                 {initial}
               </div>
             )}
-            <span
-              title="Online"
-              className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white"
-            />
+                       <span
+              title={PRESENCE_META[rawPresence]?.label || "Online"}
+              className="absolute -bottom-1 -right-1"
+            >
+              <LeafstyStatusDot
+                status={rawPresence}
+                size="md"
+                ringColor="#ffffff"
+              />
+            </span>
           </div>
 
           {/* Badges with Hover Tooltips */}
@@ -201,6 +226,12 @@ export default function UserProfilePopover({
 
           <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
             <p className="text-xs text-zinc-500">@{user.id}</p>
+                     <span className="text-zinc-300">•</span>
+         <span className="text-xs font-semibold text-zinc-600">
+           {rawPresence === "offline"
+             ? "Offline"
+             : PRESENCE_META[rawPresence]?.label || "Online"}
+         </span>
             {resolvedPronouns && (
               <>
                 <span className="text-zinc-300">•</span>

@@ -4,6 +4,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../types/DiscordContext";
 import {
+  LeafstyPresence,
+  LeafstyStatusDot,
+  LeafstyStatusPicker,
+  PRESENCE_META,
+  getStoredPresence,
+  setStoredPresence,
+} from "../LeafstyStatusBadge";
+import {
   Hash,
   Plus,
   Search,
@@ -26,10 +34,32 @@ export default function CustomChannelList() {
     null;
   const activeChannel = discordCtx?.activeChannel || null;
   const setActiveChannel = discordCtx?.setActiveChannel;
+             const otherMember: any = Object.values(
+             ch?.state?.members || {}
+           ).find(
+             (m: any) =>
+               String(m?.user?.id || m?.user_id) !== currentUserId
+           );
+           const peerUser = otherMember?.user;
+           const peerPresence = peerUser?.invisible
+             ? "offline"
+             : peerUser?.presence_status ||
+               (peerUser?.online ? "online" : "offline");
 
   const [channels, setChannels] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
+const [presence, setPresence] = useState<LeafstyPresence>("online");
+const [showStatusPicker, setShowStatusPicker] = useState(false);
+
+useEffect(() => {
+  setPresence(getStoredPresence());
+  const onStatus = (e: any) => {
+    if (e?.detail) setPresence(e.detail);
+  };
+  window.addEventListener("leafsty:status-changed", onStatus);
+  return () => window.removeEventListener("leafsty:status-changed", onStatus);
+}, []);
 
   const [showNewDm, setShowNewDm] = useState(false);
   const [dmTarget, setDmTarget] = useState("");
@@ -431,18 +461,32 @@ export default function CustomChannelList() {
     <>
       <aside className="w-64 h-full flex flex-col bg-[#081914] border-r border-emerald-500/15 text-emerald-50 select-none shrink-0">
         <div className="p-3 border-b border-emerald-500/15 bg-[#061410]">
-          {isServerView ? (
-            <div className="flex items-center justify-between px-1 py-1">
-              <div className="min-w-0">
-                <h2 className="text-sm font-extrabold text-emerald-50 truncate">
-                  {activeServer?.name || "Leafsty Space"}
-                </h2>
-                <p className="text-[11px] text-emerald-400/70 flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Encrypted Space
-                </p>
-              </div>
-            </div>
-          ) : (
+                        {isServerView ? (
+                 <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
+                   <Hash className="w-4 h-4" />
+                 </div>
+               ) : (
+                 <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                   <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                     {peerUser?.image ? (
+                       <img
+                         src={peerUser.image}
+                         alt={label}
+                         className="w-full h-full object-cover"
+                       />
+                     ) : (
+                       label.charAt(0).toUpperCase()
+                     )}
+                   </span>
+                   <span className="absolute -bottom-0.5 -right-0.5">
+                     <LeafstyStatusDot
+                       status={peerPresence}
+                       size="xs"
+                       ringColor="#081914"
+                     />
+                   </span>
+                 </div>
+               )}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -617,49 +661,78 @@ export default function CustomChannelList() {
             })
           )}
         </div>
-        <div className="p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              window.dispatchEvent(new Event("leafsty:open-own-profile"))
-            }
-            title="View Your Profile Card"
-            className="flex items-center gap-2.5 min-w-0 flex-1 text-left rounded-xl p-1 hover:bg-emerald-500/10 transition cursor-pointer"
-          >
-            <div className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0">
-              {currentUserImage ? (
-                <img
-                  src={currentUserImage}
-                  alt={currentUserName}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                currentUserName.charAt(0).toUpperCase()
-              )}
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#04120e]" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-extrabold text-emerald-50 truncate">
-                {currentUserName}
-              </div>
-              <div className="text-[10px] text-emerald-400 flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" />
-                <span>Encrypted · Online</span>
-              </div>
-            </div>
-          </button>
+             <div className="relative p-2.5 bg-[#04120e] border-t border-emerald-500/15 flex items-center justify-between gap-2">
+       {showStatusPicker && (
+         <div className="absolute bottom-full left-2.5 mb-2 z-50">
+           <LeafstyStatusPicker
+             current={presence}
+             onSelect={async (next) => {
+               setPresence(next);
+               setStoredPresence(next);
+               try {
+                 await client?.upsertUser?.({
+                   id: currentUserId,
+                   presence_status: next,
+                   invisible: next === "offline",
+                 } as any);
+               } catch {}
+             }}
+             onClose={() => setShowStatusPicker(false)}
+           />
+         </div>
+       )}
 
-          <button
-            type="button"
-            onClick={() =>
-              window.dispatchEvent(new Event("leafsty:open-settings"))
-            }
-            title="User Settings"
-            className="p-2 rounded-xl text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer shrink-0"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
+       <div className="flex items-center gap-2.5 min-w-0 flex-1 rounded-xl p-1 hover:bg-emerald-500/10 transition">
+         <button
+           type="button"
+           onClick={() => setShowStatusPicker((v) => !v)}
+           title="Change Status (Online, Idle, Do Not Disturb, Invisible)"
+           className="relative w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 cursor-pointer"
+         >
+           <span className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+             {currentUserImage ? (
+               <img
+                 src={currentUserImage}
+                 alt={currentUserName}
+                 className="w-full h-full object-cover"
+               />
+             ) : (
+               currentUserName.charAt(0).toUpperCase()
+             )}
+           </span>
+           <span className="absolute -bottom-0.5 -right-0.5">
+             <LeafstyStatusDot status={presence} size="sm" ringColor="#04120e" />
+           </span>
+         </button>
+
+         <button
+           type="button"
+           onClick={() =>
+             window.dispatchEvent(new Event("leafsty:open-own-profile"))
+           }
+           title="View Your Profile Card"
+           className="min-w-0 flex-1 text-left cursor-pointer"
+         >
+           <div className="text-xs font-extrabold text-emerald-50 truncate">
+             {currentUserName}
+           </div>
+           <div className="text-[10px] text-emerald-400/90 truncate">
+             {PRESENCE_META[presence].label}
+           </div>
+         </button>
+       </div>
+
+       <button
+         type="button"
+         onClick={() =>
+           window.dispatchEvent(new Event("leafsty:open-settings"))
+         }
+         title="User Settings"
+         className="p-2 rounded-xl text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15 transition cursor-pointer shrink-0"
+       >
+         <Settings className="w-4 h-4" />
+       </button>
+     </div>
       </aside>
 
       {showNewDm && (
