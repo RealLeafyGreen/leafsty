@@ -36,21 +36,33 @@ export interface CustomMessageProps {
 function formatMessageDateTime(rawDate: any): string {
   if (rawDate === undefined || rawDate === null || rawDate === "") return "";
 
-  let parsed: Date;
+  let parsed: Date | null = null;
+
   if (rawDate instanceof Date) {
     parsed = rawDate;
-  } else if (typeof rawDate === "number") {
-    parsed = new Date(rawDate < 1e12 ? rawDate * 1000 : rawDate);
+  } else if (typeof rawDate === "object") {
+    const inner =
+      rawDate.created_at ??
+      rawDate.createdAt ??
+      rawDate.seconds ??
+      rawDate.$date ??
+      "";
+    return formatMessageDateTime(inner);
   } else {
-    const asNum = Number(rawDate);
-    if (!Number.isNaN(asNum) && String(rawDate).trim() !== "") {
-      parsed = new Date(asNum < 1e12 ? asNum * 1000 : asNum);
+    const str = String(rawDate).trim();
+    const asNum = Number(str);
+    if (!Number.isNaN(asNum) && str !== "") {
+      let ms = asNum;
+      if (ms > 1e16) ms = Math.floor(ms / 1e6);
+      else if (ms > 1e13) ms = Math.floor(ms / 1e3);
+      else if (ms < 1e11) ms = ms * 1000;
+      parsed = new Date(ms);
     } else {
-      parsed = new Date(String(rawDate));
+      parsed = new Date(str);
     }
   }
 
-  if (Number.isNaN(parsed.getTime())) return "";
+  if (!parsed || Number.isNaN(parsed.getTime())) return "";
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -78,6 +90,7 @@ function formatMessageDateTime(rawDate: any): string {
   });
   return `${dateStr} ${timeStr}`;
 }
+
 
 export default function CustomMessage({
   message,
@@ -176,14 +189,6 @@ export default function CustomMessage({
   }, [message?.id, message?.reaction_counts, message?.own_reactions]);
 
   if (!message) return null;
-
-  const formattedDateTime =
-  formatMessageDateTime(
-    message.created_at ??
-      message.createdAt ??
-      message.updated_at ??
-      message.timestamp
-  ) || formatMessageDateTime(Date.now());
 
 
   const seenByUsers = (() => {
@@ -449,7 +454,7 @@ export default function CustomMessage({
             style={{ display: "inline-flex" }}
             className="items-center gap-1.5 shrink-0 min-w-fit text-[10px] text-emerald-300/75 font-medium whitespace-nowrap"
           >
-            <span>{formattedDateTime}</span>
+            <span>{formatMessageDateTime}</span>
             <Lock className="w-2.5 h-2.5 text-emerald-400/50 shrink-0" />
           </span>
           {isOwn && seenByUsers.length > 0 && (
