@@ -1488,7 +1488,25 @@ const recorder = mimeType
               className="w-full pl-3.5 pr-32 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
             />
 
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                   <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmojiPicker(false);
+                  setShowGifPicker(false);
+                  setShowSlashMenu(false);
+                  setShowGames((v) => !v);
+                }}
+                title="Leafsty Arcade Games"
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
+                  showGames
+                    ? "bg-emerald-500/25 text-emerald-100"
+                    : "text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15"
+                }`}
+              >
+                <Gamepad2 className="w-4 h-4" />
+              </button>
+
               {canAdmin && (
                 <button
                   type="button"
@@ -1515,22 +1533,37 @@ const recorder = mimeType
                 type="button"
                 onClick={() => {
                   setShowEmojiPicker(false);
-                  setShowGifPicker(false);
+                  setShowGames(false);
                   setShowSlashMenu(false);
-                  setShowGames((v) => !v);
+                  setShowGifPicker((v) => !v);
                 }}
-                title="Leafsty Arcade Games"
-                className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
-                  showGames
-                    ? "bg-emerald-500/25 text-emerald-100"
-                    : "text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15"
+                title="GIFs & Favorites"
+                className={`w-7 h-7 rounded-lg border text-[10px] font-extrabold tracking-tight flex items-center justify-center transition cursor-pointer ${
+                  showGifPicker
+                    ? "bg-emerald-500/30 border-emerald-400 text-emerald-100"
+                    : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:text-emerald-50 hover:bg-emerald-500/25 hover:border-emerald-400/60"
                 }`}
               >
-                <Gamepad2 className="w-4 h-4" />
+                GIF
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGifPicker(false);
+                  setShowGames(false);
+                  setShowSlashMenu(false);
+                  setShowEmojiPicker((v) => !v);
+                }}
+                title="Emojis"
+                className="w-7 h-7 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 flex items-center justify-center transition cursor-pointer"
+              >
+                <Smile className="w-4 h-4" />
+              </button>
 
-          </div>
+              <Lock className="w-3.5 h-3.5 text-emerald-400/50 ml-0.5 pointer-events-none" />
+            </div>
+
 
           <button
             type="button"
