@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { useChatContext } from "stream-chat-react";
+import { useDiscordContext } from "../types/DiscordContext";
 import { X, Send, Pencil, ShieldCheck, Calendar } from "lucide-react";
 
 export interface UserProfilePopoverProps {
@@ -26,6 +28,22 @@ export interface LeafstyProfileUser {
   [key: string]: any;
 }
 
+function parseProfileDate(raw: any): Date | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
+  const str = String(raw).trim();
+  const num = Number(str);
+  if (!Number.isNaN(num) && str !== "") {
+    let ms = num;
+    if (ms > 1e16) ms = Math.floor(ms / 1e6);
+    else if (ms > 1e13) ms = Math.floor(ms / 1e3);
+    else if (ms < 1e11) ms = ms * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(str);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 export default function UserProfilePopover({
   user,
@@ -33,6 +51,10 @@ export default function UserProfilePopover({
   onEditProfile,
   onSendQuickMessage,
 }: UserProfilePopoverProps) {
+  const { client } = useChatContext() as any;
+  const discordCtx = useDiscordContext() as any;
+  const activeChannel = discordCtx?.activeChannel || null;
+
   const [quickMessage, setQuickMessage] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -40,6 +62,10 @@ export default function UserProfilePopover({
 
   const displayName = user.name || user.id || "Leafsty User";
   const initial = String(displayName).charAt(0).toUpperCase();
+
+  const liveMemberUser =
+    activeChannel?.state?.members?.[String(user.id)]?.user ||
+    (String(client?.user?.id || "") === String(user.id) ? client?.user : null);
 
   const savedLocal = (() => {
     if (typeof window === "undefined") return {};
@@ -52,10 +78,15 @@ export default function UserProfilePopover({
   })();
 
   const resolvedPronouns =
-    user?.pronouns || user?.custom?.pronouns || savedLocal?.pronouns || "";
+    user?.pronouns ||
+    liveMemberUser?.pronouns ||
+    user?.custom?.pronouns ||
+    savedLocal?.pronouns ||
+    "";
   const resolvedStatus =
     user?.statusText ||
     user?.status ||
+    liveMemberUser?.status ||
     user?.custom?.status ||
     savedLocal?.statusText ||
     savedLocal?.status ||
@@ -63,20 +94,26 @@ export default function UserProfilePopover({
   const resolvedBio =
     user?.aboutMe ||
     user?.bio ||
+    liveMemberUser?.bio ||
     user?.custom?.bio ||
     savedLocal?.aboutMe ||
     savedLocal?.bio ||
     "";
 
-  const parsedDate = user.created_at ? new Date(user.created_at) : null;
-  const memberSince =
-    parsedDate && !Number.isNaN(parsedDate.getTime())
-      ? parsedDate.toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })
-      : "Nov 12, 2026";
+  const parsedDate =
+    parseProfileDate(user?.created_at) ||
+    parseProfileDate(user?.createdAt) ||
+    parseProfileDate(liveMemberUser?.created_at) ||
+    parseProfileDate(liveMemberUser?.createdAt) ||
+    parseProfileDate(savedLocal?.created_at);
+
+  const memberSince = parsedDate
+    ? parsedDate.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Recently joined";
 
   const roles = user.roles?.length
     ? user.roles
