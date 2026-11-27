@@ -63,6 +63,15 @@ export async function POST(req: NextRequest) {
     const serverClient = new StreamClient(apiKey, apiSecret);
     const channel = (serverClient as any).chat.channel(channelType, channelId);
 
+    const postSystemNotice = async (text: string) => {
+      await channel.sendMessage({
+        message: {
+          text,
+          user_id: cleanUserId,
+        },
+      });
+    };
+
     if (command === "/announce") {
       if (!argText.trim()) {
         return NextResponse.json(
@@ -70,10 +79,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      await channel.sendMessage({
-        text: `📢 **ANNOUNCEMENT:** ${argText.trim()}`,
-        user_id: cleanUserId,
-      });
+      await postSystemNotice(`📢 **ANNOUNCEMENT:** ${argText.trim()}`);
       return NextResponse.json({ ok: true });
     }
 
@@ -104,10 +110,7 @@ export async function POST(req: NextRequest) {
         );
       }
       await channel.removeMembers([targetId]);
-      await channel.sendMessage({
-        text: `🛡️ **@${targetId}** was removed from the room.`,
-        user_id: cleanUserId,
-      });
+      await postSystemNotice(`🛡️ **@${targetId}** was removed from the room.`);
       return NextResponse.json({ ok: true });
     }
 
@@ -127,10 +130,7 @@ export async function POST(req: NextRequest) {
         channel_cid: `${channelType}:${channelId}`,
         reason,
       });
-      await channel.sendMessage({
-        text: `🔨 **@${targetId}** was banned (${reason}).`,
-        user_id: cleanUserId,
-      });
+      await postSystemNotice(`🔨 **@${targetId}** was banned (${reason}).`);
       return NextResponse.json({ ok: true });
     }
 
@@ -146,10 +146,7 @@ export async function POST(req: NextRequest) {
         target_user_id: targetId,
         channel_cid: `${channelType}:${channelId}`,
       });
-      await channel.sendMessage({
-        text: `✅ **@${targetId}** has been unbanned.`,
-        user_id: cleanUserId,
-      });
+      await postSystemNotice(`✅ **@${targetId}** has been unbanned.`);
       return NextResponse.json({ ok: true });
     }
 
