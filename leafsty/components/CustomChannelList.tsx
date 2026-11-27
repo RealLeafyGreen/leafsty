@@ -596,7 +596,7 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
             </div>
           </div>
         )}
-                  {!isServerView && (
+                         {!isServerView && (
           <div className="px-2 pt-2.5">
             <button
               type="button"
@@ -629,6 +629,8 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
             <Plus className="w-4 h-4" />
           </button>
         </div>
+
+        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
           <button
             type="button"
             onClick={isServerView ? handleCreateServerChannel : openNewDmModal}

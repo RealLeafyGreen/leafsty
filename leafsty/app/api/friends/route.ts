@@ -12,9 +12,9 @@ function getServerClient() {
 
 async function getUserLists(serverClient: any, userId: string) {
   const res = await serverClient.queryUsers({
-    filter_conditions: { id: { $eq: userId } },
-    limit: 1,
-  });
+  filter: { id: { $eq: userId } },
+  limit: 1,
+});
   const u = Array.isArray(res?.users) ? res.users.at(0) : null;
   if (!u) return null;
   return {
@@ -205,9 +205,9 @@ export async function POST(req: NextRequest) {
     let userProfiles: Record<string, any> = {};
     if (allIds.length > 0) {
       const hydrated = await (serverClient as any).queryUsers({
-        filter_conditions: { id: { $in: allIds } },
-        limit: 100,
-      });
+  filter: { id: { $in: allIds } },
+  limit: 100,
+});
       for (const u of hydrated?.users || []) {
         userProfiles[String(u.id)] = {
           id: String(u.id),
