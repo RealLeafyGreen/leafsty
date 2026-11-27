@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../types/DiscordContext";
+import FriendsModal from "./FriendsModal";
 import {
   LeafstyPresence,
   LeafstyStatusDot,
@@ -40,6 +41,8 @@ export default function CustomChannelList() {
   const [loading, setLoading] = useState(false);
 const [presence, setPresence] = useState<LeafstyPresence>("online");
 const [showStatusPicker, setShowStatusPicker] = useState(false);
+const [showFriends, setShowFriends] = useState(false);
+const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
 
   const [showNewDm, setShowNewDm] = useState(false);
   const [dmTarget, setDmTarget] = useState("");
@@ -585,6 +588,25 @@ const [showStatusPicker, setShowStatusPicker] = useState(false);
         )}
 
         <div className="px-3.5 pt-3 pb-1.5 flex items-center justify-between">
+             {!isServerView && (
+       <div className="px-2 pt-2.5">
+         <button
+           type="button"
+           onClick={() => setShowFriends(true)}
+           className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#0d261e]/80 hover:bg-emerald-500/20 border border-emerald-500/20 text-xs font-extrabold text-emerald-100 transition cursor-pointer"
+         >
+           <span className="flex items-center gap-2">
+             <Users className="w-4 h-4 text-emerald-400" />
+             <span>Friends</span>
+           </span>
+           {pendingFriendsCount > 0 && (
+             <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 font-extrabold text-[10px]">
+               {pendingFriendsCount}
+             </span>
+           )}
+         </button>
+       </div>
+     )}
           <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
             {isServerView ? "Text Channels" : "Direct Messages"}
           </span>
