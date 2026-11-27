@@ -598,8 +598,6 @@ useEffect(() => {
                 (m: any) =>
                   String(m?.user?.id || m?.user_id) !== currentUserId
               );
-              const peerUser = otherMember?.user;
-              const peerPresence = peerUser?.invisible
                 ? "offline"
                 : peerUser?.presence_status ||
                   (peerUser?.online ? "online" : "offline");
