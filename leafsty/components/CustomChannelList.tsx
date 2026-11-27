@@ -34,6 +34,8 @@ export default function CustomChannelList() {
     null;
   const activeChannel = discordCtx?.activeChannel || null;
                (peerUser?.online ? "online" : "offline");
+               const setActiveChannel = discordCtx?.setActiveChannel;
+
 
   const [channels, setChannels] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -678,13 +680,14 @@ useEffect(() => {
                setPresence(next);
                setStoredPresence(next);
                           try {
-              await client?.partialUpdateUser?.({
-                id: currentUserId,
-                set: {
-                  presence_status: next,
-                  invisible: next === "offline",
-                },
-              } as any);
+              await (client as any)?.partialUpdateUser?.({
+  id: currentUserId,
+  set: {
+    presence_status: next,
+    invisible: next === "offline",
+  },
+});
+
             } catch {}
              }}
              onClose={() => setShowStatusPicker(false)}
