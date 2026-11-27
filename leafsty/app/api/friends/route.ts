@@ -15,7 +15,7 @@ async function getUserLists(serverClient: any, userId: string) {
     filter_conditions: { id: { $eq: userId } },
     limit: 1,
   });
-  const u = res?.users?.[0];
+  const u = Array.isArray(res?.users) ? res.users.at(0) : null;
   if (!u) return null;
   return {
     user: u,

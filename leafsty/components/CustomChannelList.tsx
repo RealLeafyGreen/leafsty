@@ -41,15 +41,6 @@ export default function CustomChannelList() {
 const [presence, setPresence] = useState<LeafstyPresence>("online");
 const [showStatusPicker, setShowStatusPicker] = useState(false);
 
-useEffect(() => {
-  setPresence(getStoredPresence());
-  const onStatus = (e: any) => {
-    if (e?.detail) setPresence(e.detail);
-  };
-  window.addEventListener("leafsty:status-changed", onStatus);
-  return () => window.removeEventListener("leafsty:status-changed", onStatus);
-}, []);
-
   const [showNewDm, setShowNewDm] = useState(false);
   const [dmTarget, setDmTarget] = useState("");
   const [creatingDm, setCreatingDm] = useState(false);
@@ -71,6 +62,19 @@ useEffect(() => {
       setDeclinedIds(savedDec);
     } catch {}
   }, []);
+
+    useEffect(() => {
+    const saved = getStoredPresence();
+    setPresence(saved);
+    if (currentUserId) {
+      setStoredPresence(saved, currentUserId);
+    }
+    const onStatus = (e: any) => {
+      if (e?.detail) setPresence(e.detail);
+    };
+    window.addEventListener("leafsty:status-changed", onStatus);
+    return () => window.removeEventListener("leafsty:status-changed", onStatus);
+  }, [currentUserId]);
 
   useEffect(() => {
     if (!client || !currentUserId) return;
@@ -170,6 +174,14 @@ useEffect(() => {
     client.on?.("notification.added_to_channel", scheduleSilentRefresh);
     client.on?.("notification.message_new", scheduleSilentRefresh);
     client.on?.("channel.visible", scheduleSilentRefresh);
+        const handleUserPresence = () => {
+      setChannels((prev) => [...prev]);
+    };
+    client.on?.("user.updated", handleUserPresence);
+    client.on?.("user.presence.changed", handleUserPresence);
+      client.off?.("user.updated", handleUserPresence);
+      client.off?.("user.presence.changed", handleUserPresence);
+
     window.addEventListener("leafsty:channels-updated", handleManualRefresh);
 
     const pollInterval = setInterval(() => {
@@ -182,6 +194,8 @@ useEffect(() => {
       clearInterval(pollInterval);
       client.off?.("notification.added_to_channel", scheduleSilentRefresh);
       client.off?.("notification.message_new", scheduleSilentRefresh);
+            client.off?.("user.updated", handleUserPresence);
+      client.off?.("user.presence.changed", handleUserPresence);
       client.off?.("channel.visible", scheduleSilentRefresh);
       window.removeEventListener("leafsty:channels-updated", handleManualRefresh);
     };
@@ -674,20 +688,10 @@ useEffect(() => {
          <div className="absolute bottom-full left-2.5 mb-2 z-50">
            <LeafstyStatusPicker
              current={presence}
-             onSelect={async (next) => {
-               setPresence(next);
-               setStoredPresence(next);
-                          try {
-              await (client as any)?.partialUpdateUser?.({
-  id: currentUserId,
-  set: {
-    presence_status: next,
-    invisible: next === "offline",
-  },
-});
-
-            } catch {}
-             }}
+                            onSelect={async (next) => {
+                  setPresence(next);
+                  await setStoredPresence(next, currentUserId);
+                }}
              onClose={() => setShowStatusPicker(false)}
            />
          </div>
