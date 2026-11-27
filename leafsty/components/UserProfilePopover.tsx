@@ -92,7 +92,8 @@ const [friendReqMsg, setFriendReqMsg] = useState("");
   .trim()
   .toLowerCase();
 const targetProfileId = String(user?.id || "").trim().toLowerCase();
-const isViewingSelf = Boolean(myUserId) && myUserId === targetProfileId;
+const isViewingSelf =
+  Boolean(myUserId) && myUserId === targetProfileId;
 
 const handleAddFriendFromProfile = async () => {
   if (!myUserId || !targetProfileId || isViewingSelf) return;
@@ -249,7 +250,7 @@ const rawPresence: LeafstyPresence = isViewingSelf
             <h3 className="text-base font-bold text-zinc-900 leading-tight truncate">
               {displayName}
             </h3>
-            {onEditProfile && (
+            {isViewingSelf && onEditProfile && (
               <button
                 type="button"
                 onClick={onEditProfile}
