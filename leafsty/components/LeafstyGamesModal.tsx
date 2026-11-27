@@ -269,15 +269,17 @@ export default function LeafstyGamesModal({
   const [tttStatus, setTttStatus] = useState<string>("Your turn (🌿)");
 
   const checkWinner = (b: (string | null)[]) => {
-   const lines = [,
-    ,
-,
-,
-,
-,
-,
-,
-];
+  const lines = Array.of(
+  Array.of(0, 1, 2),
+  Array.of(3, 4, 5),
+  Array.of(6, 7, 8),
+  Array.of(0, 3, 6),
+  Array.of(1, 4, 7),
+  Array.of(2, 5, 8),
+  Array.of(0, 4, 8),
+  Array.of(2, 4, 6)
+);
+
 
     for (const [a, c, d] of lines) {
       if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
