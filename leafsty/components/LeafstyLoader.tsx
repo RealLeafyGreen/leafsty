@@ -157,15 +157,23 @@ export default function LeafstyLoader({
           <span className="absolute inset-0 rounded-full border-2 border-emerald-400/25 animate-ping" />
           <span className="absolute inset-1 rounded-full border-2 border-emerald-400/50 shadow-[0_0_25px_rgba(52,211,153,0.25)]" />
           <div className="relative w-28 h-28 rounded-full bg-[#0b211a]/90 border border-emerald-400/35 flex items-center justify-center overflow-hidden shadow-2xl">
-            <video
+                        <video
               ref={videoRef}
-              src={mediaSrc}
+              src="/loadingLeafsty.mp4"
               autoPlay
               loop
               muted
               playsInline
-              onError={handleMediaError}
-              className="hidden"
+              preload="auto"
+              onCanPlay={() => videoRef.current?.play().catch(() => {})}
+              onError={() => setUseFallback(true)}
+              className="opacity-0 pointer-events-none absolute w-px h-px"
+            />
+            <canvas
+              ref={canvasRef}
+              width={140}
+              height={140}
+              className="w-24 h-24 object-contain"
             />
             <canvas
               ref={canvasRef}

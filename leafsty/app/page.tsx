@@ -139,7 +139,7 @@ function ConnectedWorkspace({
 
   if (!apiKey) {
     return (
-      <LeafstyEyesLoader
+      <LeafstyLoader
         label="Missing Stream API Key"
         error="NEXT_PUBLIC_STREAM_API_KEY is not set in Vercel Production environment variables."
         onLogout={onLogout}
@@ -149,7 +149,7 @@ function ConnectedWorkspace({
 
   if (!client) {
     return (
-      <LeafstyEyesLoader
+      <LeafstyLoader
         label={`Waking up Leafsty for ${currentUser.name || currentUser.id}...`}
         error={connectError}
         onLogout={onLogout}
@@ -398,7 +398,7 @@ const handleGoogleLogin = () => {
     }
   };
   if (!hydrated) {
-    return <LeafstyEyesLoader label="Loading Leafsty..." />;
+    return <LeafstyLoader label="Loading Leafsty..." />;
   }
 
   if (currentUser) {
