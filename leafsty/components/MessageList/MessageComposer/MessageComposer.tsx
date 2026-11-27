@@ -5,6 +5,7 @@ import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
+import LeafstyGamesModal from "../../LeafstyGamesModal";
 import {
   ADMIN_SLASH_COMMANDS,
   executeAdminCommand,
@@ -24,6 +25,7 @@ import {
   Mic,
   Square,
   Trash2,
+  Gamepad2
 } from "lucide-react";
 
 interface EmojiEntry {
@@ -213,6 +215,7 @@ export default function CustomMessageComposer({
   const [text, setText] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [showGames, setShowGames] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiSearch, setEmojiSearch] = useState("");
   const [emojiTab, setEmojiTab] = useState<
@@ -962,6 +965,18 @@ const recorder = mimeType
         </div>
       )}
 
+         {showGames && (
+     <div className="absolute bottom-full right-4 mb-2 z-40">
+       <LeafstyGamesModal
+         onClose={() => setShowGames(false)}
+         onShareResult={async (summaryText) => {
+           await sendPayload(summaryText);
+         }}
+       />
+     </div>
+   )}
+
+
       {showEmojiPicker && (
         <div className="absolute bottom-full right-14 mb-2 z-40 w-80 sm:w-96 rounded-2xl bg-[#081914] border border-emerald-500/25 shadow-2xl overflow-hidden">
           <div className="p-2.5 bg-[#061410] border-b border-emerald-500/15 space-y-2">
@@ -1377,18 +1392,40 @@ const recorder = mimeType
               className="w-full pl-3.5 pr-24 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
             />
 
+                          placeholder={`Message ${channelLabel} or type /poll...`}
+              className="w-full pl-3.5 pr-32 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+            />
+
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => {
                   setShowEmojiPicker(false);
+                  setShowGifPicker(false);
+                  setShowGames((v) => !v);
+                }}
+                title="Leafsty Arcade Games"
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
+                  showGames
+                    ? "bg-emerald-500/25 text-emerald-100"
+                    : "text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15"
+                }`}
+              >
+                <Gamepad2 className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmojiPicker(false);
+                  setShowGames(false);
                   setShowGifPicker((v) => !v);
                 }}
                 title="GIFs & Favorites"
                 className={`w-7 h-7 rounded-lg border text-[10px] font-extrabold tracking-tight flex items-center justify-center transition cursor-pointer ${
                   showGifPicker
-                    ? "bg-emerald-500/25 border-emerald-400 text-emerald-100"
-                    : "bg-[#081914] border-emerald-500/30 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/60"
+                    ? "bg-emerald-500/30 border-emerald-400 text-emerald-100"
+                    : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:text-emerald-50 hover:bg-emerald-500/25 hover:border-emerald-400/60"
                 }`}
               >
                 GIF
@@ -1398,6 +1435,7 @@ const recorder = mimeType
                 type="button"
                 onClick={() => {
                   setShowGifPicker(false);
+                  setShowGames(false);
                   setShowEmojiPicker((v) => !v);
                 }}
                 title="Emojis"
@@ -1408,6 +1446,7 @@ const recorder = mimeType
 
               <Lock className="w-3.5 h-3.5 text-emerald-400/50 ml-0.5 pointer-events-none" />
             </div>
+
           </div>
 
           <button
