@@ -6,6 +6,7 @@ import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
 import LeafstyGamesModal from "../../LeafstyGamesModal";
+import { enqueueOfflineMessage } from "../../LeafstyOfflineManager";
 import {
   ADMIN_SLASH_COMMANDS,
   executeAdminCommand,
@@ -424,7 +425,100 @@ export default function CustomMessageComposer({
   throw new Error(`Could not upload "${item.name}". Please try a smaller file.`);
 };
 
-      const sendPayload = async (rawText: string, attachments: any[] = []) => {
+    const sendPayload = async (rawText: string, attachments: any[] = []) => {
+  const trimmed = rawText.trim();
+  if ((!trimmed && attachments.length === 0) || !channel) return;
+  if (sendingRef.current) return;
+  sendingRef.current = true;
+
+  try {
+    const currentUserId = String(
+      client?.userID || (client?.user as any)?.id || ""
+    );
+
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg = {
+      id: tempId,
+      text: trimmed,
+      attachments,
+      type: "regular",
+      cid: channel.cid || `${channel.type || "messaging"}:${channel.id}`,
+      user: {
+        id: currentUserId,
+        name: (client?.user as any)?.name || currentUserId,
+        image: (client?.user as any)?.image,
+      },
+      created_at: new Date().toISOString(),
+    };
+
+    window.dispatchEvent(
+      new CustomEvent("leafsty:message-sent", { detail: optimisticMsg })
+    );
+    setText("");
+    setMentionQuery(null);
+    setSendError(null);
+    channel.stopTyping?.().catch(() => {});
+    const savedReplyId = replyTarget?.id;
+    onCancelReply?.();
+    inputRef.current?.focus();
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueOfflineMessage({
+        channelType: channel.type || "messaging",
+        channelId: String(channel.id),
+        userId: currentUserId,
+        text: trimmed,
+        attachments,
+        parent_id: savedReplyId || undefined,
+      });
+      return;
+    }
+
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channelType: channel.type || "messaging",
+        channelId: channel.id,
+        userId: currentUserId,
+        text: trimmed,
+        attachments,
+        parent_id: savedReplyId || undefined,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || `Send failed (${res.status})`);
+    }
+
+    if (data?.message) {
+      window.dispatchEvent(
+        new CustomEvent("leafsty:message-sent", {
+          detail: { ...data.message, _replaceId: tempId },
+        })
+      );
+    }
+  } catch (err: any) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const currentUserId = String(
+        client?.userID || (client?.user as any)?.id || ""
+      );
+      enqueueOfflineMessage({
+        channelType: channel.type || "messaging",
+        channelId: String(channel.id),
+        userId: currentUserId,
+        text: trimmed,
+        attachments,
+      });
+      return;
+    }
+    setSendError(err?.message || "Could not send message");
+  } finally {
+    sendingRef.current = false;
+  }
+};
+
     const trimmed = rawText.trim();
     if ((!trimmed && attachments.length === 0) || !channel) return;
     if (sendingRef.current) return;
