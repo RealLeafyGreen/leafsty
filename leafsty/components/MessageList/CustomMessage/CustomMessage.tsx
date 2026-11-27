@@ -177,13 +177,14 @@ export default function CustomMessage({
 
   if (!message) return null;
 
-  const formattedDateTime = formatMessageDateTime(
+  const formattedDateTime =
+  formatMessageDateTime(
     message.created_at ??
       message.createdAt ??
       message.updated_at ??
-      message.timestamp ??
-      Date.now()
-  );
+      message.timestamp
+  ) || formatMessageDateTime(Date.now());
+
 
   const seenByUsers = (() => {
     if (!isOwn || !activeChannel?.state?.read || !message.created_at) return [];
@@ -447,13 +448,13 @@ export default function CustomMessage({
 
           <span className="inline-flex items-center gap-1.5 shrink-0">
             {formattedDateTime && (
-              <span className="text-[10px] text-emerald-300/70 font-medium whitespace-nowrap">
-                {formattedDateTime}
-              </span>
-            )}
-            <Lock className="w-2.5 h-2.5 text-emerald-400/50 shrink-0" />
-          </span>
-
+              <span
+  style={{ display: "inline-flex" }}
+  className="items-center gap-1.5 shrink-0 min-w-fit text-[10px] text-emerald-300/75 font-medium whitespace-nowrap"
+>
+  <span>{formattedDateTime}</span>
+  <Lock className="w-2.5 h-2.5 text-emerald-400/50 shrink-0" />
+</span>
           {isOwn && seenByUsers.length > 0 && (
             <span
               title={`Seen by ${seenByUsers.map((u) => u.name).join(", ")}`}
