@@ -22,7 +22,6 @@ export default function LeafstyLoader({
 }: LeafstyLoaderProps) {
   const [stalled, setStalled] = useState(false);
   const [useFallback, setUseFallback] = useState(false);
- const [mediaSrc, setMediaSrc] = useState<string>("/loadingLeafsty.mp4");
   const [progress, setProgress] = useState(14);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -33,7 +32,6 @@ export default function LeafstyLoader({
     return () => clearTimeout(timer);
   }, []);
 
-  // Smooth progress bar animation
   useEffect(() => {
     const interval = setInterval(() => {
       setProgress((prev) => {
@@ -45,13 +43,12 @@ export default function LeafstyLoader({
     return () => clearInterval(interval);
   }, []);
 
-  // Edge-connected background removal so outer off-white turns transparent while inner white eyes stay intact
   useEffect(() => {
     if (useFallback) return;
     let rafId = 0;
     let cancelled = false;
 
-        const removeOuterWhite = (
+    const removeOuterWhite = (
       ctx: CanvasRenderingContext2D,
       w: number,
       h: number
@@ -69,7 +66,6 @@ export default function LeafstyLoader({
         const b = data[idx + 2];
         const max = Math.max(r, g, b);
         const min = Math.min(r, g, b);
-        // Catch off-white background + MP4 compression halo around the outer leaf
         return max > 195 && max - min < 48;
       };
 
@@ -104,16 +100,13 @@ export default function LeafstyLoader({
         push(x, y - 1);
       }
 
-      // 1-pixel outer fringe cleanup for anti-aliased light halo pixels
       for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
           const p = y * w + x;
           if (visited[p]) continue;
           const idx = p * 4;
           const r = data[idx];
-          const g = data[idx + 1];
           const b = data[idx + 2];
-          // Check if adjacent to cleared background
           const touchesBg =
             visited[p - 1] ||
             visited[p + 1] ||
@@ -127,59 +120,6 @@ export default function LeafstyLoader({
 
       ctx.putImageData(imgData, 0, 0);
     };
-    
-      const imgData = ctx.getImageData(0, 0, w, h);
-      const data = imgData.data;
-      const visited = new Uint8Array(w * h);
-      const queue = new Int32Array(w * h);
-      let head = 0;
-      let tail = 0;
-
-      const isBgColor = (idx: number) => {
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        // Outer off-white background (bright + low saturation)
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        return max > 215 && max - min < 32;
-      };
-
-      const push = (x: number, y: number) => {
-        if (x < 0 || x >= w || y < 0 || y >= h) return;
-        const p = y * w + x;
-        if (visited[p]) return;
-        const idx = p * 4;
-        if (!isBgColor(idx)) return;
-        visited[p] = 1;
-        queue[tail++] = p;
-      };
-
-      // Seed flood-fill from all 4 borders so enclosed white eyes inside the leaf are untouched
-      for (let x = 0; x < w; x++) {
-        push(x, 0);
-        push(x, h - 1);
-      }
-      for (let y = 0; y < h; y++) {
-        push(0, y);
-        push(w - 1, y);
-      }
-
-      while (head < tail) {
-        const p = queue[head++];
-        const idx = p * 4;
-        data[idx + 3] = 0; // Transparent background
-        const x = p % w;
-        const y = (p - x) / w;
-        push(x + 1, y);
-        push(x - 1, y);
-        push(x, y + 1);
-        push(x, y - 1);
-      }
-
-      ctx.putImageData(imgData, 0, 0);
-    };
-
     const drawLoop = () => {
       if (cancelled) return;
       const video = videoRef.current;
@@ -190,7 +130,6 @@ export default function LeafstyLoader({
           const w = canvas.width;
           const h = canvas.height;
           ctx.clearRect(0, 0, w, h);
-          // Crop centered square around the leaf so side black letterbox bars are excluded
           const vw = video.videoWidth || w;
           const vh = video.videoHeight || h;
           const side = Math.min(vw, vh);
@@ -208,7 +147,7 @@ export default function LeafstyLoader({
       cancelled = true;
       cancelAnimationFrame(rafId);
     };
-  }, [useFallback, mediaSrc]);
+  }, [useFallback]);
 
   const heading =
     label ||
@@ -216,14 +155,9 @@ export default function LeafstyLoader({
       ? `Waking up Leafsty for ${username}...`
       : "Waking up Leafsty...");
 
-  const handleMediaError = () => {
-  setUseFallback(true);
-};
-
-
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none px-4">
-            {!useFallback ? (
+      {!useFallback ? (
         <>
           <video
             ref={videoRef}
@@ -239,7 +173,6 @@ export default function LeafstyLoader({
           />
 
           <div className="relative flex items-center justify-center w-32 h-32 mb-6 mx-auto">
-            {/* Outer glowing circle rings */}
             <span className="absolute inset-0 rounded-full border-2 border-emerald-400/25 animate-ping pointer-events-none" />
             <span className="absolute inset-1 rounded-full border-2 border-emerald-400/50 shadow-[0_0_25px_rgba(52,211,153,0.25)] pointer-events-none" />
             <div className="relative w-28 h-28 rounded-full bg-[#0b211a]/90 border border-emerald-400/35 flex items-center justify-center overflow-hidden shadow-2xl">
@@ -253,8 +186,6 @@ export default function LeafstyLoader({
           </div>
         </>
       ) : (
-
-        /* Fallback Loader */
         <div className="relative flex items-center justify-center w-24 h-24 mb-6">
           <span className="absolute inset-0 rounded-full border-2 border-emerald-400/25 animate-ping" />
           <span className="absolute inset-1 rounded-full border border-emerald-400/40 animate-spin [animation-duration:6s]" />
@@ -273,7 +204,6 @@ export default function LeafstyLoader({
         <span>{sublabel}</span>
       </div>
 
-      {/* Progress bar */}
       <div className="mt-5 w-56 sm:w-64 h-2 rounded-full bg-[#0d261e] border border-emerald-500/25 overflow-hidden shadow-inner">
         <div
           style={{ width: `${progress}%` }}
