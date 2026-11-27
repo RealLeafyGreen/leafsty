@@ -592,7 +592,17 @@ useEffect(() => {
                 !isServerView &&
                 String(ch?.data?.invite_status || "") === "pending" &&
                 String(ch?.data?.invited_by || "") === currentUserId;
-              const otherMember: any = Object.values(
+                           const otherMember: any = Object.values(
+                ch?.state?.members || {}
+              ).find(
+                (m: any) =>
+                  String(m?.user?.id || m?.user_id) !== currentUserId
+              );
+              const peerUser = otherMember?.user;
+              const peerPresence = peerUser?.invisible
+                ? "offline"
+                : peerUser?.presence_status ||
+                  (peerUser?.online ? "online" : "offline");
                 ch?.state?.members || {}
               ).find(
                 (m: any) =>
