@@ -36,7 +36,6 @@ export default function CustomChannelList() {
   const setActiveChannel = discordCtx?.setActiveChannel;
 
   const [channels, setChannels] = useState<any[]>([]);
-  const [channels, setChannels] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
 const [presence, setPresence] = useState<LeafstyPresence>("online");
