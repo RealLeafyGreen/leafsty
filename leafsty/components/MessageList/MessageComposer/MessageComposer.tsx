@@ -1388,9 +1388,6 @@ const recorder = mimeType
                   channel?.stopTyping?.().catch(() => {});
                 }
               }}
-              placeholder={`Message ${channelLabel} or type /poll...`}
-              className="w-full pl-3.5 pr-24 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
-            />
 
                           placeholder={`Message ${channelLabel} or type /poll...`}
               className="w-full pl-3.5 pr-32 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
