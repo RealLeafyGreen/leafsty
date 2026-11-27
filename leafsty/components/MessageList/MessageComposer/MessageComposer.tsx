@@ -425,7 +425,7 @@ export default function CustomMessageComposer({
   throw new Error(`Could not upload "${item.name}". Please try a smaller file.`);
 };
 
-    const sendPayload = async (rawText: string, attachments: any[] = []) => {
+  const sendPayload = async (rawText: string, attachments: any[] = []) => {
   const trimmed = rawText.trim();
   if ((!trimmed && attachments.length === 0) || !channel) return;
   if (sendingRef.current) return;
@@ -462,7 +462,7 @@ export default function CustomMessageComposer({
     onCancelReply?.();
     inputRef.current?.focus();
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
       enqueueOfflineMessage({
         channelType: channel.type || "messaging",
         channelId: String(channel.id),
@@ -473,6 +473,51 @@ export default function CustomMessageComposer({
       });
       return;
     }
+
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channelType: channel.type || "messaging",
+        channelId: channel.id,
+        userId: currentUserId,
+        text: trimmed,
+        attachments,
+        parent_id: savedReplyId || undefined,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || `Send failed (${res.status})`);
+    }
+
+    if (data?.message) {
+      window.dispatchEvent(
+        new CustomEvent("leafsty:message-sent", {
+          detail: { ...data.message, _replaceId: tempId },
+        })
+      );
+    }
+  } catch (err: any) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const currentUserId = String(
+        client?.userID || (client?.user as any)?.id || ""
+      );
+      enqueueOfflineMessage({
+        channelType: channel.type || "messaging",
+        channelId: String(channel.id),
+        userId: currentUserId,
+        text: trimmed,
+        attachments,
+      });
+      return;
+    }
+    setSendError(err?.message || "Could not send message");
+  } finally {
+    sendingRef.current = false;
+  }
+};
 
   const cleanupAudioMonitor = () => {
     if (recordTimerRef.current) clearInterval(recordTimerRef.current);
