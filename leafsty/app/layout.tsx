@@ -36,6 +36,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#071410] text-emerald-50`}
       >
         {children}
+         <LeafstyContextMenu />
         <Script
           src="https://unpkg.com"
           crossOrigin="anonymous"

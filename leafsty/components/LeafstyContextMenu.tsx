@@ -28,7 +28,6 @@ export default function LeafstyContextMenu() {
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
-      // Allow native right-click inside text inputs/textareas so spellcheck & paste work normally
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (
@@ -40,11 +39,11 @@ export default function LeafstyContextMenu() {
       }
 
       e.preventDefault();
+      e.stopPropagation();
 
       const items: ContextItem[] = [];
       const selectedText = window.getSelection()?.toString().trim() || "";
 
-      // 1. Selected text copy
       if (selectedText) {
         items.push({
           label: "Copy Selected Text",
@@ -53,7 +52,6 @@ export default function LeafstyContextMenu() {
         });
       }
 
-      // 2. Right-clicked inside a chat message ([id^="msg-"])
       const msgEl = target.closest('[id^="msg-"]') as HTMLElement | null;
       if (msgEl) {
         const msgId = msgEl.id.replace(/^msg-/, "");
@@ -76,7 +74,6 @@ export default function LeafstyContextMenu() {
           onClick: () => navigator.clipboard?.writeText(msgId),
         });
 
-        // Trigger existing Reply button inside the message if available
         const replyBtn = msgEl.querySelector(
           'button[title="Reply"]'
         ) as HTMLButtonElement | null;
@@ -88,7 +85,6 @@ export default function LeafstyContextMenu() {
           });
         }
 
-        // Trigger existing Delete button if it's your own message
         const deleteBtn = msgEl.querySelector(
           'button[title="Delete Message"]'
         ) as HTMLButtonElement | null;
@@ -102,7 +98,6 @@ export default function LeafstyContextMenu() {
         }
       }
 
-      // 3. Right-clicked a user avatar/name button
       const profileBtn = target.closest(
         'button[title*="Profile"]'
       ) as HTMLButtonElement | null;
@@ -114,7 +109,6 @@ export default function LeafstyContextMenu() {
         });
       }
 
-      // 4. Universal Leafsty Quick Actions
       items.push(
         {
           label: "Open Leafsty Arcade",
@@ -135,7 +129,6 @@ export default function LeafstyContextMenu() {
         }
       );
 
-      // Keep menu inside viewport edges
       const menuW = 210;
       const menuH = items.length * 36 + 16;
       const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
@@ -149,14 +142,14 @@ export default function LeafstyContextMenu() {
       if (e.key === "Escape") setMenu(null);
     };
 
-    window.addEventListener("contextmenu", handleContextMenu);
-    window.addEventListener("click", closeMenu);
+    document.addEventListener("contextmenu", handleContextMenu, true);
+    document.addEventListener("click", closeMenu, true);
     window.addEventListener("scroll", closeMenu, true);
     window.addEventListener("keydown", onKeyDown);
 
     return () => {
-      window.removeEventListener("contextmenu", handleContextMenu);
-      window.removeEventListener("click", closeMenu);
+      document.removeEventListener("contextmenu", handleContextMenu, true);
+      document.removeEventListener("click", closeMenu, true);
       window.removeEventListener("scroll", closeMenu, true);
       window.removeEventListener("keydown", onKeyDown);
     };
@@ -166,9 +159,10 @@ export default function LeafstyContextMenu() {
 
   return (
     <div
-      style={{ top: menu.y, left: menu.x }}
+      style={{ top: menu.y, left: menu.x, zIndex: 99999 }}
       onClick={(e) => e.stopPropagation()}
-      className="fixed z-[9999] w-52 rounded-2xl bg-[#061410]/95 backdrop-blur-md border border-emerald-500/35 shadow-2xl p-1.5 text-emerald-50 select-none"
+      onContextMenu={(e) => e.preventDefault()}
+      className="fixed w-52 rounded-2xl bg-[#061410]/95 backdrop-blur-md border border-emerald-500/35 shadow-2xl p-1.5 text-emerald-50 select-none"
     >
       {menu.items.map((item, idx) => (
         <button
