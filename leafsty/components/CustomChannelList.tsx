@@ -603,14 +603,6 @@ useEffect(() => {
                 ? "offline"
                 : peerUser?.presence_status ||
                   (peerUser?.online ? "online" : "offline");
-                ch?.state?.members || {}
-              ).find(
-                (m: any) =>
-                  String(m?.user?.id || m?.user_id) !== currentUserId
-              );
-                ? "offline"
-                : peerUser?.presence_status ||
-                  (peerUser?.online ? "online" : "offline");
 
               return (
                 <button
