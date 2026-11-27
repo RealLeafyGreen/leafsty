@@ -55,6 +55,45 @@ export async function executeAdminCommand(params: {
   currentUserId: string;
   sendAnnouncement: (text: string) => Promise<void>;
 }): Promise<{ handled: boolean; error?: string }> {
+  const { rawText, channel, client, currentUserId } = params;
+  const trimmed = rawText.trim();
+  const [cmdRaw, ...restParts] = trimmed.split(/\s+/);
+  const cmd = cmdRaw.toLowerCase();
+  const argText = restParts.join(" ").trim();
+
+  const adminCmd = ADMIN_SLASH_COMMANDS.find((c) => c.cmd === cmd);
+  if (!adminCmd) return { handled: false };
+
+  const userRole = String((client?.user as any)?.role || "");
+  if (!isLeafstyAdmin(currentUserId, userRole)) {
+    return {
+      handled: true,
+      error: `Permission denied: ${cmd} is restricted to Leafsty admins.`,
+    };
+  }
+
+  try {
+    const res = await fetch("/api/admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        command: cmd,
+        argText,
+        userId: currentUserId,
+        channelType: channel?.type || "messaging",
+        channelId: channel?.id || channel?.cid?.split(":")[1],
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { handled: true, error: data?.error || `Failed to run ${cmd}` };
+    }
+    return { handled: true };
+  } catch (err: any) {
+    return { handled: true, error: err?.message || `Failed to run ${cmd}` };
+  }
+}
+ Promise<{ handled: boolean; error?: string }> {
   const { rawText, channel, client, currentUserId, sendAnnouncement } = params;
   const trimmed = rawText.trim();
   const [cmdRaw, ...restParts] = trimmed.split(/\s+/);

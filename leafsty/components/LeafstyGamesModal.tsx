@@ -46,7 +46,7 @@ export default function LeafstyGamesModal({
     if (!snakeRunning || tab !== "snake") return;
     const t = setInterval(() => {
       setSnake((prev) => {
-        const head = { x: prev.x + dir.x, y: prev.y + dir.y };
+        const head = { x: prev[0].x + dir.x, y: prev[0].y + dir.y };
         if (
           head.x < 0 ||
           head.x >= GRID ||
@@ -269,15 +269,16 @@ export default function LeafstyGamesModal({
   const [tttStatus, setTttStatus] = useState<string>("Your turn (🌿)");
 
   const checkWinner = (b: (string | null)[]) => {
-    const lines = [,
- ,
- ,
- ,
- ,
- ,
- ,
- ,
-    ];
+   const lines = [,
+    ,
+,
+,
+,
+,
+,
+,
+];
+
     for (const [a, c, d] of lines) {
       if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
     }

@@ -225,7 +225,15 @@ export default function GameCard({
     const board: string[] = Array.isArray(state.board) ? [...state.board] : Array(9).fill("");
     if (board[idx]) return;
     board[idx] = isHost ? "🌿" : "🔥";
-    const lines = [,,,,,,,];
+    const lines = [,
+ ,
+ ,
+ ,
+ ,
+ ,
+ ,
+ ,
+];
     const won = lines.some(([a, b, c]) => board[a] && board[a] === board[b] && board[a] === board[c]);
     const draw = !won && board.every(Boolean);
     pushGameState({
