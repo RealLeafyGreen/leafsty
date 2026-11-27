@@ -648,8 +648,54 @@ export default function CustomChannelList() {
                   type="text"
                   value={dmTarget}
                   onChange={(e) => setDmTarget(e.target.value)}
-                  placeholder="e.g. testuser"
+                                  placeholder="e.g. testuser"
                   autoFocus
                   className="w-full px-3 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
                 />
-           
+              </div>
+
+              {dmError && (
+                <div className="px-3 py-2 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300">
+                  {dmError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={creatingDm || !dmTarget.trim()}
+                className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-45 text-white font-extrabold text-xs transition cursor-pointer"
+              >
+                {creatingDm ? "Sending DM invite..." : "Send DM Invite"}
+              </button>
+            </form>
+
+            {knownUsers.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-emerald-500/15">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/60 mb-2">
+                  People on Leafsty
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1">
+                  {knownUsers.map((u: any) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => handleCreateDm(u.id)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl hover:bg-emerald-500/15 text-left transition cursor-pointer"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-[11px] flex items-center justify-center">
+                        {(u.name || u.id).charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-bold text-emerald-100 truncate">
+                        {u.name || u.id}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
