@@ -161,8 +161,6 @@ const handleAddFriendFromProfile = async () => {
         year: "numeric",
       })
     : "Recently joined";
-const isViewingSelf =
-  String(user?.id || "") === String(client?.user?.id || client?.userID || "");
 const rawPresence: LeafstyPresence = isViewingSelf
   ? getStoredPresence()
   : liveMemberUser?.invisible || user?.invisible
