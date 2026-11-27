@@ -59,6 +59,10 @@ export default function UserProfilePopover({
   onSendQuickMessage,
 }: UserProfilePopoverProps) {
   const { client } = useChatContext() as any;
+  const [friendReqState, setFriendReqState] = useState<
+  "idle" | "sending" | "sent" | "error"
+>("idle");
+const [friendReqMsg, setFriendReqMsg] = useState("");
   const discordCtx = useDiscordContext() as any;
   const activeChannel = discordCtx?.activeChannel || null;
 
@@ -83,6 +87,42 @@ export default function UserProfilePopover({
       return {};
     }
   })();
+
+  const myUserId = String(client?.user?.id || client?.userID || "")
+  .trim()
+  .toLowerCase();
+const targetProfileId = String(user?.id || "").trim().toLowerCase();
+const isViewingSelf = Boolean(myUserId) && myUserId === targetProfileId;
+
+const handleAddFriendFromProfile = async () => {
+  if (!myUserId || !targetProfileId || isViewingSelf) return;
+  setFriendReqState("sending");
+  setFriendReqMsg("");
+  try {
+    const res = await fetch("/api/friends", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "send",
+        userId: myUserId,
+        targetId: targetProfileId,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setFriendReqState("error");
+      setFriendReqMsg(data?.error || "Could not send request");
+    } else {
+      setFriendReqState("sent");
+      setFriendReqMsg(
+        data?.autoAccepted ? "You are now friends!" : "Friend request sent!"
+      );
+    }
+  } catch {
+    setFriendReqState("error");
+    setFriendReqMsg("Network error");
+  }
+};
 
   const resolvedPronouns =
     user?.pronouns ||
@@ -294,6 +334,28 @@ const rawPresence: LeafstyPresence = isViewingSelf
         </div>
 
         {/* Quick DM Input */}
+               {!isViewingSelf && targetProfileId && (
+         <div className="mt-3 space-y-1.5">
+           <button
+             type="button"
+             disabled={friendReqState === "sending" || friendReqState === "sent"}
+             onClick={handleAddFriendFromProfile}
+             className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-extrabold text-xs transition cursor-pointer"
+           >
+             {friendReqState === "sending"
+               ? "Sending Friend Request..."
+               : friendReqState === "sent"
+               ? friendReqMsg || "Friend Request Sent"
+               : `+ Add Friend`}
+           </button>
+           {friendReqState === "error" && friendReqMsg && (
+             <p className="text-[11px] font-semibold text-red-600 text-center">
+               {friendReqMsg}
+             </p>
+           )}
+         </div>
+       )}
+
         {onSendQuickMessage && (
           <form onSubmit={handleQuickSubmit} className="mt-3 flex gap-1.5">
             <input
