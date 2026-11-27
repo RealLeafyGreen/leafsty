@@ -47,9 +47,10 @@ export function getStoredPresence(): LeafstyPresence {
 
 export async function setStoredPresence(
   status: LeafstyPresence,
-  userId?: string
+  userId?: string,
+  persistLocal = true
 ) {
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && persistLocal) {
     localStorage.setItem(STATUS_STORAGE_KEY, status);
     window.dispatchEvent(
       new CustomEvent("leafsty:status-changed", { detail: status })
@@ -59,10 +60,12 @@ export async function setStoredPresence(
     await fetch("/api/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      keepalive: true,
       body: JSON.stringify({ userId, status }),
     }).catch(() => {});
   }
 }
+
 
 /** Discord-style animated SVG status indicator dot */
 export function LeafstyStatusDot({

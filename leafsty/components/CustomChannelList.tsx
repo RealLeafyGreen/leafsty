@@ -67,14 +67,38 @@ const [showStatusPicker, setShowStatusPicker] = useState(false);
     const saved = getStoredPresence();
     setPresence(saved);
     if (currentUserId) {
-      setStoredPresence(saved, currentUserId);
+      setStoredPresence(saved, currentUserId, true);
     }
+
     const onStatus = (e: any) => {
       if (e?.detail) setPresence(e.detail);
     };
     window.addEventListener("leafsty:status-changed", onStatus);
-    return () => window.removeEventListener("leafsty:status-changed", onStatus);
+
+    const markOfflineOnClose = () => {
+      if (!currentUserId) return;
+      const payload = JSON.stringify({
+        userId: currentUserId,
+        status: "offline",
+      });
+      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon("/api/status", blob);
+      } else {
+        setStoredPresence("offline", currentUserId, false);
+      }
+    };
+
+    window.addEventListener("pagehide", markOfflineOnClose);
+    window.addEventListener("beforeunload", markOfflineOnClose);
+
+    return () => {
+      window.removeEventListener("leafsty:status-changed", onStatus);
+      window.removeEventListener("pagehide", markOfflineOnClose);
+      window.removeEventListener("beforeunload", markOfflineOnClose);
+    };
   }, [currentUserId]);
+
 
   useEffect(() => {
     if (!client || !currentUserId) return;
