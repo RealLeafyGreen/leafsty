@@ -131,7 +131,7 @@ export default function LeafstyOfflineManager() {
           <span>Back online · Queued messages sent!</span>
         </div>
       ) : (
-        <div className="px-3.5 py-1.5 rounded-full bg-[#061410]/95 border border-amber-400/45 text-amber-200 text-xs font-extrabold shadow-xl flex items-center gap-2">
+              <div className="px-3.5 py-1.5 rounded-full bg-[#061410]/95 border border-amber-400/45 text-amber-200 text-xs font-extrabold shadow-xl flex items-center gap-2">
           {flushing ? (
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
           ) : (
@@ -144,8 +144,12 @@ export default function LeafstyOfflineManager() {
                 : "Offline Mode · Viewing cached Leafsty"
               : `Syncing ${queuedCount} queued message${queuedCount > 1 ? "s" : ""}...`}
           </span>
+
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("leafsty:open-lan-mesh"))}
+            className="pointer-events-auto ml-1 px-2.5 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold transition cursor-pointer"
+          >
+            LAN P2P
+          </button>
         </div>
-      )}
-    </div>
-  );
-}

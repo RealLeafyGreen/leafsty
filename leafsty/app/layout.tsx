@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import LeafstyContextMenu from "../components/LeafstyContextMenu";
 import LeafstyOfflineManager from "../components/LeafstyOfflineManager";
+import LeafstyOfflineMesh from "../components/LeafstyOfflineMesh";
 
 export const metadata: Metadata = {
   title: "Leafsty",
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body>
         <LeafstyContextMenu />
         <LeafstyOfflineManager />
+<LeafstyOfflineMesh />
         {children}
       </body>
     </html>

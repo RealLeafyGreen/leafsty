@@ -106,32 +106,11 @@ function ConnectedWorkspace({
   );
 
   const tokenProvider = useCallback(async () => {
-    const uid = encodeURIComponent(currentUser.id);
-    const postRes = await fetch("/api/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: currentUser.id,
-        name: currentUser.name || currentUser.id,
-      }),
-    });
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return "offline-token";
+  }
+  const uid = encodeURIComponent(currentUser.id);
 
-    if (postRes.ok) {
-      const data = await postRes.json().catch(() => ({}));
-      if (data?.token) return data.token;
-    }
-
-    const getRes = await fetch(`/api/token?userId=${uid}`);
-    const getData = await getRes.json().catch(() => ({}));
-    if (!getRes.ok || !getData?.token) {
-      const msg =
-        getData?.error ||
-        `Token error (${postRes.status}/${getRes.status}) — check STREAM_API_SECRET in Vercel`;
-      setConnectError(msg);
-      throw new Error(msg);
-    }
-    return getData.token;
-  }, [currentUser.id, currentUser.name]);
 
   const client = useCreateChatClient({
     apiKey,
@@ -149,7 +128,7 @@ function ConnectedWorkspace({
     );
   }
 
-  if (!client) {
+    if (!activeClient) {
     return (
       <LeafstyLoader
         label={`Waking up Leafsty for ${currentUser.name || currentUser.id}...`}
@@ -158,6 +137,15 @@ function ConnectedWorkspace({
       />
     );
   }
+
+  return (
+    <Chat client={activeClient} theme="str-chat__theme-dark">
+      <LeafstySoundManager />
+      <DiscordContextProvider>
+        <MyChat />
+      </DiscordContextProvider>
+    </Chat>
+  );
 
   return (
     <Chat client={client} theme="str-chat__theme-dark">

@@ -454,6 +454,19 @@ export default function CustomMessageComposer({
     window.dispatchEvent(
       new CustomEvent("leafsty:message-sent", { detail: optimisticMsg })
     );
+        window.dispatchEvent(
+      new CustomEvent("leafsty:message-sent", { detail: optimisticMsg })
+    );
+    window.dispatchEvent(
+      new CustomEvent("leafsty:lan-send", { detail: optimisticMsg })
+    );
+    setText("");
+    setMentionQuery(null);
+    setSendError(null);
+    channel.stopTyping?.().catch(() => {});
+    const savedReplyId = replyTarget?.id;
+    onCancelReply?.();
+    inputRef.current?.focus();
     setText("");
     setMentionQuery(null);
     setSendError(null);
