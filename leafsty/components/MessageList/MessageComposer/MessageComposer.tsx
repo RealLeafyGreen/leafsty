@@ -123,35 +123,6 @@ const SKIN_TONES = [
   { id: "dark", label: "Dark", mod: "\u{1F3FF}", swatch: "#5a3825" },
 ];
 
-const slashMatches = useMemo(() => {
-  const trimmed = text.trimStart();
-  if (!showSlashMenu && !trimmed.startsWith("/")) return [];
-
-  const currentUserId = String(
-    client?.userID || (client?.user as any)?.id || ""
-  );
-  const currentUserName = String((client?.user as any)?.name || "");
-  const canAdmin = isLeafstyAdmin(
-    currentUserId,
-    String((client?.user as any)?.role || ""),
-    [currentUserName]
-  );
-  const allCommands = canAdmin
-    ? [...SLASH_COMMANDS, ...ADMIN_SLASH_COMMANDS]
-    : SLASH_COMMANDS;
-
-  if (!trimmed.startsWith("/")) {
-    return allCommands;
-  }
-
-  const cmdToken = trimmed.split(/\s+/).toLowerCase();
-  const hasSpace = trimmed.includes(" ");
-  if (hasSpace) {
-    return allCommands.filter((c) => c.cmd === cmdToken);
-  }
-  return allCommands.filter((c) => c.cmd.startsWith(cmdToken));
-}, [text, client, showSlashMenu]);
-
 const SLASH_COMMANDS = [
   {
     cmd: "/poll",
