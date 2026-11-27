@@ -111,14 +111,57 @@ function ConnectedWorkspace({
   }
   const uid = encodeURIComponent(currentUser.id);
 
-
   const client = useCreateChatClient({
     apiKey,
     tokenOrProvider: tokenProvider,
     userData,
   });
 
-  if (!apiKey) {
+  const [isOffline, setIsOffline] = useState(
+    typeof navigator !== "undefined" ? !navigator.onLine : false
+  );
+
+  useEffect(() => {
+    const onOff = () => setIsOffline(true);
+    const onOn = () => setIsOffline(false);
+    window.addEventListener("offline", onOff);
+    window.addEventListener("online", onOn);
+    return () => {
+      window.removeEventListener("offline", onOff);
+      window.removeEventListener("online", onOn);
+    };
+  }, []);
+
+  const offlineClient = useMemo(() => {
+    const stubChannel = (type: string, id: string) => ({
+      type,
+      id,
+      cid: `${type}:${id}`,
+      data: { name: id },
+      state: { messages: [], members: {} },
+      watch: async () => ({}),
+      query: async () => ({ messages: [] }),
+      on: () => {},
+      off: () => {},
+      markRead: async () => {},
+      keystroke: async () => {},
+      stopTyping: async () => {},
+      countUnread: () => 0,
+    });
+    return {
+      userID: currentUser.id,
+      user: userData,
+      on: () => ({ unsubscribe: () => {} }),
+      off: () => {},
+      queryChannels: async () => [],
+      channel: stubChannel,
+      activeChannels: {},
+    } as any;
+  }, [currentUser.id, userData]);
+
+  const activeClient = client || (isOffline ? offlineClient : null);
+
+  if (!apiKey && !isOffline) {
     return (
       <LeafstyLoader
         label="Missing Stream API Key"
@@ -128,7 +171,7 @@ function ConnectedWorkspace({
     );
   }
 
-    if (!activeClient) {
+  if (!activeClient) {
     return (
       <LeafstyLoader
         label={`Waking up Leafsty for ${currentUser.name || currentUser.id}...`}
@@ -141,15 +184,6 @@ function ConnectedWorkspace({
   return (
     <Chat client={activeClient} theme="str-chat__theme-dark">
       <LeafstySoundManager />
-      <DiscordContextProvider>
-        <MyChat />
-      </DiscordContextProvider>
-    </Chat>
-  );
-
-  return (
-    <Chat client={client} theme="str-chat__theme-dark">
-    <LeafstySoundManager />
       <DiscordContextProvider>
         <MyChat />
       </DiscordContextProvider>
