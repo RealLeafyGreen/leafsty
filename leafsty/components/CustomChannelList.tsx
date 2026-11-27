@@ -69,7 +69,7 @@ export default function CustomChannelList() {
             body: JSON.stringify({
               action: "list",
               userId: currentUserId,
-              serverId: activeServer?.id || null,
+              serverId: activeServer?.id || activeServer?.name || null,
             }),
           })
             .then((r) => r.json())
@@ -83,7 +83,7 @@ export default function CustomChannelList() {
               sort: [{ field: "last_message_at", direction: -1 }],
               watch: true,
               state: true,
-              limit: 30,
+              limit: 40,
             })
             .catch(() => ({ channels: [] })),
         ]);
@@ -166,7 +166,49 @@ export default function CustomChannelList() {
       client.off?.("channel.visible", scheduleSilentRefresh);
       window.removeEventListener("leafsty:channels-updated", handleManualRefresh);
     };
-  }, [client, currentUserId, activeServer?.id]);
+  }, [client, currentUserId, activeServer?.id, activeServer?.name]);
+
+  const handleCreateServerChannel = async () => {
+    const srvName = String(activeServer?.name || activeServer?.id || "").trim();
+    if (!srvName || !client) return;
+    const rawName = window.prompt("New text channel name (e.g. memes, clips):");
+    const cleanName = String(rawName || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "-");
+    if (!cleanName) return;
+
+    const slugSrv = srvName.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+    const channelId = `${slugSrv}-${cleanName}-${Date.now().toString(36).slice(-4)}`;
+
+    const newCh = client.channel("messaging", channelId, {
+      name: cleanName,
+      server: srvName,
+      serverId: srvName,
+      members: [currentUserId],
+    } as any);
+    await newCh.watch({ state: true });
+
+    await fetch("/api/channel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create",
+        type: "messaging",
+        channelType: "messaging",
+        id: channelId,
+        channelId,
+        name: cleanName,
+        serverId: srvName,
+        userId: currentUserId,
+        members: [currentUserId],
+      }),
+    }).catch(() => {});
+
+    setChannels((prev) => [newCh, ...prev]);
+    setActiveChannel?.(newCh);
+    window.dispatchEvent(new Event("leafsty:server-updated"));
+  };
 
   const openNewDmModal = async () => {
     setDmTarget("");
@@ -317,21 +359,29 @@ export default function CustomChannelList() {
     const seenDmPeers = new Set<string>();
     const active: any[] = [];
     const invites: any[] = [];
+    const activeSrvKey = String(activeServer?.id || activeServer?.name || "").trim();
 
     for (const ch of channels) {
       if (declinedIds[ch.id]) continue;
 
-      const chServerId =
-        ch?.data?.serverId || ch?.data?.server_id || ch?.data?.server;
+      const chServerKey = String(
+        ch?.data?.server ||
+          ch?.data?.custom?.server ||
+          ch?.data?.serverId ||
+          ch?.data?.server_id ||
+          ""
+      ).trim();
       const isServerCh =
-        Boolean(chServerId) ||
+        Boolean(chServerKey) ||
         ch?.type === "team" ||
         String(ch?.id || "").startsWith("general-");
 
-      if (activeServer?.id) {
+      if (activeSrvKey) {
         const matchesServer =
-          String(chServerId || "") === String(activeServer.id) ||
-          String(ch?.id || "").includes(String(activeServer.id));
+          chServerKey.toLowerCase() === activeSrvKey.toLowerCase() ||
+          String(ch?.id || "")
+            .toLowerCase()
+            .includes(activeSrvKey.toLowerCase().replace(/\s+/g, "-"));
         if (!matchesServer) continue;
         if (!q || getChannelDisplayName(ch).toLowerCase().includes(q)) {
           active.push(ch);
@@ -374,8 +424,8 @@ export default function CustomChannelList() {
     }
 
     return { activeList: active, incomingInvites: invites };
-  }, [channels, activeServer?.id, searchQuery, currentUserId, acceptedIds, declinedIds]);
-  const isServerView = Boolean(activeServer?.id);
+  }, [channels, activeServer?.id, activeServer?.name, searchQuery, currentUserId, acceptedIds, declinedIds]);
+  const isServerView = Boolean(activeServer?.id || activeServer?.name);
 
   return (
     <>
@@ -481,16 +531,14 @@ export default function CustomChannelList() {
           <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-300/70">
             {isServerView ? "Text Channels" : "Direct Messages"}
           </span>
-          {!isServerView && (
-            <button
-              type="button"
-              onClick={openNewDmModal}
-              title="Send DM Invite"
-              className="p-1 rounded-md text-emerald-300/80 hover:text-emerald-50 hover:bg-emerald-500/20 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={isServerView ? handleCreateServerChannel : openNewDmModal}
+            title={isServerView ? "Create Text Channel" : "Send DM Invite"}
+            className="p-1 rounded-md text-emerald-300/80 hover:text-emerald-50 hover:bg-emerald-500/20 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
@@ -504,15 +552,13 @@ export default function CustomChannelList() {
               <p className="text-xs font-semibold text-emerald-100">
                 {isServerView ? "No channels yet" : "No DMs yet"}
               </p>
-              {!isServerView && (
-                <button
-                  type="button"
-                  onClick={openNewDmModal}
-                  className="mt-2.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer"
-                >
-                  + Send DM Invite
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={isServerView ? handleCreateServerChannel : openNewDmModal}
+                className="mt-2.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer"
+              >
+                {isServerView ? "+ Create Text Channel" : "+ Send DM Invite"}
+              </button>
             </div>
           ) : (
             activeList.map((ch) => {
@@ -648,7 +694,7 @@ export default function CustomChannelList() {
                   type="text"
                   value={dmTarget}
                   onChange={(e) => setDmTarget(e.target.value)}
-                                  placeholder="e.g. testuser"
+                  placeholder="e.g. testuser"
                   autoFocus
                   className="w-full px-3 py-2 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
                 />

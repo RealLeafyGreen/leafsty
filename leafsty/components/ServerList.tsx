@@ -39,12 +39,14 @@ export default function ServerList() {
         const custom = ch.custom || ch.data?.custom || ch.data || {};
         const serverName = custom.server || ch.data?.server || ch.server;
 
-        if (serverName && !serversMap.has(serverName)) {
+               if (serverName && !serversMap.has(serverName)) {
           serversMap.set(serverName, {
+            id: serverName,
             name: serverName,
             image: ch.image || ch.data?.image || custom.image || "",
-          });
+          } as any);
         }
+
       });
 
       const uniqueServers = Array.from(serversMap.values());

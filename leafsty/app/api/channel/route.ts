@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       const cId = String(body?.channelId || body?.id || "");
       const creatorId = String(body?.userId || "");
       const members = Array.isArray(body?.members) ? body.members : [];
+      const srv = body?.serverId || body?.server || "";
 
       if (!cId || !creatorId) {
         return NextResponse.json(
@@ -56,8 +57,8 @@ export async function POST(req: NextRequest) {
         created_by_id: creatorId,
         members,
         ...(body?.name ? { name: body.name } : {}),
-        ...(body?.serverId ? { serverId: body.serverId } : {}),
-        ...(cType === "messaging" && !body?.serverId
+        ...(srv ? { serverId: srv, server: srv } : {}),
+        ...(cType === "messaging" && !srv
           ? { invite_status: "pending", invited_by: creatorId }
           : {}),
       });
