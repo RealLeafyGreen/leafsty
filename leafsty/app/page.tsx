@@ -6,6 +6,7 @@ import MyChat from "../components/mychat";
 import LandingPage from "../components/landingPage";
 import { DiscordContextProvider } from "../types/DiscordContext";
 import { Lock, Eye, EyeOff, ArrowRight, RotateCcw } from "lucide-react";
+import LeafstyLoader from "../components/LeafstyLoader";
 
 interface SavedUser {
   id: string;
