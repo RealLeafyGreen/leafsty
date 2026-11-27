@@ -319,7 +319,8 @@ export default function MyChat() {
       window.removeEventListener("focus", markActiveRead);
       document.removeEventListener("visibilitychange", markActiveRead);
     };
-  }, [activeChannel?.id, client, currentUserId]);
+  }, [activeChannel?.cid, activeChannel?.id, client, currentUserId]);
+
 
 
   useEffect(() => {

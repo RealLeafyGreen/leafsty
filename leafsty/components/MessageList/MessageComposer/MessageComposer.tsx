@@ -6,6 +6,11 @@ import { useDiscordContext } from "../../../types/DiscordContext";
 import { ReplyTarget } from "../CustomMessage/CustomMessage";
 import KlipyGifPicker, { KlipyGifItem } from "./KlipyGifPicker";
 import {
+  ADMIN_SLASH_COMMANDS,
+  executeAdminCommand,
+  isLeafstyAdmin,
+} from "../../../utils/adminCommands";
+import {
   Send,
   X,
   Lock,
@@ -744,6 +749,28 @@ const recorder = mimeType
     }
 
     const trimmed = text.trim();
+    if (trimmed.startsWith("/")) {
+  const currentUserId = String(
+    client?.userID || (client?.user as any)?.id || ""
+  );
+  const adminResult = await executeAdminCommand({
+    rawText: trimmed,
+    channel,
+    client,
+    currentUserId,
+    sendAnnouncement: async (msg) => {
+      await sendPayload(msg);
+    },
+  });
+  if (adminResult.handled) {
+    if (adminResult.error) {
+      setSendError(adminResult.error);
+    } else {
+      setText("");
+    }
+    return;
+  }
+}
     if (trimmed.toLowerCase().startsWith("/poll")) {
       const rawPoll = trimmed.slice(5).trim();
       const parts = rawPoll
@@ -880,12 +907,22 @@ const recorder = mimeType
       .slice(0, 7);
   }, [mentionQuery, channel?.state?.members]);
 
-  const slashMatches = useMemo(() => {
-    const trimmed = text.trimStart();
-    if (!trimmed.startsWith("/") || trimmed.includes(" ")) return [];
-    const q = trimmed.toLowerCase();
-    return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(q));
-  }, [text]);
+ const slashMatches = useMemo(() => {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith("/") || trimmed.includes(" ")) return [];
+  const q = trimmed.toLowerCase();
+  const currentUserId = String(
+    client?.userID || (client?.user as any)?.id || ""
+  );
+  const canAdmin = isLeafstyAdmin(
+    currentUserId,
+    String((client?.user as any)?.role || "")
+  );
+  const allCommands = canAdmin
+    ? [...SLASH_COMMANDS, ...ADMIN_SLASH_COMMANDS]
+    : SLASH_COMMANDS;
+  return allCommands.filter((c) => c.cmd.startsWith(q));
+}, [text, client]);
 
   const handleSelectMention = (tag: string) => {
     setText((prev) => prev.replace(/(^|\s)@[a-zA-Z0-9_.-]*$/, `$1${tag} `));
