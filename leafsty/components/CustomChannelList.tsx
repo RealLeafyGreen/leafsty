@@ -630,17 +630,6 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
-          <button
-            type="button"
-            onClick={isServerView ? handleCreateServerChannel : openNewDmModal}
-            title={isServerView ? "Create Text Channel" : "Send DM Invite"}
-            className="p-1 rounded-md text-emerald-300/80 hover:text-emerald-50 hover:bg-emerald-500/20 transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-
                 <div className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
           {loading && activeList.length === 0 ? (
             <div className="px-3 py-4 text-xs text-emerald-300/50">
