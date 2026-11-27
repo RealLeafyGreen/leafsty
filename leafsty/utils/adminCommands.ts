@@ -1,13 +1,26 @@
 const ADMIN_USER_IDS = new Set([
   "leafygreen",
+  "realleafygreen",
   "jomkos",
 ]);
 
-export function isLeafstyAdmin(userId: string, userRole?: string): boolean {
-  const clean = String(userId || "").trim().toLowerCase();
-  if (!clean) return false;
+export function isLeafstyAdmin(
+  userId: string,
+  userRole?: string,
+  extraNames: string[] = []
+): boolean {
   if (userRole === "admin" || userRole === "owner") return true;
-  return ADMIN_USER_IDS.has(clean);
+  const candidates = [userId, ...extraNames]
+    .map((v) => String(v || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  return candidates.some(
+    (clean) =>
+      ADMIN_USER_IDS.has(clean) ||
+      clean.startsWith("leafygreen") ||
+      clean.startsWith("realleafygreen") ||
+      clean.startsWith("jomkos")
+  );
 }
 
 export const ADMIN_SLASH_COMMANDS = [
@@ -65,10 +78,11 @@ export async function executeAdminCommand(params: {
   if (!adminCmd) return { handled: false };
 
   const userRole = String((client?.user as any)?.role || "");
-  if (!isLeafstyAdmin(currentUserId, userRole)) {
+  const userName = String((client?.user as any)?.name || "");
+  if (!isLeafstyAdmin(currentUserId, userRole, [userName])) {
     return {
       handled: true,
-      error: `Permission denied: ${cmd} is restricted to Leafsty admins.`,
+      error: `Permission denied for "${currentUserId}": ${cmd} is restricted to Leafsty admins.`,
     };
   }
 
@@ -80,6 +94,7 @@ export async function executeAdminCommand(params: {
         command: cmd,
         argText,
         userId: currentUserId,
+        userName,
         channelType: channel?.type || "messaging",
         channelId: channel?.id || channel?.cid?.split(":")[1],
       }),

@@ -918,20 +918,28 @@ const recorder = mimeType
 
  const slashMatches = useMemo(() => {
   const trimmed = text.trimStart();
-  if (!trimmed.startsWith("/") || trimmed.includes(" ")) return [];
-  const q = trimmed.toLowerCase();
+  if (!trimmed.startsWith("/")) return [];
+  const cmdToken = trimmed.split(/\s+/)[0].toLowerCase();
+  const hasSpace = trimmed.includes(" ");
   const currentUserId = String(
     client?.userID || (client?.user as any)?.id || ""
   );
+  const currentUserName = String((client?.user as any)?.name || "");
   const canAdmin = isLeafstyAdmin(
     currentUserId,
-    String((client?.user as any)?.role || "")
+    String((client?.user as any)?.role || ""),
+    [currentUserName]
   );
   const allCommands = canAdmin
     ? [...SLASH_COMMANDS, ...ADMIN_SLASH_COMMANDS]
     : SLASH_COMMANDS;
-  return allCommands.filter((c) => c.cmd.startsWith(q));
+
+  if (hasSpace) {
+    return allCommands.filter((c) => c.cmd === cmdToken);
+  }
+  return allCommands.filter((c) => c.cmd.startsWith(cmdToken));
 }, [text, client]);
+
 
   const handleSelectMention = (tag: string) => {
     setText((prev) => prev.replace(/(^|\s)@[a-zA-Z0-9_.-]*$/, `$1${tag} `));
@@ -1113,43 +1121,87 @@ const recorder = mimeType
         </div>
       )}
 
-      {slashMatches.length > 0 && (
-        <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
-          <div className="px-3 py-1.5 bg-[#04120e] border-b border-emerald-500/15 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80">
-            Leafsty Slash Commands
-          </div>
-          <div className="p-1.5 space-y-0.5">
-            {slashMatches.map((item, idx) => (
-              <button
-                key={item.cmd}
-                type="button"
-                onMouseEnter={() => setSlashIndex(idx)}
-                onClick={() => {
-                  setText(item.template);
-                  inputRef.current?.focus();
-                }}
-                className={`w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded-xl text-left text-xs transition cursor-pointer ${
-                  idx === slashIndex
-                    ? "bg-emerald-500/25 text-white"
-                    : "text-emerald-100/85 hover:bg-emerald-500/15"
-                }`}
-              >
-                <div className="min-w-0">
-                  <div className="font-mono font-extrabold text-emerald-300">
-                    {item.cmd}
-                  </div>
-                  <div className="text-[11px] text-emerald-200/75 truncate">
-                    {item.desc}
-                  </div>
-                </div>
-                <span className="font-mono text-[10px] text-emerald-400/70 shrink-0 hidden sm:inline">
-                  {item.usage}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+         {slashMatches.length > 0 && (
+     <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
+       <div className="px-3 py-1.5 bg-[#04120e] border-b border-emerald-500/15 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-emerald-400/80">
+         <span>Leafsty Slash Commands</span>
+         <span>Tab to autocomplete</span>
+       </div>
+       <div className="p-1.5 space-y-1">
+         {slashMatches.map((item, idx) => {
+           const tokens = item.usage.split(/\s+/).slice(1);
+           return (
+             <button
+               key={item.cmd}
+               type="button"
+               onMouseEnter={() => setSlashIndex(idx)}
+               onClick={() => {
+                 setText(item.template);
+                 inputRef.current?.focus();
+               }}
+               className={`w-full flex flex-col gap-1 px-2.5 py-2 rounded-xl text-left text-xs transition cursor-pointer ${
+                 idx === slashIndex
+                   ? "bg-emerald-500/25 text-white"
+                   : "text-emerald-100/85 hover:bg-emerald-500/15"
+               }`}
+             >
+               <div className="flex flex-wrap items-center gap-1.5">
+                 <span className="font-mono font-extrabold text-emerald-300">
+                   {item.cmd}
+                 </span>
+                 {tokens.map((tok, tIdx) => (
+                   <span
+                     key={tIdx}
+                     className="px-1.5 py-0.5 rounded-md bg-[#0d261e] border border-emerald-400/35 font-mono text-[10px] font-bold text-emerald-200"
+                   >
+                     {tok.replace(/[\[\]]/g, "")}
+                   </span>
+                 ))}
+               </div>
+               <div className="text-[11px] text-emerald-200/75">
+                 {item.desc}
+               </div>
+             </button>
+           );
+         })}
+
+         {/* Quick member pills when typing /ban or /kick */}
+         {(/^\/(ban|kick|unban)\s+/i.test(text.trimStart())) && (
+           <div className="pt-1.5 mt-1 border-t border-emerald-500/15 px-2 pb-1 flex flex-wrap items-center gap-1.5">
+             <span className="text-[10px] font-bold uppercase text-emerald-400/75">
+               Select user:
+             </span>
+             {Object.values(channel?.state?.members || {})
+               .map((m: any) => m?.user)
+               .filter(
+                 (u: any) =>
+                   u?.id &&
+                   String(u.id) !==
+                     String(client?.userID || (client?.user as any)?.id || "")
+               )
+               .slice(0, 6)
+               .map((u: any) => {
+                 const cmdPrefix = text.trimStart().split(/\s+/)[0];
+                 return (
+                   <button
+                     key={u.id}
+                     type="button"
+                     onClick={() => {
+                       setText(`${cmdPrefix} ${u.id} `);
+                       inputRef.current?.focus();
+                     }}
+                     className="px-2 py-0.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/30 text-[11px] font-bold text-emerald-100 cursor-pointer"
+                   >
+                     @{u.name || u.id}
+                   </button>
+                 );
+               })}
+           </div>
+         )}
+       </div>
+     </div>
+   )}
+
 
       {mentionQuery !== null && mentionCandidates.length > 0 && (
         <div className="mb-2 rounded-2xl bg-[#061410] border border-emerald-500/30 shadow-2xl overflow-hidden">
