@@ -1,3 +1,6 @@
+import { NextRequest, NextResponse } from "next/server";
+import { StreamClient } from "@stream-io/node-sdk";
+
 const ADMIN_USER_IDS = new Set([
   "leafygreen",
   "realleafygreen",
@@ -35,3 +38,25 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+
+    if (!channelId) {
+      return NextResponse.json(
+        { error: "Missing active channelId" },
+        { status: 400 }
+      );
+    }
+
+    const apiKey =
+      process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.STREAM_API_KEY;
+    const apiSecret =
+      process.env.STREAM_API_SECRET || process.env.STREAM_SECRET_KEY;
+
+    if (!apiKey || !apiSecret) {
+      return NextResponse.json(
+        { error: "Stream credentials not configured" },
+        { status: 500 }
+      );
+    }
+
+    const serverClient = new StreamClient(apiKey, apiSecret);
+    const channel = (serverClient as any).chat.channel(channelType, channelId);
