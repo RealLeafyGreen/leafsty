@@ -32,7 +32,10 @@ export default function CustomChannelList() {
     discordCtx?.server ||
     discordCtx?.selectedServer ||
     null;
-  const activeChannel = discordCtx?.activeChannel || null;
+    const activeChannel = discordCtx?.activeChannel || null;
+  const setActiveChannel = discordCtx?.setActiveChannel;
+
+  const [channels, setChannels] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
