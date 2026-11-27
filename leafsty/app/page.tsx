@@ -8,6 +8,7 @@ import { DiscordContextProvider } from "../types/DiscordContext";
 import { Lock, Eye, EyeOff, ArrowRight, RotateCcw } from "lucide-react";
 import LeafstyLoader from "../components/LeafstyLoader"
 import LeafstyContextMenu from "../components/LeafstyContextMenu";
+import LeafstySoundManager from "../components/LeafstySoundManager";
 
 interface SavedUser {
   id: string;
@@ -160,6 +161,7 @@ function ConnectedWorkspace({
 
   return (
     <Chat client={client} theme="str-chat__theme-dark">
+    <LeafstySoundManager />
       <DiscordContextProvider>
         <MyChat />
       </DiscordContextProvider>

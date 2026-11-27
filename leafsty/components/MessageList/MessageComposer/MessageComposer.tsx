@@ -123,8 +123,6 @@ const SKIN_TONES = [
   { id: "dark", label: "Dark", mod: "\u{1F3FF}", swatch: "#5a3825" },
 ];
 
-const [showSlashMenu, setShowSlashMenu] = useState(false);
-
 const slashMatches = useMemo(() => {
   const trimmed = text.trimStart();
   if (!showSlashMenu && !trimmed.startsWith("/")) return [];
