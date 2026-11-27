@@ -151,39 +151,37 @@ export default function LeafstyLoader({
 
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#071410] text-emerald-50 select-none px-4">
-      {!useFallback ? (
-        <div className="relative flex items-center justify-center w-32 h-32 mb-6">
-          {/* Outer glowing circle rings */}
-          <span className="absolute inset-0 rounded-full border-2 border-emerald-400/25 animate-ping" />
-          <span className="absolute inset-1 rounded-full border-2 border-emerald-400/50 shadow-[0_0_25px_rgba(52,211,153,0.25)]" />
-          <div className="relative w-28 h-28 rounded-full bg-[#0b211a]/90 border border-emerald-400/35 flex items-center justify-center overflow-hidden shadow-2xl">
-                        <video
-              ref={videoRef}
-              src="/loadingLeafsty.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              onCanPlay={() => videoRef.current?.play().catch(() => {})}
-              onError={() => setUseFallback(true)}
-              className="opacity-0 pointer-events-none absolute w-px h-px"
-            />
-            <canvas
-              ref={canvasRef}
-              width={140}
-              height={140}
-              className="w-24 h-24 object-contain"
-            />
-            <canvas
-              ref={canvasRef}
-              width={140}
-              height={140}
-              className="w-24 h-24 object-contain"
-            />
+            {!useFallback ? (
+        <>
+          <video
+            ref={videoRef}
+            src="/loadingLeafsty.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            onCanPlay={() => videoRef.current?.play().catch(() => {})}
+            onError={() => setUseFallback(true)}
+            className="opacity-0 pointer-events-none fixed -top-10 -left-10 w-px h-px"
+          />
+
+          <div className="relative flex items-center justify-center w-32 h-32 mb-6 mx-auto">
+            {/* Outer glowing circle rings */}
+            <span className="absolute inset-0 rounded-full border-2 border-emerald-400/25 animate-ping pointer-events-none" />
+            <span className="absolute inset-1 rounded-full border-2 border-emerald-400/50 shadow-[0_0_25px_rgba(52,211,153,0.25)] pointer-events-none" />
+            <div className="relative w-28 h-28 rounded-full bg-[#0b211a]/90 border border-emerald-400/35 flex items-center justify-center overflow-hidden shadow-2xl">
+              <canvas
+                ref={canvasRef}
+                width={140}
+                height={140}
+                className="w-24 h-24 block mx-auto object-contain"
+              />
+            </div>
           </div>
-        </div>
+        </>
       ) : (
+
         /* Fallback Loader */
         <div className="relative flex items-center justify-center w-24 h-24 mb-6">
           <span className="absolute inset-0 rounded-full border-2 border-emerald-400/25 animate-ping" />
