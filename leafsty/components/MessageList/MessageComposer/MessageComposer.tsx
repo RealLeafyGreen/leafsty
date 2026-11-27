@@ -1292,7 +1292,7 @@ const recorder = mimeType
           </button>
         </div>
       ) : (
-        <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
+                <form onSubmit={handleFormSubmit} className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -1300,23 +1300,6 @@ const recorder = mimeType
             className="p-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50 transition cursor-pointer shrink-0 flex items-center justify-center"
           >
             <Paperclip className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowEmojiPicker(false);
-              setShowGifPicker((v) => !v);
-            }}
-            title="GIFs & Favorites"
-            className={`px-2.5 py-2 rounded-xl border text-xs font-extrabold flex items-center gap-1 transition cursor-pointer shrink-0 ${
-              showGifPicker
-                ? "bg-emerald-500/25 border-emerald-400 text-emerald-100"
-                : "bg-[#0d261e] border-emerald-500/25 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/50"
-            }`}
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            <span>GIF</span>
           </button>
 
           <div className="relative flex-1">
@@ -1391,22 +1374,40 @@ const recorder = mimeType
                 }
               }}
               placeholder={`Message ${channelLabel} or type /poll...`}
-              className="w-full pl-3.5 pr-16 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
+              className="w-full pl-3.5 pr-24 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/45 focus:outline-none focus:border-emerald-400"
             />
 
-            <button
-              type="button"
-              onClick={() => {
-                setShowGifPicker(false);
-                setShowEmojiPicker((v) => !v);
-              }}
-              title="Emojis"
-              className="p-1.5 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 absolute right-8 top-1/2 -translate-y-1/2 transition cursor-pointer"
-            >
-              <Smile className="w-4 h-4" />
-            </button>
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmojiPicker(false);
+                  setShowGifPicker((v) => !v);
+                }}
+                title="GIFs & Favorites"
+                className={`w-7 h-7 rounded-lg border text-[10px] font-extrabold tracking-tight flex items-center justify-center transition cursor-pointer ${
+                  showGifPicker
+                    ? "bg-emerald-500/25 border-emerald-400 text-emerald-100"
+                    : "bg-[#081914] border-emerald-500/30 text-emerald-300 hover:text-emerald-50 hover:border-emerald-400/60"
+                }`}
+              >
+                GIF
+              </button>
 
-            <Lock className="w-3.5 h-3.5 text-emerald-400/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGifPicker(false);
+                  setShowEmojiPicker((v) => !v);
+                }}
+                title="Emojis"
+                className="w-7 h-7 rounded-lg text-emerald-300/70 hover:text-emerald-50 hover:bg-emerald-500/15 flex items-center justify-center transition cursor-pointer"
+              >
+                <Smile className="w-4 h-4" />
+              </button>
+
+              <Lock className="w-3.5 h-3.5 text-emerald-400/50 ml-0.5 pointer-events-none" />
+            </div>
           </div>
 
           <button
