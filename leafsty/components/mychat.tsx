@@ -161,7 +161,7 @@ export default function MyChat() {
       });
     };
 
-      const loadOlderMessages = async () => {
+     const loadOlderMessages = async () => {
     if (!activeChannel || loadingOlder || localMessages.length === 0) return;
     const oldest = localMessages.find((m) => m?.id && !String(m.id).startsWith("temp-"));
     if (!oldest?.id) return;
@@ -192,6 +192,7 @@ export default function MyChat() {
       setLoadingOlder(false);
     }
   };
+
 
 
     if (!activeChannel) return;
