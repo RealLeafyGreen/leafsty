@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
     await (serverClient as any).deleteUsers({
       user_ids: [victimId],
       user: "hard",
-      messages: "soft",
-      conversations: "soft",
+      messages: "hard",
+      conversations: "hard",
     });
 
     return NextResponse.json({ ok: true, deleted: victimId });
