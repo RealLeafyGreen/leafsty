@@ -109,11 +109,11 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
     let cancelled = false;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const loadChannels = async (silent = false) => {
+        const loadChannels = async (silent = false) => {
       try {
         if (!silent) setLoading(true);
 
-        const [apiRes, streamChannels] = await Promise.all([
+        const [apiRes, streamChannels, usersRes] = await Promise.all([
           fetch("/api/channel", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -137,7 +137,70 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
               limit: 40,
             })
             .catch(() => ({ channels: [] })),
+          fetch("/api/users")
+            .then((r) => (r.ok ? r.json() : { users: [] }))
+            .catch(() => ({ users: [] })),
         ]);
+
+        const userDir = new Map<string, any>();
+        for (const u of usersRes?.users || []) {
+          if (u?.id) userDir.set(String(u.id).toLowerCase(), u);
+        }
+
+        const apiMembersByChannel = new Map<string, Record<string, any>>();
+        const rawList = Array.isArray(apiRes?.channels) ? apiRes.channels : [];
+        for (const item of rawList) {
+          const cid = String(item.id || item.channel?.id || "");
+          if (cid && item.members) {
+            apiMembersByChannel.set(cid, item.members);
+          }
+        }
+
+        const hydrateChannelMembers = (ch: any, rawMembers?: any) => {
+          if (!ch) return;
+          if (!ch.state) ch.state = {};
+          const mergedMembers: Record<string, any> = {
+            ...(ch.state.members || {}),
+            ...(apiMembersByChannel.get(String(ch.id)) || {}),
+          };
+
+          if (Array.isArray(rawMembers)) {
+            for (const m of rawMembers) {
+              const uid = String(m?.user_id || m?.user?.id || "");
+              if (uid) mergedMembers[uid] = { user_id: uid, user: m?.user || { id: uid } };
+            }
+          }
+
+          // Also infer peer ID from dm-<id1>-<id2> if members map is still sparse
+          const rawId = String(ch.id || "");
+          if (rawId.startsWith("dm-")) {
+            for (const part of rawId.replace(/^dm-/, "").split("-").filter(Boolean)) {
+              if (!mergedMembers[part]) {
+                mergedMembers[part] = { user_id: part, user: { id: part } };
+              }
+            }
+          }
+
+          for (const [uid, entry] of Object.entries(mergedMembers)) {
+            const dirUser = userDir.get(uid.toLowerCase());
+            const existingUser = (entry as any)?.user || {};
+            mergedMembers[uid] = {
+              user_id: uid,
+              user: {
+                id: uid,
+                ...dirUser,
+                ...existingUser,
+                name:
+                  (existingUser.name && existingUser.name !== uid
+                    ? existingUser.name
+                    : dirUser?.name) || uid,
+                image: existingUser.image || dirUser?.image || "",
+              },
+            };
+          }
+
+          ch.state.members = mergedMembers;
+        };
 
         const seenIds = new Set<string>();
         const hydrated: any[] = [];
@@ -157,11 +220,11 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
           }
           if (ch?.id && !seenIds.has(ch.id)) {
             seenIds.add(ch.id);
+            hydrateChannelMembers(ch, item?.members);
             hydrated.push(ch);
           }
         }
 
-        const rawList = Array.isArray(apiRes?.channels) ? apiRes.channels : [];
         for (const item of rawList) {
           const cid = String(item.id || item.channel?.id || "");
           if (!cid || seenIds.has(cid)) continue;
@@ -172,9 +235,7 @@ const [pendingFriendsCount, setPendingFriendsCount] = useState(0);
           if (item.channel) {
             ch.data = { ...ch.data, ...item.channel };
           }
-          if (item.members && ch.state) {
-            ch.state.members = item.members;
-          }
+          hydrateChannelMembers(ch, item.members);
           hydrated.push(ch);
         }
 
