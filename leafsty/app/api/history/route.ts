@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
     const channelId = searchParams.get("channelId") || "";
     const beforeId = searchParams.get("beforeId") || "";
     const limit = Math.min(
-      300,
-      Math.max(1, Number(searchParams.get("limit") || 150))
+      10000,
+      Math.max(1, Number(searchParams.get("limit") || 10000))
     );
 
     if (!channelId) {

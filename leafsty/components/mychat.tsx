@@ -44,6 +44,8 @@ export default function MyChat() {
   const [showMembers, setShowMembers] = useState(true);
   const [showTerminal, setShowTerminal] = useState(false);
   const [localMessages, setLocalMessages] = useState<any[]>([]);
+    const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
   const [activeCall, setActiveCall] = useState<{
     startWithVideo: boolean;
@@ -158,6 +160,39 @@ export default function MyChat() {
         });
       });
     };
+
+      const loadOlderMessages = async () => {
+    if (!activeChannel || loadingOlder || localMessages.length === 0) return;
+    const oldest = localMessages.find((m) => m?.id && !String(m.id).startsWith("temp-"));
+    if (!oldest?.id) return;
+
+    setLoadingOlder(true);
+    try {
+      const res = await activeChannel.query?.({
+        messages: { limit: 100, id_lt: String(oldest.id) },
+      });
+      const older: any[] = Array.isArray(res?.messages) ? res.messages : [];
+      if (older.length < 100) setHasMoreHistory(false);
+
+      if (older.length > 0) {
+        setLocalMessages((prev) => {
+          const map = new Map<string, any>();
+          for (const m of older) if (m?.id) map.set(String(m.id), m);
+          for (const m of prev) if (m?.id) map.set(String(m.id), m);
+          return Array.from(map.values()).sort((a, b) => {
+            const ta = new Date(a?.created_at || a?.createdAt || 0).getTime();
+            const tb = new Date(b?.created_at || b?.createdAt || 0).getTime();
+            return ta - tb;
+          });
+        });
+      }
+    } catch {
+      setHasMoreHistory(false);
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
 
     if (!activeChannel) return;
 
@@ -430,13 +465,13 @@ export default function MyChat() {
   }, [activeChannel, localMessages.length]);
 
   const visibleMessages = useMemo(() => {
-    const recent = localMessages.slice(-100);
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return recent;
-    return recent.filter((m: any) =>
+    if (!q) return localMessages;
+    return localMessages.filter((m: any) =>
       String(m?.text || "").toLowerCase().includes(q)
     );
   }, [localMessages, searchQuery]);
+
 
   const isDm =
     !activeServer?.id &&
@@ -657,6 +692,20 @@ export default function MyChat() {
                           </span>
                         </p>
                       </div>
+                                            {hasMoreHistory && localMessages.length >= 100 && (
+                        <div className="flex justify-center pb-2">
+                          <button
+                            type="button"
+                            onClick={loadOlderMessages}
+                            disabled={loadingOlder}
+                            className="px-3.5 py-1.5 rounded-full bg-[#0d261e] hover:bg-emerald-500/20 border border-emerald-500/25 text-xs font-bold text-emerald-300 transition cursor-pointer disabled:opacity-50"
+                          >
+                            {loadingOlder
+                              ? "Loading older messages..."
+                              : "Load older messages"}
+                          </button>
+                        </div>
+                      )}
 
                       {visibleMessages.map((msg: any) => (
                         <div
