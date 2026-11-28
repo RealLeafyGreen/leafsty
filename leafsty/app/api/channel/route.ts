@@ -81,10 +81,37 @@ export async function POST(req: NextRequest) {
       limit: 50,
       state: true,
     });
-
     const list = Array.isArray(response)
       ? response
       : response?.channels || [];
+
+    // Collect every unique member ID across all channels so we can hydrate full names & avatars immediately
+    const allMemberIds = new Set<string>();
+    for (const item of list) {
+      const ch = item?.channel || item;
+      const membersList = Array.isArray(item?.members)
+        ? item.members
+        : Object.values(ch?.state?.members || item?.state?.members || {});
+      for (const m of membersList as any[]) {
+        const uid = String(m?.user_id || m?.user?.id || "");
+        if (uid) allMemberIds.add(uid);
+      }
+    }
+
+    const hydratedUsers = new Map<string, any>();
+    if (allMemberIds.size > 0) {
+      try {
+        const usersRes = await (serverClient as any).queryUsers({
+          payload: {
+            filter_conditions: { id: { $in: Array.from(allMemberIds) } },
+            limit: Math.min(allMemberIds.size, 100),
+          },
+        });
+        for (const u of usersRes?.users || []) {
+          if (u?.id) hydratedUsers.set(String(u.id), u);
+        }
+      } catch {}
+    }
 
     const serialized = list.map((item: any) => {
       const ch = item?.channel || item;
@@ -96,9 +123,17 @@ export async function POST(req: NextRequest) {
       for (const m of membersList as any[]) {
         const uid = String(m?.user_id || m?.user?.id || "");
         if (uid) {
+          const fullUser = hydratedUsers.get(uid) || m?.user || { id: uid };
           membersMap[uid] = {
             user_id: uid,
-            user: m?.user || { id: uid },
+            user: {
+              id: uid,
+              name: fullUser?.name || m?.user?.name || uid,
+              image: fullUser?.image || m?.user?.image || "",
+              status: fullUser?.status || "",
+              presence_status: fullUser?.presence_status || "",
+              online: Boolean(fullUser?.online ?? m?.user?.online),
+            },
           };
         }
       }

@@ -378,9 +378,30 @@ const [showNews, setShowNews] = useState(false);
 
 
 
+    const lastSwitchedChannelRef = useRef<string>("");
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [localMessages.length, activeChannel?.id]);
+    const cid = String(activeChannel?.cid || activeChannel?.id || "");
+    if (!cid || localMessages.length === 0) return;
+
+    const isChannelSwitch = lastSwitchedChannelRef.current !== cid;
+    if (isChannelSwitch) {
+      lastSwitchedChannelRef.current = cid;
+    }
+
+    const scrollToBottom = (behavior: ScrollBehavior) => {
+      bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    };
+
+    requestAnimationFrame(() => {
+      scrollToBottom(isChannelSwitch ? "auto" : "smooth");
+    });
+
+    if (isChannelSwitch) {
+      const t = setTimeout(() => scrollToBottom("auto"), 120);
+      return () => clearTimeout(t);
+    }
+  }, [localMessages.length, activeChannel?.cid, activeChannel?.id]);
 
   const handleOpenDmWithUser = async (target: ContextTargetUser) => {
     if (!client || !target?.id || target.id === currentUserId) return;
