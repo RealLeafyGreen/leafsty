@@ -423,7 +423,7 @@ export default function CustomMessageComposer({
         ? client.channel(channel?.type || "messaging", resolvedChannelId)
         : null;
 
-      const uploadInChunks = async () => {
+    const uploadInChunks = async () => {
       if (typeof liveChannel?.sendFile !== "function") return null;
       const SLICE_SIZE = 18 * 1024 * 1024; // 18 MB per part (fits safely inside Stream's 20 MB default limit)
       const partUrls: string[] = [];
@@ -468,6 +468,7 @@ export default function CustomMessageComposer({
       }
     } catch {}
 
+  }
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
   const trimmed = rawText.trim();
   if ((!trimmed && attachments.length === 0) || !channel) return;
