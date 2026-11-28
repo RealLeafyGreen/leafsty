@@ -366,7 +366,7 @@ export default function LeafstyGamesModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (tab === "snake" && snakeRunning) {
+           if (tab === "snake" && snacScreen === "PLAYING") {
         if (e.key === "ArrowUp" && dir.y !== 1) setDir({ x: 0, y: -1 });
         if (e.key === "ArrowDown" && dir.y !== -1) setDir({ x: 0, y: 1 });
         if (e.key === "ArrowLeft" && dir.x !== 1) setDir({ x: -1, y: 0 });
