@@ -105,6 +105,11 @@ export default function CustomMessage({
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
   const [showReactBar, setShowReactBar] = useState(false);
+  const [previewMedia, setPreviewMedia] = useState<{
+  kind: "image" | "video" | "pdf";
+  url: string;
+  title: string;
+} | null>(null);
   const [localReactions, setLocalReactions] = useState<Record<string, number>>(
     {}
   );
@@ -647,10 +652,79 @@ const formattedDateTime = formatMessageDateTime(
                   </div>
                 );
               }
-
               const imgSrc = att?.image_url || att?.thumb_url;
               const fileHref = att?.asset_url || imgSrc;
               if (!fileHref) return null;
+
+              const mime = String(att?.mime_type || "").toLowerCase();
+              const titleLower = String(att?.title || fileHref).toLowerCase();
+
+              const isVideo =
+                att?.type === "video" ||
+                mime.startsWith("video/") ||
+                /\.(mp4|webm|mov|m4v|ogg)(\?|$)/i.test(titleLower);
+
+              const isAudio =
+                att?.type === "audio" ||
+                mime.startsWith("audio/") ||
+                /\.(mp3|wav|m4a|aac|flac)(\?|$)/i.test(titleLower);
+
+              const isPdf =
+                mime === "application/pdf" || /\.pdf(\?|$)/i.test(titleLower);
+
+              if (isVideo) {
+                return (
+                  <div
+                    key={idx}
+                    className="max-w-xs sm:max-w-md rounded-2xl overflow-hidden border border-emerald-500/25 bg-[#04120e] shadow-lg"
+                  >
+                    <video
+                      src={fileHref}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="w-full max-h-80 bg-black"
+                    />
+                    <div className="px-3 py-1.5 flex items-center justify-between gap-2 text-[11px] text-emerald-200/80 border-t border-emerald-500/15">
+                      <span className="truncate font-semibold">
+                        {att?.title || "Video"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewMedia({
+                            kind: "video",
+                            url: fileHref,
+                            title: att?.title || "Video",
+                          })
+                        }
+                        className="text-emerald-300 hover:underline font-bold shrink-0 cursor-pointer"
+                      >
+                        Expand
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isAudio) {
+                return (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-2xl bg-[#0d261e] border border-emerald-500/25 max-w-xs sm:max-w-sm space-y-1.5"
+                  >
+                    <div className="text-xs font-bold text-emerald-100 truncate">
+                      {att?.title || "Audio File"}
+                    </div>
+                    <audio
+                      src={fileHref}
+                      controls
+                      preload="metadata"
+                      className="w-full h-8"
+                    />
+                  </div>
+                );
+              }
 
               const isFileCard =
                 att?.type === "file" || (!imgSrc && Boolean(att?.asset_url));
@@ -665,12 +739,8 @@ const formattedDateTime = formatMessageDateTime(
                     : "Attachment";
 
                 return (
-                  <a
+                  <div
                     key={idx}
-                    href={fileHref}
-                    download={att?.title || "attachment"}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-[#0d261e] border border-emerald-500/25 hover:border-emerald-400/60 transition max-w-xs sm:max-w-sm"
                   >
                     <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center shrink-0">
@@ -684,19 +754,53 @@ const formattedDateTime = formatMessageDateTime(
                         {sizeLabel}
                       </div>
                     </div>
-                    <Download className="w-4 h-4 text-emerald-300/75 shrink-0" />
-                  </a>
+                    {isPdf && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewMedia({
+                            kind: "pdf",
+                            url: fileHref,
+                            title: att?.title || "Document.pdf",
+                          })
+                        }
+                        className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold cursor-pointer shrink-0"
+                      >
+                        View
+                      </button>
+                    )}
+                    <a
+                      href={fileHref}
+                      download={att?.title || "attachment"}
+                      title="Download"
+                      className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-300/75 hover:text-white shrink-0"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                  </div>
                 );
               }
 
               return (
-                <img
+                <button
                   key={idx}
-                  src={imgSrc}
-                  alt={att?.title || "Attachment"}
-                  loading="lazy"
-                  className="max-w-xs sm:max-w-sm max-h-72 rounded-2xl border border-emerald-500/20 object-contain bg-[#061410]"
-                />
+                  type="button"
+                  onClick={() =>
+                    setPreviewMedia({
+                      kind: "image",
+                      url: imgSrc,
+                      title: att?.title || "Image",
+                    })
+                  }
+                  className="block rounded-2xl overflow-hidden border border-emerald-500/20 hover:border-emerald-400/60 transition bg-[#061410] cursor-zoom-in"
+                >
+                  <img
+                    src={imgSrc}
+                    alt={att?.title || "Attachment"}
+                    loading="lazy"
+                    className="max-w-xs sm:max-w-sm max-h-72 object-contain"
+                  />
+                </button>
               );
             })}
           </div>
@@ -744,6 +848,91 @@ const formattedDateTime = formatMessageDateTime(
           </div>
         )}
       </div>
+              {isOwn && seenByUsers.length > 0 && (
+          <div className="mt-1 flex items-center justify-end gap-1">
+            {seenByUsers.map((reader) => (
+              <div
+                key={reader.id}
+                title={`Seen by ${reader.name}`}
+                className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[8px] font-extrabold flex items-center justify-center overflow-hidden ring-1 ring-[#0a1d17]"
+              >
+                {reader.image ? (
+                  <img
+                    src={reader.image}
+                    alt={reader.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  reader.name.charAt(0).toUpperCase()
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {previewMedia && (
+        <div
+          onClick={() => setPreviewMedia(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-4xl w-full max-h-[90vh] rounded-2xl bg-[#081914] border border-emerald-500/30 p-3 flex flex-col gap-2.5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between px-2">
+              <span className="text-xs font-extrabold text-emerald-100 truncate">
+                {previewMedia.title}
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewMedia.url}
+                  download={previewMedia.title}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Save</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewMedia(null)}
+                  className="p-1.5 rounded-lg bg-[#0d261e] text-emerald-200 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 flex items-center justify-center overflow-auto rounded-xl bg-black/60">
+              {previewMedia.kind === "image" && (
+                <img
+                  src={previewMedia.url}
+                  alt={previewMedia.title}
+                  className="max-h-[78vh] max-w-full object-contain"
+                />
+              )}
+              {previewMedia.kind === "video" && (
+                <video
+                  src={previewMedia.url}
+                  controls
+                  autoPlay
+                  className="max-h-[78vh] max-w-full"
+                />
+              )}
+              {previewMedia.kind === "pdf" && (
+                <iframe
+                  src={previewMedia.url}
+                  title={previewMedia.title}
+                  className="w-full h-[78vh] rounded-xl bg-white"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
     </div>
   );
 }
