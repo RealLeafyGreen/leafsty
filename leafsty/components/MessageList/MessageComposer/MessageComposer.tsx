@@ -552,32 +552,6 @@ export default function CustomMessageComposer({
   }
 };
 
-    if (data?.message) {
-      window.dispatchEvent(
-        new CustomEvent("leafsty:message-sent", {
-          detail: { ...data.message, _replaceId: tempId },
-        })
-      );
-  } catch (err: any) {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const currentUserId = String(
-        client?.userID || (client?.user as any)?.id || ""
-      );
-      enqueueOfflineMessage({
-        channelType: channel.type || "messaging",
-        channelId: String(channel.id),
-        userId: currentUserId,
-        text: trimmed,
-        attachments,
-      });
-      return;
-    }
-    setSendError(err?.message || "Could not send message");
-  } finally {
-    sendingRef.current = false;
-  }
-};
-
   const cleanupAudioMonitor = () => {
     if (recordTimerRef.current) clearInterval(recordTimerRef.current);
     if (analyserFrameRef.current) cancelAnimationFrame(analyserFrameRef.current);
