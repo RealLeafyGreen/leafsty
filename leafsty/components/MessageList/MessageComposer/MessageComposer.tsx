@@ -493,10 +493,65 @@ export default function CustomMessageComposer({
       }),
     });
 
-    const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data?.error || `Send failed (${res.status})`);
+      const errStr = String(data?.error || `Send failed (${res.status})`);
+      if (data?.banned || errStr.toLowerCase().includes("banned")) {
+        window.dispatchEvent(
+          new CustomEvent("leafsty:banned", {
+            detail: {
+              reason: data?.reason || "Violation of Leafsty community rules",
+              expiresAt: data?.expiresAt || null,
+            },
+          })
+        );
+        return;
+      }
+      throw new Error(errStr);
     }
+
+    if (data?.message) {
+      window.dispatchEvent(
+        new CustomEvent("leafsty:message-sent", {
+          detail: { ...data.message, _replaceId: tempId },
+        })
+      );
+    }
+  } catch (err: any) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const currentUserId = String(
+        client?.userID || (client?.user as any)?.id || ""
+      );
+      enqueueOfflineMessage({
+        channelType: channel.type || "messaging",
+        channelId: String(channel.id),
+        userId: currentUserId,
+        text: trimmed,
+        attachments,
+      });
+      return;
+    }
+    const rawErr = String(err?.message || "Could not send message");
+    if (rawErr.toLowerCase().includes("banned")) {
+      window.dispatchEvent(
+        new CustomEvent("leafsty:banned", {
+          detail: {
+            reason: "Violation of Leafsty community rules",
+            expiresAt: null,
+          },
+        })
+      );
+      return;
+    }
+    const cleanErr = rawErr
+      .replace(/stream error(\s*code\s*\d+:)?/gi, "")
+      .trim();
+    setSendError(cleanErr || "Could not send message");
+  } finally {
+    sendingRef.current = false;
+  }
+};
+
 
     if (data?.message) {
       window.dispatchEvent(

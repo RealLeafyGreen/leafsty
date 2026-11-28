@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ShieldAlert, Clock, LogOut } from "lucide-react";
+import { Clock, LogOut } from "lucide-react";
 
 export interface BanDetails {
   reason: string;
@@ -41,10 +41,14 @@ export default function BannedOverlay({
     expiryMs && !Number.isNaN(expiryMs) ? expiryMs - now : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#040e0b]/95 backdrop-blur-md flex items-center justify-center p-6 text-emerald-50 select-none">
+    <div className="fixed inset-0 z-[9999] bg-[#040e0b] flex items-center justify-center p-6 text-emerald-50 select-none">
       <div className="w-full max-w-lg rounded-3xl bg-[#081914] border border-red-500/40 p-8 shadow-2xl text-center space-y-6">
-        <div className="w-16 h-16 rounded-2xl bg-red-500/15 border border-red-400/40 text-red-400 flex items-center justify-center mx-auto shadow-lg">
-          <ShieldAlert className="w-8 h-8" />
+        <div className="w-24 h-24 rounded-3xl bg-white p-2.5 flex items-center justify-center mx-auto shadow-xl ring-4 ring-red-500/30">
+          <img
+            src="/bannedLeafsty.png"
+            alt="Banned from Leafsty"
+            className="w-full h-full object-contain"
+          />
         </div>
 
         <div className="space-y-2">

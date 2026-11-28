@@ -70,6 +70,11 @@ export default function UserSettingsModal({
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [saving, setSaving] = useState(false);
   const [savedBanner, setSavedBanner] = useState(false);
+  const [adminNotice, setAdminNotice] = useState<{
+  type: "success" | "error";
+  text: string;
+} | null>(null);
+
 
    const [form, setForm] = useState({
     name: sourceUser?.name || userId || "",
@@ -700,13 +705,13 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
              </div>
              </div>
             )}
-            {activeTab === "account" && (
+                       {activeTab === "account" && (
               <div className="space-y-5">
                 <div className="p-4 rounded-2xl bg-[#0d261e] border border-emerald-500/20 flex items-center justify-between">
                   <div>
                     <div className="text-xs text-emerald-300/70">Username</div>
                     <div className="text-sm font-extrabold text-white">
-                      @{userId}
+                      @{form.username || userId}
                     </div>
                   </div>
                   <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
@@ -756,86 +761,174 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
                   </button>
                 </form>
 
-                                      {(userId === "leafygreen" || userId === "jomkos") && (
-             <div className="p-4 rounded-2xl bg-emerald-950/35 border border-emerald-500/30 space-y-3">
-               <div className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
-                 Admin: Assign Profile Badges
-               </div>
-               <form
-                 onSubmit={async (e) => {
-                   e.preventDefault();
-                   const formEl = e.currentTarget;
-                   const target = (
-                     formEl.elements.namedItem("badgeUser") as HTMLInputElement
-                   )?.value
-                     ?.trim()
-                     .toLowerCase()
-                     .replace(/^@/, "");
-                   if (!target) return;
-                   const checked = Array.from(
-                     formEl.querySelectorAll<HTMLInputElement>(
-                       'input[name="badgePick"]:checked'
-                     )
-                   ).map((el) => el.value);
+                {(userId === "leafygreen" || userId === "jomkos") && (
+                  <>
+                    {adminNotice && (
+                      <div
+                        className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+                          adminNotice.type === "success"
+                            ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-200"
+                            : "bg-red-500/20 border-red-400/40 text-red-200"
+                        }`}
+                      >
+                        {adminNotice.type === "success" && (
+                          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                        )}
+                        <span>{adminNotice.text}</span>
+                      </div>
+                    )}
 
-                   const res = await fetch("/api/profile", {
-                     method: "POST",
-                     headers: { "Content-Type": "application/json" },
-                     body: JSON.stringify({
-                       userId: target,
-                       updates: { badges: checked },
-                     }),
-                   });
-                   alert(
-                     res.ok
-                       ? `Updated badges for @${target}!`
-                       : "Failed to update badges"
-                   );
-                 }}
-                 className="space-y-2.5"
-               >
-                 <input
-                   name="badgeUser"
-                   type="text"
-                   defaultValue={userId}
-                   placeholder="Target user ID (e.g. leafygreen, jomkos)"
-                   className="w-full px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/30 text-xs text-emerald-50 focus:outline-none"
-                 />
-                 <div className="flex flex-wrap gap-2">
-                   {[
-                     { id: "founder", label: "🌿 Founder" },
-                     { id: "staff", label: "🛡️ Leafsty Staff" },
-                     { id: "vip", label: "👑 VIP" },
-                     { id: "og", label: "⚡ Early Supporter" },
-                     { id: "bug_hunter", label: "🐛 Bug Hunter" },
-                     { id: "verified", label: "✅ Verified" },
-                     { id: "dev", label: "💻 Developer" },
-                   ].map((b) => (
-                     <label
-                       key={b.id}
-                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#061410] border border-emerald-500/25 text-[11px] font-bold text-emerald-100 cursor-pointer"
-                     >
-                       <input
-                         type="checkbox"
-                         name="badgePick"
-                         value={b.id}
-                         className="accent-emerald-500"
-                       />
-                       <span>{b.label}</span>
-                     </label>
-                   ))}
-                 </div>
-                 <button
-                   type="submit"
-                   className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold cursor-pointer"
-                 >
-                   Save Badges
-                 </button>
-               </form>
-             </div>
-           )}
+                    <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 space-y-2.5">
+                      <div className="text-xs font-extrabold uppercase tracking-wider text-red-300">
+                        Admin: Delete Duplicate / Old User Account
+                      </div>
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          const input = e.currentTarget.elements.namedItem(
+                            "delUser"
+                          ) as HTMLInputElement;
+                          const target = input?.value?.trim();
+                          if (!target) return;
+                          const res = await fetch("/api/admin/delete-user", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              requesterId: userId,
+                              targetUserId: target,
+                            }),
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          setAdminNotice({
+                            type: res.ok ? "success" : "error",
+                            text: res.ok
+                              ? `Deleted @${data.deleted} from Leafsty.`
+                              : data?.error || "Could not delete user.",
+                          });
+                          if (res.ok && input) input.value = "";
+                          setTimeout(() => setAdminNotice(null), 3500);
+                        }}
+                        className="flex gap-2"
+                      >
+                        <input
+                          name="delUser"
+                          type="text"
+                          placeholder="Enter user ID to delete (e.g. gabykj13gmailcom)"
+                          className="flex-1 px-3 py-2 rounded-xl bg-[#061410] border border-red-500/30 text-xs text-red-100 placeholder:text-red-300/40 focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-extrabold cursor-pointer"
+                        >
+                          Delete User
+                        </button>
+                      </form>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-emerald-950/35 border border-emerald-500/30 space-y-3">
+                      <div className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+                        Admin: Assign Profile Badges
+                      </div>
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          const formEl = e.currentTarget;
+                          const target = (
+                            formEl.elements.namedItem(
+                              "badgeUser"
+                            ) as HTMLInputElement
+                          )?.value
+                            ?.trim()
+                            .toLowerCase()
+                            .replace(/^@/, "");
+                          if (!target) return;
+
+                          const checked = Array.from(
+                            formEl.querySelectorAll<HTMLInputElement>(
+                              'input[name="badgePick"]:checked'
+                            )
+                          ).map((el) => el.value);
+
+                          const res = await fetch("/api/profile", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              userId: target,
+                              updates: { badges: checked },
+                            }),
+                          });
+                          const data = await res.json().catch(() => ({}));
+
+                          if (res.ok) {
+                            setAdminNotice({
+                              type: "success",
+                              text: `Saved! Badges updated for @${target}.`,
+                            });
+                            if (target === userId) {
+                              try {
+                                const cur = JSON.parse(
+                                  localStorage.getItem("leafsty_user") || "{}"
+                                );
+                                localStorage.setItem(
+                                  "leafsty_user",
+                                  JSON.stringify({ ...cur, badges: checked })
+                                );
+                              } catch {}
+                            }
+                          } else {
+                            setAdminNotice({
+                              type: "error",
+                              text: data?.error || "Failed to update badges.",
+                            });
+                          }
+                          setTimeout(() => setAdminNotice(null), 3500);
+                        }}
+                        className="space-y-2.5"
+                      >
+                        <input
+                          name="badgeUser"
+                          type="text"
+                          defaultValue={userId}
+                          placeholder="Target user ID (e.g. leafygreen, jomkos)"
+                          className="w-full px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/30 text-xs text-emerald-50 focus:outline-none"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { id: "founder", label: "🌿 Founder" },
+                            { id: "staff", label: "🛡️ Leafsty Staff" },
+                            { id: "vip", label: "👑 VIP" },
+                            { id: "og", label: "⚡ Early Supporter" },
+                            { id: "bug_hunter", label: "🐛 Bug Hunter" },
+                            { id: "verified", label: "✅ Verified" },
+                            { id: "dev", label: "💻 Developer" },
+                          ].map((b) => (
+                            <label
+                              key={b.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#061410] border border-emerald-500/25 text-[11px] font-bold text-emerald-100 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                name="badgePick"
+                                value={b.id}
+                                className="accent-emerald-500"
+                              />
+                              <span>{b.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          type="submit"
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold cursor-pointer"
+                        >
+                          Save Badges
+                        </button>
+                      </form>
+                    </div>
+                  </>
+                )}
               </div>
             )}
+
+              </div>
             {activeTab === "voice" && (
               <div className="space-y-4">
                 <button

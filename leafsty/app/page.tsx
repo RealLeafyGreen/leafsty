@@ -98,6 +98,18 @@ function ConnectedWorkspace({
   const [connectError, setConnectError] = useState<string | null>(null);
   const [banDetails, setBanDetails] = useState<BanDetails | null>(null);
 
+  useEffect(() => {
+  const onBanned = (e: any) => {
+    const detail = e?.detail || {};
+    setBanDetails({
+      reason: detail.reason || "Violation of Leafsty community rules",
+      expiresAt: detail.expiresAt || null,
+    });
+  };
+  window.addEventListener("leafsty:banned", onBanned);
+  return () => window.removeEventListener("leafsty:banned", onBanned);
+}, []);
+
   const userData = useMemo(
     () => ({
       id: currentUser.id,
