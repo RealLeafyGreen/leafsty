@@ -460,10 +460,13 @@ export default function LeafstyGamesModal({
 
          <div className="relative w-64 h-48 mx-auto rounded-xl bg-[#0f0f19] border border-emerald-500/30 overflow-hidden shadow-inner">
            {/* 20x15 Grid + Snake + Food */}
-           <div
-             className="grid w-full h-full"
-             style={{ gridTemplateColumns: `repeat(${SNAC_COLS}, minmax(0, 1fr))` }}
-           >
+                        <div
+                className="grid w-full h-full"
+                style={{
+                  gridTemplateColumns: `repeat(${SNAC_COLS}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${SNAC_ROWS}, minmax(0, 1fr))`,
+                }}
+              >
              {Array.from({ length: SNAC_COLS * SNAC_ROWS }).map((_, i) => {
                const x = i % SNAC_COLS;
                const y = Math.floor(i / SNAC_COLS);
