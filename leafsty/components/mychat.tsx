@@ -116,6 +116,41 @@ export default function MyChat() {
       window.removeEventListener("leafsty:open-own-profile", openOwnProfile);
     };
   }, [client, currentUserId]);
+
+  const loadOlderMessages = async () => {
+  if (!activeChannel || loadingOlder || localMessages.length === 0) return;
+  const oldest = localMessages.find(
+    (m) => m?.id && !String(m.id).startsWith("temp-")
+  );
+  if (!oldest?.id) return;
+
+  setLoadingOlder(true);
+  try {
+    const res = await activeChannel.query?.({
+      messages: { limit: 100, id_lt: String(oldest.id) },
+    });
+    const older: any[] = Array.isArray(res?.messages) ? res.messages : [];
+    if (older.length < 100) setHasMoreHistory(false);
+
+    if (older.length > 0) {
+      setLocalMessages((prev) => {
+        const map = new Map<string, any>();
+        for (const m of older) if (m?.id) map.set(String(m.id), m);
+        for (const m of prev) if (m?.id) map.set(String(m.id), m);
+        return Array.from(map.values()).sort((a, b) => {
+          const ta = new Date(a?.created_at || a?.createdAt || 0).getTime();
+          const tb = new Date(b?.created_at || b?.createdAt || 0).getTime();
+          return ta - tb;
+        });
+      });
+    }
+  } catch {
+    setHasMoreHistory(false);
+  } finally {
+    setLoadingOlder(false);
+  }
+};
+
   useEffect(() => {
     setReplyTo(null);
     setSearchQuery("");
@@ -160,39 +195,6 @@ export default function MyChat() {
         });
       });
     };
-
-     const loadOlderMessages = async () => {
-    if (!activeChannel || loadingOlder || localMessages.length === 0) return;
-    const oldest = localMessages.find((m) => m?.id && !String(m.id).startsWith("temp-"));
-    if (!oldest?.id) return;
-
-    setLoadingOlder(true);
-    try {
-      const res = await activeChannel.query?.({
-        messages: { limit: 100, id_lt: String(oldest.id) },
-      });
-      const older: any[] = Array.isArray(res?.messages) ? res.messages : [];
-      if (older.length < 100) setHasMoreHistory(false);
-
-      if (older.length > 0) {
-        setLocalMessages((prev) => {
-          const map = new Map<string, any>();
-          for (const m of older) if (m?.id) map.set(String(m.id), m);
-          for (const m of prev) if (m?.id) map.set(String(m.id), m);
-          return Array.from(map.values()).sort((a, b) => {
-            const ta = new Date(a?.created_at || a?.createdAt || 0).getTime();
-            const tb = new Date(b?.created_at || b?.createdAt || 0).getTime();
-            return ta - tb;
-          });
-        });
-      }
-    } catch {
-      setHasMoreHistory(false);
-    } finally {
-      setLoadingOlder(false);
-    }
-  };
-
 
 
     if (!activeChannel) return;
