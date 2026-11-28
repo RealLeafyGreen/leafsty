@@ -467,13 +467,6 @@ export default function CustomMessageComposer({
     const savedReplyId = replyTarget?.id;
     onCancelReply?.();
     inputRef.current?.focus();
-    setText("");
-    setMentionQuery(null);
-    setSendError(null);
-    channel.stopTyping?.().catch(() => {});
-    const savedReplyId = replyTarget?.id;
-    onCancelReply?.();
-    inputRef.current?.focus();
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
       enqueueOfflineMessage({
