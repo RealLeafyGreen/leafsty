@@ -869,7 +869,6 @@ const formattedDateTime = formatMessageDateTime(
             ))}
           </div>
         )}
-      </div>
 
       {previewMedia && (
         <div
