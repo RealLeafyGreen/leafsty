@@ -85,11 +85,15 @@ export default function UserSettingsModal({
 
   const [form, setForm] = useState({
     name: sourceUser?.name || userId || "",
+    username: sourceUser?.username || sourceUser?.handle || userId || "",
     avatarUrl: sourceUser?.image || "",
     bannerColor: sourceUser?.bannerColor || "#10b981",
     status: sourceUser?.status || sourceUser?.statusText || "Encrypted • Online",
     pronouns: sourceUser?.pronouns || "",
     bio: sourceUser?.bio || sourceUser?.aboutMe || "",
+    github: sourceUser?.socials?.github || "",
+    youtube: sourceUser?.socials?.youtube || "",
+    website: sourceUser?.socials?.website || "",
   });
 
   const [prefs, setPrefs] = useState({
