@@ -19,12 +19,56 @@ export async function POST(request: Request) {
     }
 
     const serverClient = new StreamClient(apiKey, apiSecret);
-    const token = serverClient.generateUserToken({ user_id: userId });
 
+    // Check if user is currently banned on Leafsty
+    const qRes = await (serverClient as any).queryUsers({
+      payload: {
+        filter_conditions: { id: { $eq: userId } },
+        limit: 1,
+      },
+    });
+    const u: any = Array.isArray(qRes?.users) ? qRes.users[0] : null;
+    const isBanned = Boolean(u?.leafstyBanned || u?.custom?.leafstyBanned || u?.banned);
+
+    if (isBanned) {
+      const expiresAt: string | null =
+        u?.leafstyBanExpiresAt || u?.custom?.leafstyBanExpiresAt || null;
+      const reason: string =
+        u?.leafstyBanReason ||
+        u?.custom?.leafstyBanReason ||
+        "Violation of Leafsty community rules";
+
+      if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+        // Ban timer expired — automatically unban user!
+        await (serverClient as any).updateUsersPartial({
+          users: [
+            {
+              id: userId,
+              set: {
+                leafstyBanned: false,
+                leafstyBanReason: null,
+                leafstyBanExpiresAt: null,
+              },
+            },
+          ],
+        });
+      } else {
+        return NextResponse.json(
+          {
+            banned: true,
+            reason,
+            expiresAt,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    const token = serverClient.generateUserToken({ user_id: userId });
     return NextResponse.json({ token });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error?.message || "Failed to create token" },
+      { error: error?.message || "Could not verify session" },
       { status: 500 }
     );
   }

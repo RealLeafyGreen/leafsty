@@ -45,10 +45,10 @@ export const ADMIN_SLASH_COMMANDS = [
     template: "/kick ",
     adminOnly: true,
   },
-  {
+   {
     cmd: "/ban",
-    usage: "/ban username [reason]",
-    desc: "Admin: Ban a user from this room",
+    usage: "/ban username [10m|2h|7d] [reason]",
+    desc: "Ban a user from Leafsty (optional duration + reason)",
     template: "/ban ",
     adminOnly: true,
   },

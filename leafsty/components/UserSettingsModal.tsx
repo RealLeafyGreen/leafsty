@@ -71,7 +71,7 @@ export default function UserSettingsModal({
   const [saving, setSaving] = useState(false);
   const [savedBanner, setSavedBanner] = useState(false);
 
-  const [form, setForm] = useState({
+   const [form, setForm] = useState({
     name: sourceUser?.name || userId || "",
     username: sourceUser?.username || sourceUser?.handle || userId || "",
     avatarUrl: sourceUser?.image || "",
@@ -81,6 +81,11 @@ export default function UserSettingsModal({
     bio: sourceUser?.bio || sourceUser?.aboutMe || "",
     github: sourceUser?.socials?.github || "",
     youtube: sourceUser?.socials?.youtube || "",
+    discord: sourceUser?.socials?.discord || "",
+    twitter: sourceUser?.socials?.twitter || "",
+    instagram: sourceUser?.socials?.instagram || "",
+    tiktok: sourceUser?.socials?.tiktok || "",
+    twitch: sourceUser?.socials?.twitch || "",
     website: sourceUser?.socials?.website || "",
   });
 

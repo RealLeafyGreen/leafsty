@@ -19,6 +19,35 @@ function isServerAdmin(userId: string, userName = ""): boolean {
         clean.startsWith("jomkos")
     );
 }
+function parseBanDurationAndReason(argText: string): {
+  targetId: string;
+  expiresAt: string | null;
+  reason: string;
+} {
+  const parts = argText.trim().split(/\s+/);
+  const targetId = (parts.shift() || "").toLowerCase().replace(/^@/, "");
+  let expiresAt: string | null = null;
+
+  const maybeTime = parts[0] || "";
+  const match = maybeTime.match(/^(\d+)(m|h|d|w)$/i);
+  if (match) {
+    parts.shift();
+    const amount = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    const mult =
+      unit === "m"
+        ? 60_000
+        : unit === "h"
+        ? 3_600_000
+        : unit === "d"
+        ? 86_400_000
+        : 604_800_000;
+    expiresAt = new Date(Date.now() + amount * mult).toISOString();
+  }
+
+  const reason = parts.join(" ").trim() || "Violation of Leafsty community rules";
+  return { targetId, expiresAt, reason };
+}
 
 export async function POST(req: NextRequest) {
   try {

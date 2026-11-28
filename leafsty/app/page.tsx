@@ -9,6 +9,7 @@ import { Lock, Eye, EyeOff, ArrowRight, RotateCcw } from "lucide-react";
 import LeafstyLoader from "../components/LeafstyLoader"
 import LeafstyContextMenu from "../components/LeafstyContextMenu";
 import LeafstySoundManager from "../components/LeafstySoundManager";
+import BannedOverlay, { BanDetails } from "../components/BannedOverlay";
 
 interface SavedUser {
   id: string;
@@ -95,6 +96,7 @@ function ConnectedWorkspace({
 }) {
   const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY || "";
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [banDetails, setBanDetails] = useState<BanDetails | null>(null);
 
   const userData = useMemo(
     () => ({
@@ -104,6 +106,7 @@ function ConnectedWorkspace({
     }),
     [currentUser.id, currentUser.name, currentUser.image]
   );
+
   const tokenProvider = useCallback(async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       return "offline-token";
@@ -118,19 +121,43 @@ function ConnectedWorkspace({
       }),
     });
 
-    if (postRes.ok) {
-      const data = await postRes.json().catch(() => ({}));
-      if (data?.token) return data.token;
+    const postData = await postRes.json().catch(() => ({}));
+
+    if (
+      postData?.banned ||
+      String(postData?.error || "").toLowerCase().includes("ban")
+    ) {
+      setBanDetails({
+        reason: postData?.reason || "Violation of Leafsty community rules",
+        expiresAt: postData?.expiresAt || null,
+      });
+      throw new Error("BANNED");
+    }
+
+    if (postRes.ok && postData?.token) {
+      return postData.token;
     }
 
     const getRes = await fetch(`/api/token?userId=${uid}`);
     const getData = await getRes.json().catch(() => ({}));
+    if (getData?.banned) {
+      setBanDetails({
+        reason: getData?.reason || "Violation of Leafsty community rules",
+        expiresAt: getData?.expiresAt || null,
+      });
+      throw new Error("BANNED");
+    }
+
     if (!getRes.ok || !getData?.token) {
-      const msg =
+      const rawMsg =
         getData?.error ||
-        `Token error (${postRes.status}/${getRes.status}) — check STREAM_API_SECRET in Vercel`;
-      setConnectError(msg);
-      throw new Error(msg);
+        postData?.error ||
+        `Connection error (${postRes.status}/${getRes.status})`;
+      const cleanMsg = String(rawMsg)
+        .replace(/stream error(\s*code\s*\d+:)?/gi, "")
+        .trim();
+      setConnectError(cleanMsg || "Could not connect to Leafsty.");
+      throw new Error(cleanMsg || "Could not connect to Leafsty.");
     }
     return getData.token;
   }, [currentUser.id, currentUser.name]);
@@ -185,11 +212,15 @@ function ConnectedWorkspace({
 
   const activeClient = client || (isOffline ? offlineClient : null);
 
+  if (banDetails) {
+    return <BannedOverlay ban={banDetails} onLogout={onLogout} />;
+  }
+
   if (!apiKey && !isOffline) {
     return (
       <LeafstyLoader
-        label="Missing Stream API Key"
-        error="NEXT_PUBLIC_STREAM_API_KEY is not set in Vercel Production environment variables."
+        label="Missing API Configuration"
+        error="NEXT_PUBLIC_STREAM_API_KEY is not set in environment variables."
         onLogout={onLogout}
       />
     );
@@ -440,8 +471,11 @@ const handleGoogleLogin = () => {
 
       localStorage.setItem("leafsty_user", JSON.stringify(userObj));
       setCurrentUser(userObj);
-    } catch (err: any) {
-      setAuthError(err?.message || "Could not sign in");
+        } catch (err: any) {
+      const cleanErr = String(err?.message || "Could not sign in")
+        .replace(/stream error(\s*code\s*\d+:)?/gi, "")
+        .trim();
+      setAuthError(cleanErr || "Could not sign in");
     } finally {
       setSubmitting(false);
     }
