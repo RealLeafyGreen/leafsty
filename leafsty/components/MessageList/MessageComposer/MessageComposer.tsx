@@ -445,7 +445,7 @@ export default function CustomMessageComposer({
         partUrls.push(res.file);
       }
 
-      return buildAttachment(partUrls, {
+      return buildAttachment(partUrls[0], {
         leafsty_chunked: true,
         chunk_urls: partUrls,
       });

@@ -90,7 +90,88 @@ function formatMessageDateTime(rawDate: any): string {
     year: "numeric",
   });
   return `${dateStr} ${timeStr}`;
-}         
+}      
+   
+function ChunkedVideoPlayer({
+  chunkUrls,
+  mimeType,
+  title,
+  onExpand,
+}: {
+  chunkUrls: string[];
+  mimeType: string;
+  title: string;
+  onExpand: (blobUrl: string) => void;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl = "";
+
+    (async () => {
+      try {
+        const buffers = await Promise.all(
+          chunkUrls.map(async (u) => {
+            const r = await fetch(u);
+            if (!r.ok) throw new Error("Chunk fetch failed");
+            return r.arrayBuffer();
+          })
+        );
+        if (cancelled) return;
+        const merged = new Blob(buffers, { type: mimeType || "video/mp4" });
+        createdUrl = URL.createObjectURL(merged);
+        setBlobUrl(createdUrl);
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [chunkUrls.join("|"), mimeType]);
+
+  if (error) {
+    return (
+      <div className="px-3.5 py-2.5 rounded-2xl bg-red-950/40 border border-red-500/30 text-xs text-red-200">
+        Could not load video parts for &ldquo;{title}&rdquo;.
+      </div>
+    );
+  }
+
+  if (!blobUrl) {
+    return (
+      <div className="px-4 py-6 rounded-2xl bg-[#04120e] border border-emerald-500/25 text-xs text-emerald-300 font-semibold max-w-xs sm:max-w-md">
+        Assembling full-quality video ({chunkUrls.length} parts)...
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xs sm:max-w-md rounded-2xl overflow-hidden border border-emerald-500/25 bg-[#04120e] shadow-lg">
+      <video
+        src={blobUrl}
+        controls
+        playsInline
+        preload="metadata"
+        className="w-full max-h-80 bg-black"
+      />
+      <div className="px-3 py-1.5 flex items-center justify-between gap-2 text-[11px] text-emerald-200/80 border-t border-emerald-500/15">
+        <span className="truncate font-semibold">{title}</span>
+        <button
+          type="button"
+          onClick={() => onExpand(blobUrl)}
+          className="text-emerald-300 hover:underline font-bold shrink-0 cursor-pointer"
+        >
+          Expand
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function CustomMessage({
   message,
@@ -683,7 +764,7 @@ const formattedDateTime = formatMessageDateTime(
                  chunkUrls={att.chunk_urls}
                  mimeType={att?.mime_type || "video/mp4"}
                  title={att?.title || "Video"}
-                 onExpand={(url) =>
+                 onExpand={(url: string) =>
                    setPreviewMedia({
                      kind: "video",
                      url,
