@@ -46,7 +46,36 @@ export default function FriendsModal({
   } | null>(null);
   const [sendingReq, setSendingReq] = useState(false);
 
-  const loadFriends = async () => {
+   const loadFriends = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/friends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list", userId: currentUserId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const isActiveUser = (u: any) =>
+        Boolean(u?.id) && !String(u.id).startsWith("deleted-user-");
+
+      const inc = (Array.isArray(data?.incoming) ? data.incoming : []).filter(
+        isActiveUser
+      );
+      setFriends(
+        (Array.isArray(data?.friends) ? data.friends : []).filter(isActiveUser)
+      );
+      setIncoming(inc);
+      setOutgoing(
+        (Array.isArray(data?.outgoing) ? data.outgoing : []).filter(
+          isActiveUser
+        )
+      );
+      onPendingCountChange?.(inc.length);
+    } finally {
+      setLoading(false);
+    }
+  };
+
     try {
       setLoading(true);
       const res = await fetch("/api/friends", {
