@@ -8,7 +8,7 @@ interface LeafstyGamesModalProps {
   onShareResult: (summaryText: string) => Promise<void> | void;
 }
 
-type GameTab = "snake" | "mines" | "2048" | "memory" | "ttt" | "rps";
+type GameTab = "snake" | "mines" | "2048" | "memory" | "ttt" | "rps" | "calc";
 const MEMORY_ICONS = ["🌿", "🍃", "🦊", "🐸", "🍄", "💎", "🔥", "🌙"];
 
 const SNAC_PALETTE = [
@@ -25,6 +25,45 @@ const SNAC_DIFFS = [
   { label: "NORMAL", fps: 15 },
   { label: "FAST", fps: 25 },
 ] as const;
+
+function evaluateMathExpr(raw: string): string {
+  try {
+    let expr = raw
+      .replace(/×/g, "*")
+      .replace(/÷/g, "/")
+      .replace(/−/g, "-")
+      .replace(/π/g, `(${Math.PI})`)
+      .replace(/\be\b/g, `(${Math.E})`)
+      .replace(/√\(/g, "Math.sqrt(")
+      .replace(/√(\d+(\.\d+)?)/g, "Math.sqrt($1)")
+      .replace(/\bsin\(/g, "Math.sin((Math.PI/180)*")
+      .replace(/\bcos\(/g, "Math.cos((Math.PI/180)*")
+      .replace(/\btan\(/g, "Math.tan((Math.PI/180)*")
+      .replace(/\blog\(/g, "Math.log10(")
+      .replace(/\bln\(/g, "Math.log(")
+      .replace(/\^/g, "**")
+      .replace(/(\d+(\.\d+)?)%/g, "($1/100)");
+
+    // Auto-close any unclosed parentheses
+    const openCount = (expr.match(/\(/g) || []).length;
+    const closeCount = (expr.match(/\)/g) || []).length;
+    if (openCount > closeCount) {
+      expr += ")".repeat(openCount - closeCount);
+    }
+
+    // Strictly allow only numbers, math operators, parentheses, and Math.* calls
+    const stripped = expr.replace(/Math\.(sqrt|sin|cos|tan|log10|log|PI|E)/g, "");
+    if (!/^[0-9+\-*/().\s*]+$/.test(stripped)) {
+      return "Error";
+    }
+
+    const val = Function(`"use strict"; return (${expr});`)();
+    if (typeof val !== "number" || !Number.isFinite(val)) return "Error";
+    return String(Number(val.toPrecision(12)));
+  } catch {
+    return "Error";
+  }
+}
 
 export default function LeafstyGamesModal({
   onClose,
@@ -364,6 +403,32 @@ export default function LeafstyGamesModal({
     }
   };
 
+  // ================= 7. CALCULATOR =================
+const [calcExpr, setCalcExpr] = useState("");
+const [calcResult, setCalcResult] = useState("0");
+const [calcCopied, setCalcCopied] = useState(false);
+
+const handleCalcPress = (token: string) => {
+  setCalcCopied(false);
+  if (token === "C") {
+    setCalcExpr("");
+    setCalcResult("0");
+    return;
+  }
+  if (token === "⌫") {
+    setCalcExpr((prev) => prev.slice(0, -1));
+    return;
+  }
+  if (token === "=") {
+    if (!calcExpr.trim()) return;
+    const res = evaluateMathExpr(calcExpr);
+    setCalcResult(res);
+    if (res !== "Error") setCalcExpr(res);
+    return;
+  }
+  setCalcExpr((prev) => (prev === "Error" ? token : `${prev}${token}`));
+};
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
            if (tab === "snake" && snacScreen === "PLAYING") {
@@ -398,6 +463,7 @@ export default function LeafstyGamesModal({
       }`,
       ttt: `⭕ **Leafsty Tic-Tac-Toe:** ${tttStatus}`,
       rps: `✊ **Leafsty RPS:** You **${rpsScore.you}** – **${rpsScore.bot}** LeafyBot`,
+      calc: `🧮 **Calculator:** \`${calcExpr || calcResult}\` = **${calcResult}**`,
     };
     await onShareResult(textMap[tab]);
     onClose();
@@ -424,6 +490,7 @@ export default function LeafstyGamesModal({
         {(
           [
             { id: "snake", label: "🐍 SNAC" },
+            { id: "calc", label: "🧮 Calc" },
             { id: "mines", label: "💣 Mines" },
             { id: "2048", label: "🔢 2048" },
             { id: "memory", label: "🃏 Memory" },
@@ -778,6 +845,101 @@ export default function LeafstyGamesModal({
             </div>
           </div>
         )}
+
+        {tab === "calc" && (
+       <div className="space-y-2.5 font-mono">
+         {/* Display Screen */}
+         <div className="p-3 rounded-xl bg-[#04120e] border border-emerald-500/25 text-right space-y-1">
+           <input
+             type="text"
+             value={calcExpr}
+             onChange={(e) => setCalcExpr(e.target.value)}
+             onKeyDown={(e) => {
+               if (e.key === "Enter") {
+                 e.preventDefault();
+                 handleCalcPress("=");
+               }
+             }}
+             placeholder="Type or tap equation..."
+             className="w-full bg-transparent text-right text-xs text-emerald-300/80 placeholder:text-emerald-400/35 focus:outline-none"
+           />
+           <div className="flex items-center justify-between gap-2">
+             <button
+               type="button"
+               onClick={() => {
+                 navigator.clipboard?.writeText(calcResult);
+                 setCalcCopied(true);
+                 setTimeout(() => setCalcCopied(false), 1200);
+               }}
+               className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-[10px] font-bold text-emerald-300 cursor-pointer"
+             >
+               {calcCopied ? "Copied!" : "Copy"}
+             </button>
+             <div className="text-xl font-extrabold text-white truncate">
+               {calcResult}
+             </div>
+           </div>
+         </div>
+
+         {/* Scientific Row */}
+         <div className="grid grid-cols-5 gap-1">
+           {["sin(", "cos(", "tan(", "√(", "^"].map((fn) => (
+             <button
+               key={fn}
+               type="button"
+               onClick={() => handleCalcPress(fn)}
+               className="py-1.5 rounded-lg bg-[#061410] hover:bg-emerald-500/20 border border-emerald-500/20 text-[11px] font-bold text-emerald-300 cursor-pointer"
+             >
+               {fn.replace("(", "")}
+             </button>
+           ))}
+           {["log(", "ln(", "π", "(", ")"].map((fn) => (
+             <button
+               key={fn}
+               type="button"
+               onClick={() => handleCalcPress(fn)}
+               className="py-1.5 rounded-lg bg-[#061410] hover:bg-emerald-500/20 border border-emerald-500/20 text-[11px] font-bold text-emerald-300 cursor-pointer"
+             >
+               {fn.replace("(", "")}
+             </button>
+           ))}
+         </div>
+
+         {/* Standard Keypad */}
+         <div className="grid grid-cols-4 gap-1.5">
+           {[
+             "C", "⌫", "%", "÷",
+             "7", "8", "9", "×",
+             "4", "5", "6", "−",
+             "1", "2", "3", "+",
+             "0", ".", "e", "=",
+           ].map((btn) => {
+             const isEq = btn === "=";
+             const isClear = btn === "C" || btn === "⌫";
+             const isOp = ["÷", "×", "−", "+", "%"].includes(btn);
+             return (
+               <button
+                 key={btn}
+                 type="button"
+                 onClick={() => handleCalcPress(btn)}
+                 className={`py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                   isEq
+                     ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                     : isClear
+                     ? "bg-red-500/20 hover:bg-red-500/30 border border-red-400/30 text-red-200"
+                     : isOp
+                     ? "bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-emerald-200"
+                     : "bg-[#0d261e] hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-50"
+                 }`}
+               >
+                 {btn}
+               </button>
+             );
+           })}
+         </div>
+       </div>
+     )}
+
 
         <button
           type="button"
