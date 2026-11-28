@@ -104,14 +104,36 @@ function ConnectedWorkspace({
     }),
     [currentUser.id, currentUser.name, currentUser.image]
   );
-
   const tokenProvider = useCallback(async () => {
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    return "offline-token";
-  }
-  const uid = encodeURIComponent(currentUser.id);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return "offline-token";
+    }
+    const uid = encodeURIComponent(currentUser.id);
+    const postRes = await fetch("/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: currentUser.id,
+        name: currentUser.name || currentUser.id,
+      }),
+    });
 
-  const client = useCreateChatClient({
+    if (postRes.ok) {
+      const data = await postRes.json().catch(() => ({}));
+      if (data?.token) return data.token;
+    }
+
+    const getRes = await fetch(`/api/token?userId=${uid}`);
+    const getData = await getRes.json().catch(() => ({}));
+    if (!getRes.ok || !getData?.token) {
+      const msg =
+        getData?.error ||
+        `Token error (${postRes.status}/${getRes.status}) — check STREAM_API_SECRET in Vercel`;
+      setConnectError(msg);
+      throw new Error(msg);
+    }
+    return getData.token;
+  }, [currentUser.id, currentUser.name]);
     apiKey,
     tokenOrProvider: tokenProvider,
     userData,

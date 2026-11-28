@@ -54,6 +54,19 @@ type SettingsTab =
   | "keybinds"
   | "developer";
 
+  const [form, setForm] = useState({
+  name: sourceUser?.name || userId || "",
+  username: sourceUser?.username || sourceUser?.handle || userId || "",
+  avatarUrl: sourceUser?.image || "",
+  bannerColor: sourceUser?.bannerColor || "#10b981",
+  status: sourceUser?.status || sourceUser?.statusText || "Encrypted • Online",
+  pronouns: sourceUser?.pronouns || "",
+  bio: sourceUser?.bio || sourceUser?.aboutMe || "",
+  github: sourceUser?.socials?.github || "",
+  youtube: sourceUser?.socials?.youtube || "",
+  website: sourceUser?.socials?.website || "",
+});
+
 export default function UserSettingsModal({
   isOpen,
   user,
@@ -359,36 +372,47 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
 
             {activeTab === "profile" && (
               <form onSubmit={handleSave} className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1.5">
-                      Display Name
-                    </label>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, name: e.target.value }))
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 focus:outline-none focus:border-emerald-400"
-                    />
-                  </div>
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+               <div>
+                 <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1.5">
+                   Username (@handle)
+                 </label>
+                 <div className="relative">
+                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-emerald-400">
+                     @
+                   </span>
+                   <input
+                     type="text"
+                     value={form.username}
+                     onChange={(e) =>
+                       setForm((p) => ({
+                         ...p,
+                         username: e.target.value
+                           .toLowerCase()
+                           .replace(/[^a-z0-9_.-]/g, ""),
+                       }))
+                     }
+                     maxLength={24}
+                     className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 focus:outline-none focus:border-emerald-400"
+                   />
+                 </div>
+               </div>
 
-                  <div>
-                    <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1.5">
-                      Pronouns
-                    </label>
-                    <input
-                      type="text"
-                      value={form.pronouns}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, pronouns: e.target.value }))
-                      }
-                      placeholder="they/them, he/him, she/her..."
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
-                    />
-                  </div>
-                </div>
+               <div>
+                 <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1.5">
+                   Display Name
+                 </label>
+                 <input
+                   type="text"
+                   value={form.name}
+                   onChange={(e) =>
+                     setForm((p) => ({ ...p, name: e.target.value }))
+                   }
+                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 focus:outline-none focus:border-emerald-400"
+                 />
+               </div>
+             </div>
+
 
                 <div>
                   <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-400/80 mb-1.5">
@@ -482,6 +506,40 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#0d261e] border border-emerald-500/25 text-sm text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400 resize-none"
                   />
                 </div>
+                             <div className="p-4 rounded-2xl bg-[#0d261e] border border-emerald-500/20 space-y-3">
+               <div className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400/85">
+                 Social Links (Shown on Your Profile)
+               </div>
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                 <input
+                   type="text"
+                   value={form.github}
+                   onChange={(e) =>
+                     setForm((p) => ({ ...p, github: e.target.value }))
+                   }
+                   placeholder="GitHub username or URL"
+                   className="px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+                 />
+                 <input
+                   type="text"
+                   value={form.youtube}
+                   onChange={(e) =>
+                     setForm((p) => ({ ...p, youtube: e.target.value }))
+                   }
+                   placeholder="YouTube @handle or URL"
+                   className="px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+                 />
+                 <input
+                   type="text"
+                   value={form.website}
+                   onChange={(e) =>
+                     setForm((p) => ({ ...p, website: e.target.value }))
+                   }
+                   placeholder="Website / Link"
+                   className="px-3 py-2 rounded-xl bg-[#061410] border border-emerald-500/25 text-xs text-emerald-50 placeholder:text-emerald-300/40 focus:outline-none focus:border-emerald-400"
+                 />
+               </div>
+             </div>
 
                 <div className="flex justify-end">
                   <button
@@ -674,6 +732,47 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
                     {pwStatus.loading ? "Updating..." : "Update Password"}
                   </button>
                 </form>
+
+                             {(userId === "leafygreen" || userId === "jomkos") && (
+               <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 space-y-2.5">
+                 <div className="text-xs font-extrabold uppercase tracking-wider text-red-300">
+                   Admin: Delete Duplicate / Old User Account
+                 </div>
+                 <form
+                   onSubmit={async (e) => {
+                     e.preventDefault();
+                     const input = (e.currentTarget.elements.namedItem("delUser") as HTMLInputElement);
+                     const target = input?.value?.trim();
+                     if (!target) return;
+                     const res = await fetch("/api/admin/delete-user", {
+                       method: "POST",
+                       headers: { "Content-Type": "application/json" },
+                       body: JSON.stringify({
+                         requesterId: userId,
+                         targetUserId: target,
+                       }),
+                     });
+                     const data = await res.json().catch(() => ({}));
+                     alert(res.ok ? `Deleted @${data.deleted}` : data?.error || "Delete failed");
+                     if (res.ok && input) input.value = "";
+                   }}
+                   className="flex gap-2"
+                 >
+                   <input
+                     name="delUser"
+                     type="text"
+                     placeholder="Enter user ID to delete (e.g. gabykj13gmailcom)"
+                     className="flex-1 px-3 py-2 rounded-xl bg-[#061410] border border-red-500/30 text-xs text-red-100 placeholder:text-red-300/40 focus:outline-none"
+                   />
+                   <button
+                     type="submit"
+                     className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-extrabold cursor-pointer"
+                   >
+                     Delete User
+                   </button>
+                 </form>
+               </div>
+             )}
               </div>
             )}
             {activeTab === "voice" && (
