@@ -928,7 +928,6 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
               </div>
             )}
 
-              </div>
             {activeTab === "voice" && (
               <div className="space-y-4">
                 <button
