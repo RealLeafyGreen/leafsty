@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useChatContext } from "stream-chat-react";
 import { useDiscordContext } from "../types/DiscordContext";
 import { X, Send, Pencil, ShieldCheck, Calendar } from "lucide-react";
@@ -93,11 +93,65 @@ export default function UserProfilePopover({
     "idle" | "sending" | "sent" | "error"
   >("idle");
   const [friendReqMsg, setFriendReqMsg] = useState("");
+  const [friendStatus, setFriendStatus] = useState<
+    "loading" | "none" | "friends" | "outgoing" | "incoming"
+  >("loading");
   const discordCtx = useDiscordContext() as any;
   const activeChannel = discordCtx?.activeChannel || null;
 
   const [quickMessage, setQuickMessage] = useState("");
   const [sending, setSending] = useState(false);
+
+  const myUserId = String(client?.user?.id || client?.userID || "")
+    .trim()
+    .toLowerCase();
+  const targetProfileId = String(user?.id || "").trim().toLowerCase();
+  const isViewingSelf = Boolean(myUserId) && myUserId === targetProfileId;
+
+  useEffect(() => {
+    let active = true;
+    setFriendReqState("idle");
+    setFriendReqMsg("");
+
+    if (!myUserId || !targetProfileId || isViewingSelf) {
+      setFriendStatus("none");
+      return;
+    }
+
+    setFriendStatus("loading");
+    (async () => {
+      try {
+        const res = await fetch("/api/friends", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "list", userId: myUserId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!active) return;
+
+        const isFriend = (data?.friends || []).some(
+          (u: any) => String(u?.id || "").toLowerCase() === targetProfileId
+        );
+        const isOutgoing = (data?.outgoing || []).some(
+          (u: any) => String(u?.id || "").toLowerCase() === targetProfileId
+        );
+        const isIncoming = (data?.incoming || []).some(
+          (u: any) => String(u?.id || "").toLowerCase() === targetProfileId
+        );
+
+        if (isFriend) setFriendStatus("friends");
+        else if (isIncoming) setFriendStatus("incoming");
+        else if (isOutgoing) setFriendStatus("outgoing");
+        else setFriendStatus("none");
+      } catch {
+        if (active) setFriendStatus("none");
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [myUserId, targetProfileId, isViewingSelf]);
 
   if (!user) return null;
 
@@ -118,22 +172,20 @@ export default function UserProfilePopover({
     }
   })();
 
-  const myUserId = String(client?.user?.id || client?.userID || "")
-    .trim()
-    .toLowerCase();
-  const targetProfileId = String(user?.id || "").trim().toLowerCase();
-  const isViewingSelf = Boolean(myUserId) && myUserId === targetProfileId;
-
   const handleAddFriendFromProfile = async () => {
     if (!myUserId || !targetProfileId || isViewingSelf) return;
+    if (friendStatus === "friends" || friendStatus === "outgoing") return;
+
     setFriendReqState("sending");
     setFriendReqMsg("");
+    const action = friendStatus === "incoming" ? "accept" : "send";
+
     try {
       const res = await fetch("/api/friends", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "send",
+          action,
           userId: myUserId,
           targetId: targetProfileId,
         }),
@@ -141,12 +193,16 @@ export default function UserProfilePopover({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setFriendReqState("error");
-        setFriendReqMsg(data?.error || "Could not send request");
+        setFriendReqMsg(data?.error || "Could not update friend status");
       } else {
         setFriendReqState("sent");
-        setFriendReqMsg(
-          data?.autoAccepted ? "You are now friends!" : "Friend request sent!"
-        );
+        if (action === "accept" || data?.autoAccepted) {
+          setFriendStatus("friends");
+          setFriendReqMsg("You are now friends!");
+        } else {
+          setFriendStatus("outgoing");
+          setFriendReqMsg("Friend request sent!");
+        }
       }
     } catch {
       setFriendReqState("error");
@@ -315,7 +371,6 @@ export default function UserProfilePopover({
             </span>
           </div>
 
-          {/* Badges with Hover Tooltips */}
           <div className="flex items-center gap-1.5 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1 rounded-full">
             <span title="End-to-End Encrypted" className="text-xs cursor-help">
               🔒
@@ -329,7 +384,6 @@ export default function UserProfilePopover({
           </div>
         </div>
 
-        {/* Name, Handle, Pronouns & Custom Status */}
         <div className="mb-3">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-base font-bold text-zinc-900 leading-tight truncate">
@@ -374,9 +428,7 @@ export default function UserProfilePopover({
           )}
         </div>
 
-        {/* Inner Leafsty Info Container */}
         <div className="rounded-xl bg-[#f7faf8] border border-emerald-100/80 p-3 space-y-3">
-          {/* About Me */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-0.5">
               About Me
@@ -387,7 +439,6 @@ export default function UserProfilePopover({
             </p>
           </div>
 
-          {/* Member Since */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-0.5">
               Leafsty Member Since
@@ -398,7 +449,6 @@ export default function UserProfilePopover({
             </p>
           </div>
 
-          {/* Roles */}
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
               Roles
@@ -415,8 +465,6 @@ export default function UserProfilePopover({
               ))}
             </div>
           </div>
-
-          {/* Admin-Assigned Badges */}
           {resolvedBadges.length > 0 && (
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
@@ -439,7 +487,6 @@ export default function UserProfilePopover({
             </div>
           )}
 
-          {/* Connected Socials */}
           {socialLinks.length > 0 && (
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
@@ -475,21 +522,34 @@ export default function UserProfilePopover({
           )}
         </div>
 
-        {/* Add Friend Button */}
         {!isViewingSelf && targetProfileId && (
           <div className="mt-3 space-y-1.5">
-            <button
-              type="button"
-              disabled={friendReqState === "sending" || friendReqState === "sent"}
-              onClick={handleAddFriendFromProfile}
-              className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-extrabold text-xs transition cursor-pointer"
-            >
-              {friendReqState === "sending"
-                ? "Sending Friend Request..."
-                : friendReqState === "sent"
-                ? friendReqMsg || "Friend Request Sent"
-                : "+ Add Friend"}
-            </button>
+            {friendStatus === "friends" ? (
+              <div className="w-full py-2 px-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-xs text-center">
+                ✓ Friends
+              </div>
+            ) : friendStatus === "outgoing" ? (
+              <div className="w-full py-2 px-3 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 font-extrabold text-xs text-center">
+                Friend Request Pending
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={
+                  friendStatus === "loading" || friendReqState === "sending"
+                }
+                onClick={handleAddFriendFromProfile}
+                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-extrabold text-xs transition cursor-pointer"
+              >
+                {friendStatus === "loading"
+                  ? "Checking..."
+                  : friendReqState === "sending"
+                  ? "Sending..."
+                  : friendStatus === "incoming"
+                  ? "✓ Accept Friend Request"
+                  : "+ Add Friend"}
+              </button>
+            )}
             {friendReqState === "error" && friendReqMsg && (
               <p className="text-[11px] font-semibold text-red-600 text-center">
                 {friendReqMsg}
@@ -498,7 +558,6 @@ export default function UserProfilePopover({
           </div>
         )}
 
-        {/* Quick DM Input */}
         {onSendQuickMessage && (
           <form onSubmit={handleQuickSubmit} className="mt-3 flex gap-1.5">
             <input
@@ -516,7 +575,7 @@ export default function UserProfilePopover({
             >
               <Send className="w-3.5 h-3.5" />
             </button>
-                  </form>
+          </form>
         )}
       </div>
     </div>
