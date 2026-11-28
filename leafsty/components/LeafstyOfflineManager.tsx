@@ -145,7 +145,7 @@ export default function LeafstyOfflineManager() {
               : `Syncing ${queuedCount} queued message${queuedCount > 1 ? "s" : ""}...`}
           </span>
 
-          <button
+                  <button
             type="button"
             onClick={() => window.dispatchEvent(new Event("leafsty:open-lan-mesh"))}
             className="pointer-events-auto ml-1 px-2.5 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold transition cursor-pointer"
@@ -153,3 +153,7 @@ export default function LeafstyOfflineManager() {
             LAN P2P
           </button>
         </div>
+      )}
+    </div>
+  );
+}
