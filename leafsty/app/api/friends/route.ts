@@ -12,13 +12,13 @@ function getServerClient() {
 
 async function getUserLists(serverClient: any, userId: string) {
   const res = await serverClient.queryUsers({
-  payload: {
-    filter_conditions: { id: { $eq: userId } },
-    limit: 1,
-  },
-});
-const u = Array.isArray(res?.users) ? res.users.at(0) : null;
-  if (!u) return null;
+    payload: {
+      filter_conditions: { id: { $eq: userId } },
+      limit: 1,
+    },
+  });
+  const u = Array.isArray(res?.users) ? res.users.at(0) : null;
+  if (!u || String(u?.id || "").startsWith("deleted-user-")) return null;
   return {
     user: u,
     friends: Array.isArray(u.friends) ? (u.friends as string[]) : [],
@@ -206,17 +206,19 @@ export async function POST(req: NextRequest) {
     );
     let userProfiles: Record<string, any> = {};
     if (allIds.length > 0) {
-     const hydrated = await (serverClient as any).queryUsers({
-  payload: {
-    filter_conditions: { id: { $in: allIds } },
-    limit: 100,
-  },
-});
+      const hydrated = await (serverClient as any).queryUsers({
+        payload: {
+          filter_conditions: { id: { $in: allIds } },
+          limit: 100,
+        },
+      });
 
       for (const u of hydrated?.users || []) {
-        userProfiles[String(u.id)] = {
-          id: String(u.id),
-          name: String(u.name || u.id),
+        const uid = String(u.id || "");
+        if (!uid || uid.startsWith("deleted-user-")) continue;
+        userProfiles[uid] = {
+          id: uid,
+          name: String(u.name || uid),
           image: String(u.image || ""),
           online: Boolean(u.online) && !u.invisible,
           presence: u.invisible
@@ -226,19 +228,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const toUserObj = (id: string) =>
-      userProfiles[id] || {
-        id,
-        name: id,
-        image: "",
-        online: false,
-        presence: "offline",
-      };
+    const activeIds = new Set(Object.keys(userProfiles));
 
     return NextResponse.json({
-      friends: me.friends.map(toUserObj),
-      incoming: me.incoming.map(toUserObj),
-      outgoing: me.outgoing.map(toUserObj),
+      friends: me.friends
+        .filter((id) => activeIds.has(id))
+        .map((id) => userProfiles[id]),
+      incoming: me.incoming
+        .filter((id) => activeIds.has(id))
+        .map((id) => userProfiles[id]),
+      outgoing: me.outgoing
+        .filter((id) => activeIds.has(id))
+        .map((id) => userProfiles[id]),
     });
   } catch (err: any) {
     console.error("POST /api/friends error:", err);
