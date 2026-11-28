@@ -423,15 +423,15 @@ export default function CustomMessageComposer({
         ? client.channel(channel?.type || "messaging", resolvedChannelId)
         : null;
 
-    // 0. If file > 75 MB, split into 75 MB binary slices on Stream CDN (keeps 100% original quality!)
-    const CHUNK_SIZE = 75 * 1024 * 1024;
-    if (item.size > CHUNK_SIZE && typeof liveChannel?.sendFile === "function") {
+      const uploadInChunks = async () => {
+      if (typeof liveChannel?.sendFile !== "function") return null;
+      const SLICE_SIZE = 18 * 1024 * 1024; // 18 MB per part (fits safely inside Stream's 20 MB default limit)
       const partUrls: string[] = [];
-      const totalParts = Math.ceil(item.size / CHUNK_SIZE);
+      const totalParts = Math.ceil(item.size / SLICE_SIZE);
 
       for (let i = 0; i < totalParts; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(item.size, start + CHUNK_SIZE);
+        const start = i * SLICE_SIZE;
+        const end = Math.min(item.size, start + SLICE_SIZE);
         const sliceBlob = item.file.slice(start, end, "application/octet-stream");
         const sliceFile = new File(
           [sliceBlob],
@@ -449,9 +449,15 @@ export default function CustomMessageComposer({
         leafsty_chunked: true,
         chunk_urls: partUrls,
       });
+    };
+
+    // 0. If file > 18 MB, split into 18 MB slices on Stream CDN (100% original quality, works on default Stream limits!)
+    if (item.size > 18 * 1024 * 1024) {
+      const chunked = await uploadInChunks();
+      if (chunked) return chunked;
     }
 
-    // 1. Standard direct browser-to-Stream CDN upload (< 75 MB)
+    // 1. Standard direct browser-to-Stream CDN upload (< 18 MB)
     try {
       if (item.isImage && typeof liveChannel?.sendImage === "function") {
         const res = await liveChannel.sendImage(item.file);
@@ -461,47 +467,6 @@ export default function CustomMessageComposer({
         if (res?.file) return buildAttachment(res.file);
       }
     } catch {}
-
-    // 2. Server-side /api/upload fallback (for files under Vercel's 4 MB cap)
-    if (resolvedChannelId && currentUserId && item.size <= 4 * 1024 * 1024) {
-      try {
-        const fd = new FormData();
-        fd.append("file", item.file);
-        fd.append("channelType", String(channel?.type || "messaging"));
-        fd.append("channelId", resolvedChannelId);
-        fd.append("userId", currentUserId);
-        fd.append("kind", item.isImage ? "image" : isVideo ? "video" : "file");
-
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: fd,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data?.url) {
-          return buildAttachment(data.url);
-        }
-      } catch {}
-    }
-
-    // 3. Final inline fallback for images
-    if (item.isImage) {
-      const compactUrl = await compressImageUnder65KB(item.file);
-      return {
-        type: "image",
-        image_url: compactUrl,
-        thumb_url: compactUrl,
-        title: item.name,
-        file_size: item.size,
-        mime_type: "image/jpeg",
-      };
-    }
-
-    throw new Error(
-      `Could not upload "${item.name}" (${formatFileSize(
-        item.size
-      )}). Make sure File Uploads are enabled in Stream Dashboard.`
-    );
-  };
 
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
   const trimmed = rawText.trim();
