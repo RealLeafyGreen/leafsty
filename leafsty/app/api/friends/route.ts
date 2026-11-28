@@ -19,16 +19,54 @@ async function getUserLists(serverClient: any, userId: string) {
   });
   const u = Array.isArray(res?.users) ? res.users.at(0) : null;
   if (!u || String(u?.id || "").startsWith("deleted-user-")) return null;
+  const c = u.custom || {};
+  const friends = Array.isArray(u.friends)
+    ? u.friends
+    : Array.isArray(c.friends)
+    ? c.friends
+    : [];
+  const incoming = Array.isArray(u.incoming_requests)
+    ? u.incoming_requests
+    : Array.isArray(c.incoming_requests)
+    ? c.incoming_requests
+    : [];
+  const outgoing = Array.isArray(u.outgoing_requests)
+    ? u.outgoing_requests
+    : Array.isArray(c.outgoing_requests)
+    ? c.outgoing_requests
+    : [];
   return {
     user: u,
-    friends: Array.isArray(u.friends) ? (u.friends as string[]) : [],
-    incoming: Array.isArray(u.incoming_requests)
-      ? (u.incoming_requests as string[])
-      : [],
-    outgoing: Array.isArray(u.outgoing_requests)
-      ? (u.outgoing_requests as string[])
-      : [],
+    friends: friends as string[],
+    incoming: incoming as string[],
+    outgoing: outgoing as string[],
   };
+}
+
+async function saveUserLists(
+  serverClient: any,
+  updates: Array<{
+    id: string;
+    friends: string[];
+    incoming_requests: string[];
+    outgoing_requests: string[];
+  }>
+) {
+  await serverClient.updateUsersPartial({
+    users: updates.map((item) => ({
+      id: item.id,
+      set: {
+        friends: item.friends,
+        incoming_requests: item.incoming_requests,
+        outgoing_requests: item.outgoing_requests,
+        custom: {
+          friends: item.friends,
+          incoming_requests: item.incoming_requests,
+          outgoing_requests: item.outgoing_requests,
+        },
+      },
+    })),
+  });
 }
 
 export async function POST(req: NextRequest) {

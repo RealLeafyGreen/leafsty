@@ -13,6 +13,18 @@ function getServerClient() {
   return new StreamClient(apiKey, apiSecret);
 }
 
+async function ensureNewsChannel(serverClient: any) {
+  const channel = serverClient.chat.channel("messaging", "leafsty-global-news");
+  await channel.getOrCreate({
+    data: {
+      created_by_id: "leafygreen",
+      members: ["leafygreen", "jomkos"],
+      name: "Leafsty Global News",
+    },
+  });
+  return channel;
+}
+
 export async function GET() {
   try {
     const serverClient = getServerClient();
@@ -20,17 +32,7 @@ export async function GET() {
       return NextResponse.json({ posts: [] });
     }
 
-    const channel = (serverClient as any).chat.channel(
-      "messaging",
-      "leafsty-global-news"
-    );
-    await channel.getOrCreate({
-      data: {
-        created_by_id: "leafygreen",
-        name: "Leafsty Global News",
-      },
-    });
-
+    const channel = await ensureNewsChannel(serverClient);
     const res = await channel.query({
       messages: { limit: 100 },
     });
@@ -38,23 +40,26 @@ export async function GET() {
     const messages = Array.isArray(res?.messages) ? res.messages : [];
     const posts = messages
       .filter((m: any) => !m?.deleted_at)
-      .map((m: any) => ({
-        id: String(m.id),
-        title: String(m.news_title || "Leafsty Update"),
-        tag: String(m.news_tag || "Announcement"),
-        body: String(m.text || ""),
-        imageUrl: String(m.news_image || ""),
-        authorId: String(m.user?.id || "leafygreen"),
-        authorName: String(m.user?.name || m.user?.id || "Leafsty Team"),
-        authorImage: String(m.user?.image || ""),
-        createdAt: m.created_at || new Date().toISOString(),
-        likes: Number(m.reaction_counts?.like || 0),
-        likedBy: Array.isArray(m.latest_reactions)
-          ? m.latest_reactions
-              .filter((r: any) => r?.type === "like" && r?.user_id)
-              .map((r: any) => String(r.user_id))
-          : [],
-      }))
+      .map((m: any) => {
+        const c = m.custom || {};
+        return {
+          id: String(m.id),
+          title: String(c.news_title || m.news_title || "Leafsty Update"),
+          tag: String(c.news_tag || m.news_tag || "Announcement"),
+          body: String(m.text || ""),
+          imageUrl: String(c.news_image || m.news_image || ""),
+          authorId: String(m.user?.id || "leafygreen"),
+          authorName: String(m.user?.name || m.user?.id || "Leafsty Team"),
+          authorImage: String(m.user?.image || ""),
+          createdAt: m.created_at || new Date().toISOString(),
+          likes: Number(m.reaction_counts?.like || 0),
+          likedBy: Array.isArray(m.latest_reactions)
+            ? m.latest_reactions
+                .filter((r: any) => r?.type === "like" && r?.user_id)
+                .map((r: any) => String(r.user_id))
+            : [],
+        };
+      })
       .reverse();
 
     return NextResponse.json({ posts });
@@ -82,16 +87,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const channel = (serverClient as any).chat.channel(
-      "messaging",
-      "leafsty-global-news"
-    );
-    await channel.getOrCreate({
-      data: {
-        created_by_id: "leafygreen",
-        name: "Leafsty Global News",
-      },
-    });
+    const channel = await ensureNewsChannel(serverClient);
 
     if (action === "like") {
       const postId = String(body?.postId || "");
@@ -129,7 +125,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Create post — Admin only
     if (!isLeafstyAdmin(userId)) {
       return NextResponse.json(
         { error: "Only Leafsty admins can publish news posts." },
@@ -153,9 +148,11 @@ export async function POST(req: NextRequest) {
       message: {
         user_id: userId,
         text: content,
-        news_title: title,
-        news_tag: tag,
-        news_image: imageUrl,
+        custom: {
+          news_title: title,
+          news_tag: tag,
+          news_image: imageUrl,
+        },
       },
     });
 
