@@ -444,6 +444,19 @@ export default function CustomMessageComposer({
         }
         partUrls.push(res.file);
       }
+      if (!partUrls || partUrls.length === 0) {
+        throw new Error("Stream did not return a valid file URL for video chunks.");
+      }
+
+      return {
+        type: "file",
+        asset_url: partUrls,
+        title: item.name,
+        file_size: item.size,
+        mime_type: item.file.type || "video/mp4",
+        leafsty_chunked: true,
+        chunk_urls: partUrls,
+      };
 
       return buildAttachment(partUrls[0], {
         leafsty_chunked: true,
