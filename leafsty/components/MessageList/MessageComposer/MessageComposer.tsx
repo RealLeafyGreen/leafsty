@@ -493,8 +493,8 @@ export default function CustomMessageComposer({
       }),
     });
 
-        const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+   const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
       const errStr = String(data?.error || `Send failed (${res.status})`);
       if (data?.banned || errStr.toLowerCase().includes("banned")) {
         window.dispatchEvent(

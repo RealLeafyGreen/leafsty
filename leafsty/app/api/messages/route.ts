@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { StreamClient } from "@stream-io/node-sdk";
 
 export async function POST(req: NextRequest) {
+  let cleanUserId = "";
   try {
     const {
       channelType = "messaging",
@@ -13,7 +14,9 @@ export async function POST(req: NextRequest) {
       parent_id,
     } = await req.json();
 
-    if (!channelId || !userId) {
+    cleanUserId = String(userId || "").trim().toLowerCase();
+
+    if (!channelId || !cleanUserId) {
       return NextResponse.json(
         { error: "Missing channelId or userId" },
         { status: 400 }
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey || !apiSecret) {
       return NextResponse.json(
-        { error: "Stream API credentials are not configured on the server" },
+        { error: "Server credentials are not configured" },
         { status: 500 }
       );
     }
@@ -47,9 +50,55 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ message: response?.message || null });
   } catch (err: any) {
-    console.error("POST /api/messages error:", err);
+    const rawMsg = String(err?.message || "Failed to send message");
+
+    if (
+      rawMsg.toLowerCase().includes("banned") ||
+      rawMsg.toLowerCase().includes("do not have access")
+    ) {
+      let reason = "Violation of Leafsty community rules";
+      let expiresAt: string | null = null;
+
+      try {
+        const apiKey =
+          process.env.NEXT_PUBLIC_STREAM_API_KEY || process.env.STREAM_API_KEY;
+        const apiSecret = process.env.STREAM_API_SECRET;
+        if (apiKey && apiSecret && cleanUserId) {
+          const serverClient = new StreamClient(apiKey, apiSecret);
+          const qRes = await (serverClient as any).queryUsers({
+            payload: {
+              filter_conditions: { id: { $eq: cleanUserId } },
+              limit: 1,
+            },
+          });
+          const u: any = Array.isArray(qRes?.users) ? qRes.users[0] : null;
+          if (u?.leafstyBanReason || u?.custom?.leafstyBanReason) {
+            reason = String(u.leafstyBanReason || u.custom.leafstyBanReason);
+          }
+          if (u?.leafstyBanExpiresAt || u?.custom?.leafstyBanExpiresAt) {
+            expiresAt = String(
+              u.leafstyBanExpiresAt || u.custom.leafstyBanExpiresAt
+            );
+          }
+        }
+      } catch {}
+
+      return NextResponse.json(
+        {
+          banned: true,
+          reason,
+          expiresAt,
+        },
+        { status: 403 }
+      );
+    }
+
+    const cleanError = rawMsg
+      .replace(/stream error(\s*code\s*\d+:)?/gi, "")
+      .trim();
+
     return NextResponse.json(
-      { error: err?.message || "Failed to send message" },
+      { error: cleanError || "Failed to send message" },
       { status: 500 }
     );
   }
