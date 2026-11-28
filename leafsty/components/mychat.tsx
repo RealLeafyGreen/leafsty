@@ -8,6 +8,7 @@ import { Channel, useChatContext } from "stream-chat-react";
 import SleepCurfewOverlay from "./SleepCurfewOverlay";
 import ServerList from "./ServerList";
 import CustomChannelList from "./CustomChannelList";
+import LeafstyNewsModal from "./LeafstyNewsModal";
 import CustomMessage, { ReplyTarget } from "./MessageList/CustomMessage/CustomMessage";
 import CustomMessageComposer from "./MessageList/MessageComposer/MessageComposer";
 import UserContextMenu, { ContextTargetUser } from "./UserContextMenu";
@@ -27,6 +28,7 @@ import {
   Users,
   Video,
   X,
+  Newspaper,
 } from "lucide-react";
 
 export default function MyChat() {
@@ -60,7 +62,8 @@ export default function MyChat() {
     msg: any;
   } | null>(null);
   const [profileUser, setProfileUser] = useState<LeafstyProfileUser | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+ const [showSettings, setShowSettings] = useState(false);
+const [showNews, setShowNews] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = String(client?.user?.id || client?.userID || "");
@@ -538,7 +541,7 @@ export default function MyChat() {
       <CustomChannelList />
 
       <main className="flex-1 h-full flex flex-col bg-[#0a1d17] text-emerald-50 min-w-0">
-        {!activeChannel ? (
+                {!activeChannel ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#0a1d17]">
             <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center shadow-lg shadow-emerald-950/60 mb-4">
               L
@@ -553,6 +556,14 @@ export default function MyChat() {
               </kbd>{" "}
               to open the Leafsty Terminal.
             </p>
+            <button
+              type="button"
+              onClick={() => setShowNews(true)}
+              className="mt-5 px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-400/35 text-emerald-100 text-xs font-extrabold inline-flex items-center gap-2 transition cursor-pointer shadow-md"
+            >
+              <Newspaper className="w-4 h-4 text-emerald-300" />
+              <span>Open Leafsty Global News</span>
+            </button>
           </div>
         ) : (
           <>
@@ -633,6 +644,18 @@ export default function MyChat() {
                 >
                   <Terminal className="w-4 h-4" />
                 </button>
+                             <button
+               type="button"
+               onClick={() => setShowNews(true)}
+               title="Leafsty Global News"
+               className={`p-2 rounded-lg transition cursor-pointer ${
+                 showNews
+                   ? "bg-emerald-500/20 text-emerald-200"
+                   : "text-emerald-300/75 hover:text-emerald-50 hover:bg-emerald-500/15"
+               }`}
+             >
+               <Newspaper className="w-4 h-4" />
+             </button>
 
                 <div className="relative hidden md:block w-44">
                   <Search className="w-3.5 h-3.5 text-emerald-400/60 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -929,6 +952,12 @@ export default function MyChat() {
               onClose={() => setShowSettings(false)}
               onSave={handleSaveProfile}
             />
+
+             <LeafstyNewsModal
+           isOpen={showNews}
+           onClose={() => setShowNews(false)}
+           currentUserId={currentUserId}
+         />
 
             {msgMenu && (
               <div
