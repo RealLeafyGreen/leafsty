@@ -90,29 +90,7 @@ function formatMessageDateTime(rawDate: any): string {
     year: "numeric",
   });
   return `${dateStr} ${timeStr}`;
-}
-
-           if (
-             att?.leafsty_chunked &&
-             Array.isArray(att?.chunk_urls) &&
-             att.chunk_urls.length > 0
-           ) {
-             return (
-               <ChunkedVideoPlayer
-                 key={idx}
-                 chunkUrls={att.chunk_urls}
-                 mimeType={att?.mime_type || "video/mp4"}
-                 title={att?.title || "Video"}
-                 onExpand={(url) =>
-                   setPreviewMedia({
-                     kind: "video",
-                     url,
-                     title: att?.title || "Video",
-                   })
-                 }
-               />
-             );
-           }
+}         
 
 export default function CustomMessage({
   message,
