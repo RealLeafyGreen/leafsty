@@ -9,8 +9,22 @@ interface LeafstyGamesModalProps {
 }
 
 type GameTab = "snake" | "mines" | "2048" | "memory" | "ttt" | "rps";
-
 const MEMORY_ICONS = ["🌿", "🍃", "🦊", "🐸", "🍄", "💎", "🔥", "🌙"];
+
+const SNAC_PALETTE = [
+  "rgb(0, 150, 100)", "rgb(0, 142, 104)", "rgb(0, 134, 108)", "rgb(0, 126, 112)", "rgb(0, 118, 116)",
+  "rgb(0, 110, 120)", "rgb(5, 102, 128)", "rgb(10, 94, 136)", "rgb(15, 86, 144)", "rgb(20, 78, 152)",
+  "rgb(25, 70, 160)", "rgb(35, 66, 165)", "rgb(45, 62, 170)", "rgb(55, 58, 175)", "rgb(65, 54, 180)",
+  "rgb(75, 50, 185)", "rgb(85, 50, 190)", "rgb(95, 50, 195)", "rgb(105, 50, 200)", "rgb(115, 50, 205)",
+  "rgb(125, 50, 210)", "rgb(135, 50, 210)", "rgb(145, 50, 210)", "rgb(155, 50, 210)", "rgb(165, 50, 215)",
+  "rgb(175, 45, 220)", "rgb(185, 40, 225)", "rgb(195, 35, 230)", "rgb(205, 30, 235)", "rgb(215, 25, 240)",
+];
+
+const SNAC_DIFFS = [
+  { label: "SLOW", fps: 7 },
+  { label: "NORMAL", fps: 15 },
+  { label: "FAST", fps: 25 },
+] as const;
 
 export default function LeafstyGamesModal({
   onClose,
@@ -18,61 +32,77 @@ export default function LeafstyGamesModal({
 }: LeafstyGamesModalProps) {
   const [tab, setTab] = useState<GameTab>("snake");
 
-  // ================= 1. SNAKE =================
-  const GRID = 12;
+  // ================= 1. SNAC (Friend's Pygame Port) =================
+  const SNAC_COLS = 20;
+  const SNAC_ROWS = 15;
+  const [snacScreen, setSnacScreen] = useState<"MENU" | "PLAYING" | "SETTINGS" | "GAMEOVER">("MENU");
+  const [diffIdx, setDiffIdx] = useState<number>(1);
+  const [speedModeEnabled, setSpeedModeEnabled] = useState<boolean>(true);
+  const [snacFps, setSnacFps] = useState<number>(15);
+  const [snacHigh, setSnacHigh] = useState<number>(0);
+
   const [snake, setSnake] = useState<{ x: number; y: number }[]>([
-    { x: 5, y: 6 },
-    { x: 4, y: 6 },
+    { x: 10, y: 7 },
+    { x: 9, y: 7 },
   ]);
   const [dir, setDir] = useState<{ x: number; y: number }>({ x: 1, y: 0 });
-  const [food, setFood] = useState<{ x: number; y: number }>({ x: 8, y: 6 });
-  const [snakeRunning, setSnakeRunning] = useState(false);
-  const [snakeOver, setSnakeOver] = useState(false);
+  const [food, setFood] = useState<{ x: number; y: number }>({ x: 14, y: 7 });
   const [snakeScore, setSnakeScore] = useState(0);
 
+  const spawnSnacFood = (body: { x: number; y: number }[]) => {
+    while (true) {
+      const candidate = {
+        x: Math.floor(Math.random() * SNAC_COLS),
+        y: Math.floor(Math.random() * SNAC_ROWS),
+      };
+      if (!body.some((s) => s.x === candidate.x && s.y === candidate.y)) {
+        return candidate;
+      }
+    }
+  };
+
   const resetSnake = () => {
-    setSnake([
-      { x: 5, y: 6 },
-      { x: 4, y: 6 },
-    ]);
+    const startBody = [
+      { x: 10, y: 7 },
+      { x: 9, y: 7 },
+    ];
+    setSnake(startBody);
     setDir({ x: 1, y: 0 });
-    setFood({ x: 8, y: 6 });
+    setFood(spawnSnacFood(startBody));
     setSnakeScore(0);
-    setSnakeOver(false);
-    setSnakeRunning(true);
+    setSnacFps(SNAC_DIFFS[diffIdx]?.fps || 15);
+    setSnacScreen("PLAYING");
   };
 
   useEffect(() => {
-    if (!snakeRunning || tab !== "snake") return;
+    if (snacScreen !== "PLAYING" || tab !== "snake") return;
+    const ms = Math.max(25, Math.round(1000 / snacFps));
     const t = setInterval(() => {
       setSnake((prev) => {
-        const head = { x: prev[0].x + dir.x, y: prev[0].y + dir.y };
-        if (
-          head.x < 0 ||
-          head.x >= GRID ||
-          head.y < 0 ||
-          head.y >= GRID ||
-          prev.some((s) => s.x === head.x && s.y === head.y)
-        ) {
-          setSnakeRunning(false);
-          setSnakeOver(true);
+        const hx = (prev[0].x + dir.x + SNAC_COLS) % SNAC_COLS;
+        const hy = (prev[0].y + dir.y + SNAC_ROWS) % SNAC_ROWS;
+        const head = { x: hx, y: hy };
+
+        if (prev.some((s) => s.x === head.x && s.y === head.y)) {
+          setSnacHigh((h) => Math.max(h, snakeScore));
+          setSnacScreen("GAMEOVER");
           return prev;
         }
         const next = [head, ...prev];
         if (head.x === food.x && head.y === food.y) {
           setSnakeScore((s) => s + 10);
-          setFood({
-            x: Math.floor(Math.random() * GRID),
-            y: Math.floor(Math.random() * GRID),
-          });
+          setFood(spawnSnacFood(next));
+          if (speedModeEnabled) {
+            setSnacFps((f) => f + 1.5);
+          }
         } else {
           next.pop();
         }
         return next;
       });
-    }, 170);
+    }, ms);
     return () => clearInterval(t);
-  }, [snakeRunning, dir, food, tab]);
+  }, [snacScreen, snacFps, dir, food, tab, speedModeEnabled, snakeScore]);
 
   // ================= 2. MINESWEEPER (7x7, 7 mines) =================
   const M_SIZE = 7;
@@ -354,7 +384,7 @@ export default function LeafstyGamesModal({
 
   const shareScore = async () => {
     const textMap: Record<GameTab, string> = {
-      snake: `🐍 **Leafsty Snake:** Scored **${snakeScore} pts**!`,
+      snake: `🐍 **SNAC (${SNAC_DIFFS[diffIdx]?.label} • ${speedModeEnabled ? "DYNAMIC" : "STATIC"}):** Scored **${snakeScore} pts** (High: ${snacHigh})!`,
       mines: `💣 **Leafsty Minesweeper:** ${
         mineState === "won" ? "Cleared the minefield! 🎉" : "Hit a mine! 💥"
       }`,
@@ -393,7 +423,7 @@ export default function LeafstyGamesModal({
       <div className="p-2 bg-[#061410]/60 border-b border-emerald-500/15 grid grid-cols-3 gap-1">
         {(
           [
-            { id: "snake", label: "🐍 Snake" },
+            { id: "snake", label: "🐍 SNAC" },
             { id: "mines", label: "💣 Mines" },
             { id: "2048", label: "🔢 2048" },
             { id: "memory", label: "🃏 Memory" },
@@ -417,68 +447,141 @@ export default function LeafstyGamesModal({
       </div>
 
       <div className="p-3.5">
-        {tab === "snake" && (
-          <div className="space-y-2.5 text-center">
-            <div className="flex items-center justify-between text-xs font-bold">
-              <span className="text-emerald-300">Score: {snakeScore}</span>
-              <button
-                type="button"
-                onClick={resetSnake}
-                className="text-[11px] text-emerald-400 hover:underline cursor-pointer"
-              >
-                {snakeRunning ? "Restart" : "Start Game"}
-              </button>
-            </div>
-            <div className="grid grid-cols-12 gap-0.5 w-52 h-52 mx-auto p-1 rounded-xl bg-[#04120e] border border-emerald-500/25">
-              {Array.from({ length: GRID * GRID }).map((_, i) => {
-                const x = i % GRID;
-                const y = Math.floor(i / GRID);
-                const isHead = snake[0]?.x === x && snake[0]?.y === y;
-                const isBody = snake.some((s) => s.x === x && s.y === y);
-                const isFood = food.x === x && food.y === y;
-                return (
-                  <div
-                    key={i}
-                    className={`rounded-[2px] ${
-                      isHead
-                        ? "bg-emerald-300"
-                        : isBody
-                        ? "bg-emerald-500"
-                        : isFood
-                        ? "bg-amber-400"
-                        : "bg-[#091e18]"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-            {snakeOver && (
-              <div className="text-xs font-bold text-red-300">
-                Game Over! Final Score: {snakeScore}
-              </div>
-            )}
-            <div className="flex justify-center gap-1.5 pt-0.5">
-              {[
-                { label: "↑", d: { x: 0, y: -1 } },
-                { label: "←", d: { x: -1, y: 0 } },
-                { label: "↓", d: { x: 0, y: 1 } },
-                { label: "→", d: { x: 1, y: 0 } },
-              ].map((b) => (
-                <button
-                  key={b.label}
-                  type="button"
-                  onClick={() => {
-                    if (!snakeRunning && !snakeOver) setSnakeRunning(true);
-                    setDir(b.d);
-                  }}
-                  className="w-8 h-7 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs font-bold hover:border-emerald-400 cursor-pointer"
-                >
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+             {tab === "snake" && (
+       <div className="space-y-2.5 text-center font-mono">
+         <div className="flex items-center justify-between text-[11px] font-bold px-1">
+           <span className="text-[#00ffc8]">
+             Score: {snakeScore} | High: {snacHigh}
+           </span>
+           <span className="text-emerald-300/80">
+             {Math.round(snacFps)} FPS ({speedModeEnabled ? "DYNAMIC" : "STATIC"})
+           </span>
+         </div>
+
+         <div className="relative w-64 h-48 mx-auto rounded-xl bg-[#0f0f19] border border-emerald-500/30 overflow-hidden shadow-inner">
+           {/* 20x15 Grid + Snake + Food */}
+           <div
+             className="grid w-full h-full"
+             style={{ gridTemplateColumns: `repeat(${SNAC_COLS}, minmax(0, 1fr))` }}
+           >
+             {Array.from({ length: SNAC_COLS * SNAC_ROWS }).map((_, i) => {
+               const x = i % SNAC_COLS;
+               const y = Math.floor(i / SNAC_COLS);
+               const segIdx = snake.findIndex((s) => s.x === x && s.y === y);
+               const isFood = food.x === x && food.y === y;
+               const scoreOffset = Math.floor(snakeScore / 10);
+               const bg =
+                 segIdx === 0
+                   ? "rgb(0, 255, 200)"
+                   : segIdx > 0
+                   ? SNAC_PALETTE[(segIdx + 1 + scoreOffset) % SNAC_PALETTE.length]
+                   : undefined;
+
+               return (
+                 <div
+                   key={i}
+                   className="border-[0.5px] border-[#191928] flex items-center justify-center"
+                 >
+                   {segIdx !== -1 ? (
+                     <div
+                       style={{ backgroundColor: bg }}
+                       className="w-full h-full rounded-[2px]"
+                     />
+                   ) : isFood ? (
+                     <div className="w-2.5 h-2.5 rounded-full bg-[#ff3c3c]" />
+                   ) : null}
+                 </div>
+               );
+             })}
+           </div>
+
+           {/* MENU & GAMEOVER Overlays */}
+           {(snacScreen === "MENU" || snacScreen === "GAMEOVER") && (
+             <div className="absolute inset-0 bg-[#0f0f19]/90 flex flex-col items-center justify-center p-3 space-y-2.5">
+               <div className="text-2xl font-extrabold tracking-widest text-[#00ffc8]">
+                 {snacScreen === "MENU" ? "SNAC" : "GAME OVER"}
+               </div>
+               <div className="text-[10px] text-zinc-200">
+                 {snacScreen === "MENU"
+                   ? "WRAP-AROUND ARENA • SHIFTING GRADIENT"
+                   : `Score: ${snakeScore} | High Score: ${snacHigh}`}
+               </div>
+               <div className="flex flex-col gap-1.5 pt-1 w-44">
+                 <button
+                   type="button"
+                   onClick={resetSnake}
+                   className="py-1.5 px-3 rounded-lg bg-[#ffd700] text-zinc-950 font-extrabold text-xs hover:brightness-110 cursor-pointer"
+                 >
+                   &gt; START GAME &lt;
+                 </button>
+                 <button
+                   type="button"
+                   onClick={() => setSnacScreen("SETTINGS")}
+                   className="py-1 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-zinc-100 font-bold text-xs cursor-pointer"
+                 >
+                   SETTINGS
+                 </button>
+               </div>
+             </div>
+           )}
+
+           {/* SETTINGS Submenu */}
+           {snacScreen === "SETTINGS" && (
+             <div className="absolute inset-0 bg-[#0f0f19]/95 flex flex-col items-center justify-center p-3 space-y-2.5 text-[11px]">
+               <div className="text-lg font-extrabold text-[#00ffc8]">
+                 SETTINGS
+               </div>
+               <button
+                 type="button"
+                 onClick={() => setDiffIdx((d) => (d + 1) % 3)}
+                 className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[#ffd700] font-bold cursor-pointer"
+               >
+                 STARTING SPEED: &lt; {SNAC_DIFFS[diffIdx]?.label} &gt;
+               </button>
+               <button
+                 type="button"
+                 onClick={() => setSpeedModeEnabled((v) => !v)}
+                 className={`px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 font-bold cursor-pointer ${
+                   speedModeEnabled ? "text-[#32ff32]" : "text-zinc-400"
+                 }`}
+               >
+                 SPEED MODE: {speedModeEnabled ? "ON (ACCELERATING)" : "OFF (CONSTANT)"}
+               </button>
+               <button
+                 type="button"
+                 onClick={() => setSnacScreen("MENU")}
+                 className="mt-1 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold cursor-pointer"
+               >
+                 &gt; SAVE &amp; RETURN &lt;
+               </button>
+             </div>
+           )}
+         </div>
+
+         <div className="flex justify-center gap-1.5 pt-0.5">
+           {[
+             { label: "↑", d: { x: 0, y: -1 }, oppY: 1 },
+             { label: "←", d: { x: -1, y: 0 }, oppX: 1 },
+             { label: "↓", d: { x: 0, y: 1 }, oppY: -1 },
+             { label: "→", d: { x: 1, y: 0 }, oppX: -1 },
+           ].map((b) => (
+             <button
+               key={b.label}
+               type="button"
+               onClick={() => {
+                 if (snacScreen !== "PLAYING") resetSnake();
+                 if (b.oppY !== undefined && dir.y === b.oppY) return;
+                 if (b.oppX !== undefined && dir.x === b.oppX) return;
+                 setDir(b.d);
+               }}
+               className="w-8 h-7 rounded-lg bg-[#0d261e] border border-emerald-500/25 text-xs font-bold hover:border-emerald-400 cursor-pointer"
+             >
+               {b.label}
+             </button>
+           ))}
+         </div>
+       </div>
+     )}
 
         {tab === "mines" && (
           <div className="space-y-2.5 text-center">
