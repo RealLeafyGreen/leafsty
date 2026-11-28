@@ -932,6 +932,3 @@ const formattedDateTime = formatMessageDateTime(
     </div>
   );
 }
-    </div>
-  );
-}
