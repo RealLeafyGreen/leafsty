@@ -329,101 +329,104 @@ export default function CustomMessageComposer({
     });
   };
 
- const uploadSingleAttachment = async (item: PendingAttachment) => {
-  const currentUserId = String(
-    client?.userID || (client?.user as any)?.id || ""
-  );
-  const resolvedChannelId = String(
-    channel?.id || channel?.cid?.split(":").at(1) || ""
-  );
+   const uploadSingleAttachment = async (item: PendingAttachment) => {
+    const currentUserId = String(
+      client?.userID || (client?.user as any)?.id || ""
+    );
+    const resolvedChannelId = String(
+      channel?.id || channel?.cid?.split(":").at(1) || ""
+    );
+    const isVideo = item.file.type.startsWith("video/");
 
-  // 1. Server-side /api/upload first (bypasses browser permission restrictions)
-  if (resolvedChannelId && currentUserId) {
-    try {
-      const fd = new FormData();
-      fd.append("file", item.file);
-      fd.append("channelType", String(channel?.type || "messaging"));
-      fd.append("channelId", resolvedChannelId);
-      fd.append("userId", currentUserId);
-      fd.append("kind", item.isImage ? "image" : "file");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: fd,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.url) {
-        return item.isImage
-          ? {
-              type: "image",
-              image_url: data.url,
-              thumb_url: data.url,
-              title: item.name,
-              file_size: item.size,
-              mime_type: item.file.type,
-            }
-          : {
-              type: "file",
-              asset_url: data.url,
-              title: item.name,
-              file_size: item.size,
-              mime_type: item.file.type || "application/octet-stream",
-            };
-      }
-    } catch {}
-  }
-
-  // 2. Fallback to browser Stream SDK
-  const liveChannel =
-    typeof channel?.sendImage === "function" ||
-    typeof channel?.sendFile === "function"
-      ? channel
-      : client && resolvedChannelId
-      ? client.channel(channel.type || "messaging", resolvedChannelId)
-      : null;
-
-  try {
-    if (item.isImage && typeof liveChannel?.sendImage === "function") {
-      const res = await liveChannel.sendImage(item.file);
-      if (res?.file) {
+    const buildAttachment = (url: string) => {
+      if (item.isImage) {
         return {
           type: "image",
-          image_url: res.file,
-          thumb_url: res.file,
+          image_url: url,
+          thumb_url: url,
           title: item.name,
           file_size: item.size,
           mime_type: item.file.type,
         };
       }
-    } else if (typeof liveChannel?.sendFile === "function") {
-      const res = await liveChannel.sendFile(item.file);
-      if (res?.file) {
+      if (isVideo) {
         return {
-          type: "file",
-          asset_url: res.file,
+          type: "video",
+          asset_url: url,
           title: item.name,
           file_size: item.size,
-          mime_type: item.file.type || "application/octet-stream",
+          mime_type: item.file.type || "video/mp4",
         };
       }
-    }
-  } catch {}
-
-  // 3. Final inline image fallback
-  if (item.isImage) {
-    const compactUrl = await compressImageUnder65KB(item.file);
-    return {
-      type: "image",
-      image_url: compactUrl,
-      thumb_url: compactUrl,
-      title: item.name,
-      file_size: item.size,
-      mime_type: "image/jpeg",
+      return {
+        type: "file",
+        asset_url: url,
+        title: item.name,
+        file_size: item.size,
+        mime_type: item.file.type || "application/octet-stream",
+      };
     };
-  }
 
-  throw new Error(`Could not upload "${item.name}". Please try a smaller file.`);
-};
+    // 1. Direct browser-to-Stream CDN upload first (bypasses Vercel's 4.5 MB limit, supports up to 100 MB)
+    const liveChannel =
+      typeof channel?.sendImage === "function" ||
+      typeof channel?.sendFile === "function"
+        ? channel
+        : client && resolvedChannelId
+        ? client.channel(channel?.type || "messaging", resolvedChannelId)
+        : null;
+
+    try {
+      if (item.isImage && typeof liveChannel?.sendImage === "function") {
+        const res = await liveChannel.sendImage(item.file);
+        if (res?.file) return buildAttachment(res.file);
+      } else if (typeof liveChannel?.sendFile === "function") {
+        const res = await liveChannel.sendFile(item.file);
+        if (res?.file) return buildAttachment(res.file);
+      }
+    } catch {}
+
+    // 2. Server-side /api/upload fallback (for files under Vercel's 4 MB payload cap)
+    if (resolvedChannelId && currentUserId && item.size <= 4 * 1024 * 1024) {
+      try {
+        const fd = new FormData();
+        fd.append("file", item.file);
+        fd.append("channelType", String(channel?.type || "messaging"));
+        fd.append("channelId", resolvedChannelId);
+        fd.append("userId", currentUserId);
+        fd.append("kind", item.isImage ? "image" : isVideo ? "video" : "file");
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.url) {
+          return buildAttachment(data.url);
+        }
+      } catch {}
+    }
+
+    // 3. Final compressed inline fallback for images
+    if (item.isImage) {
+      const compactUrl = await compressImageUnder65KB(item.file);
+      return {
+        type: "image",
+        image_url: compactUrl,
+        thumb_url: compactUrl,
+        title: item.name,
+        file_size: item.size,
+        mime_type: "image/jpeg",
+      };
+    }
+
+    throw new Error(
+      `Could not upload "${item.name}" (${formatFileSize(
+        item.size
+      )}). Make sure File Uploads are enabled in Stream Dashboard (max 100 MB).`
+    );
+  };
+
 
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
   const trimmed = rawText.trim();
