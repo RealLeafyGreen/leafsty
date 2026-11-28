@@ -374,7 +374,7 @@ export default function CustomMessageComposer({
     });
   };
 
-  const uploadSingleAttachment = async (item: PendingAttachment) => {
+   const uploadSingleAttachment = async (item: PendingAttachment) => {
     const currentUserId = String(
       client?.userID || (client?.user as any)?.id || ""
     );
@@ -382,17 +382,19 @@ export default function CustomMessageComposer({
       channel?.id || channel?.cid?.split(":").at(1) || ""
     );
     const isVideo = item.file.type.startsWith("video/");
+    const fileToUpload = item.isImage
+      ? await optimizeLargeImage(item.file)
+      : item.file;
 
-    const buildAttachment = (url: string, extra?: Record<string, any>) => {
+    const buildAttachment = (url: string) => {
       if (item.isImage) {
         return {
           type: "image",
           image_url: url,
           thumb_url: url,
           title: item.name,
-          file_size: item.size,
-          mime_type: item.file.type,
-          ...extra,
+          file_size: fileToUpload.size,
+          mime_type: fileToUpload.type,
         };
       }
       if (isVideo) {
@@ -400,18 +402,16 @@ export default function CustomMessageComposer({
           type: "video",
           asset_url: url,
           title: item.name,
-          file_size: item.size,
-          mime_type: item.file.type || "video/mp4",
-          ...extra,
+          file_size: fileToUpload.size,
+          mime_type: fileToUpload.type || "video/mp4",
         };
       }
       return {
         type: "file",
         asset_url: url,
         title: item.name,
-        file_size: item.size,
-        mime_type: item.file.type || "application/octet-stream",
-        ...extra,
+        file_size: fileToUpload.size,
+        mime_type: fileToUpload.type || "application/octet-stream",
       };
     };
 
@@ -425,18 +425,27 @@ export default function CustomMessageComposer({
 
     const uploadInChunks = async () => {
       if (typeof liveChannel?.sendFile !== "function") return null;
-      const SLICE_SIZE = 18 * 1024 * 1024; // 18 MB per part (fits safely inside Stream's 20 MB default limit)
+      const SLICE_SIZE = 18 * 1024 * 1024; // 18 MB slices (fits safely inside Stream's 20 MB limit)
       const partUrls: string[] = [];
       const totalParts = Math.ceil(item.size / SLICE_SIZE);
+      const ext = item.name.includes(".")
+        ? item.name.split(".").pop()
+        : isVideo
+        ? "mp4"
+        : "bin";
 
       for (let i = 0; i < totalParts; i++) {
         const start = i * SLICE_SIZE;
         const end = Math.min(item.size, start + SLICE_SIZE);
-        const sliceBlob = item.file.slice(start, end, "application/octet-stream");
+        const sliceBlob = item.file.slice(
+          start,
+          end,
+          item.file.type || "application/octet-stream"
+        );
         const sliceFile = new File(
           [sliceBlob],
-          `${item.name}.part${i + 1}of${totalParts}.bin`,
-          { type: "application/octet-stream" }
+          `${item.name}.part${i + 1}of${totalParts}.${ext}`,
+          { type: item.file.type || "application/octet-stream" }
         );
         const res = await liveChannel.sendFile(sliceFile);
         if (!res?.file) {
@@ -444,27 +453,24 @@ export default function CustomMessageComposer({
         }
         partUrls.push(res.file);
       }
-      if (!partUrls || partUrls.length === 0) {
-        throw new Error("Stream did not return a valid file URL for video chunks.");
+
+      if (!partUrls[0]) {
+        throw new Error("Stream did not return a valid URL for video chunks.");
       }
+
+      const encodedChunks = encodeURIComponent(JSON.stringify(partUrls));
+      const packedUrl = `${partUrls[0]}#leafsty_chunks=${encodedChunks}`;
 
       return {
         type: "file",
-        asset_url: partUrls,
+        asset_url: packedUrl,
         title: item.name,
         file_size: item.size,
         mime_type: item.file.type || "video/mp4",
-        leafsty_chunked: true,
-        chunk_urls: partUrls,
       };
-
-      return buildAttachment(partUrls[0], {
-        leafsty_chunked: true,
-        chunk_urls: partUrls,
-      });
     };
 
-    // 0. If file > 18 MB, split into 18 MB slices on Stream CDN (100% original quality, works on default Stream limits!)
+    // 0. If file > 18 MB, split into 18 MB slices on Stream CDN (100% original quality)
     if (item.size > 18 * 1024 * 1024) {
       const chunked = await uploadInChunks();
       if (chunked) return chunked;
@@ -473,15 +479,57 @@ export default function CustomMessageComposer({
     // 1. Standard direct browser-to-Stream CDN upload (< 18 MB)
     try {
       if (item.isImage && typeof liveChannel?.sendImage === "function") {
-        const res = await liveChannel.sendImage(item.file);
+        const res = await liveChannel.sendImage(fileToUpload);
         if (res?.file) return buildAttachment(res.file);
       } else if (typeof liveChannel?.sendFile === "function") {
-        const res = await liveChannel.sendFile(item.file);
+        const res = await liveChannel.sendFile(fileToUpload);
         if (res?.file) return buildAttachment(res.file);
       }
     } catch {}
 
-  }
+    // 2. Server-side /api/upload fallback (for files under Vercel's 4 MB cap)
+    if (
+      resolvedChannelId &&
+      currentUserId &&
+      fileToUpload.size <= 4 * 1024 * 1024
+    ) {
+      try {
+        const fd = new FormData();
+        fd.append("file", fileToUpload);
+        fd.append("channelType", String(channel?.type || "messaging"));
+        fd.append("channelId", resolvedChannelId);
+        fd.append("userId", currentUserId);
+        fd.append("kind", item.isImage ? "image" : isVideo ? "video" : "file");
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.url) {
+          return buildAttachment(data.url);
+        }
+      } catch {}
+    }
+
+    // 3. Final inline fallback for images
+    if (item.isImage) {
+      const compactUrl = await compressImageUnder65KB(fileToUpload);
+      return {
+        type: "image",
+        image_url: compactUrl,
+        thumb_url: compactUrl,
+        title: item.name,
+        file_size: fileToUpload.size,
+        mime_type: "image/jpeg",
+      };
+    }
+
+    throw new Error(
+      `Could not upload "${item.name}" (${formatFileSize(item.size)}).`
+    );
+  };
+
   const sendPayload = async (rawText: string, attachments: any[] = []) => {
   const trimmed = rawText.trim();
   if ((!trimmed && attachments.length === 0) || !channel) return;

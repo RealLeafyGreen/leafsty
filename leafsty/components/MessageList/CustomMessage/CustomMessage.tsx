@@ -91,7 +91,7 @@ function formatMessageDateTime(rawDate: any): string {
   });
   return `${dateStr} ${timeStr}`;
 }      
-   
+
 function ChunkedVideoPlayer({
   chunkUrls,
   mimeType,
@@ -752,28 +752,36 @@ const formattedDateTime = formatMessageDateTime(
 
               const isPdf =
                 mime === "application/pdf" || /\.pdf(\?|$)/i.test(titleLower);
+              const chunkMarker = "#leafsty_chunks=";
+              const chunkIdx = String(fileHref).indexOf(chunkMarker);
+              if (chunkIdx !== -1) {
+                let parsedChunks: string[] = [];
+                try {
+                  parsedChunks = JSON.parse(
+                    decodeURIComponent(
+                      String(fileHref).slice(chunkIdx + chunkMarker.length)
+                    )
+                  );
+                } catch {}
 
-                           if (
-             att?.leafsty_chunked &&
-             Array.isArray(att?.chunk_urls) &&
-             att.chunk_urls.length > 0
-           ) {
-             return (
-               <ChunkedVideoPlayer
-                 key={idx}
-                 chunkUrls={att.chunk_urls}
-                 mimeType={att?.mime_type || "video/mp4"}
-                 title={att?.title || "Video"}
-                 onExpand={(url: string) =>
-                   setPreviewMedia({
-                     kind: "video",
-                     url,
-                     title: att?.title || "Video",
-                   })
-                 }
-               />
-             );
-           }
+                if (Array.isArray(parsedChunks) && parsedChunks.length > 0) {
+                  return (
+                    <ChunkedVideoPlayer
+                      key={idx}
+                      chunkUrls={parsedChunks}
+                      mimeType={att?.mime_type || "video/mp4"}
+                      title={att?.title || "Video"}
+                      onExpand={(url: string) =>
+                        setPreviewMedia({
+                          kind: "video",
+                          url,
+                          title: att?.title || "Video",
+                        })
+                      }
+                    />
+                  );
+                }
+              }
 
               if (isVideo) {
                 return (
@@ -951,28 +959,6 @@ const formattedDateTime = formatMessageDateTime(
           </div>
         )}
       </div>
-              {isOwn && seenByUsers.length > 0 && (
-          <div className="mt-1 flex items-center justify-end gap-1">
-            {seenByUsers.map((reader) => (
-              <div
-                key={reader.id}
-                title={`Seen by ${reader.name}`}
-                className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[8px] font-extrabold flex items-center justify-center overflow-hidden ring-1 ring-[#0a1d17]"
-              >
-                {reader.image ? (
-                  <img
-                    src={reader.image}
-                    alt={reader.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  reader.name.charAt(0).toUpperCase()
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
       {previewMedia && (
         <div
           onClick={() => setPreviewMedia(null)}
