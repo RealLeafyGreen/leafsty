@@ -134,7 +134,6 @@ function ConnectedWorkspace({
     }
     return getData.token;
   }, [currentUser.id, currentUser.name]);
-    }, [currentUser.id, currentUser.name]);
 
   const client = useCreateChatClient({
     apiKey,
