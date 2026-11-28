@@ -11,7 +11,6 @@ import {
   getStoredPresence,
 } from "./LeafstyStatusBadge";
 
-
 export interface UserProfilePopoverProps {
   user: any;
   onClose?: () => void;
@@ -34,6 +33,37 @@ export interface LeafstyProfileUser {
   custom?: Record<string, any>;
   [key: string]: any;
 }
+
+const BADGE_META: Record<string, { label: string; style: string }> = {
+  founder: {
+    label: "🌿 Founder",
+    style: "bg-emerald-50 text-emerald-800 border-emerald-300",
+  },
+  staff: {
+    label: "🛡️ Leafsty Staff",
+    style: "bg-teal-50 text-teal-800 border-teal-300",
+  },
+  vip: {
+    label: "👑 VIP",
+    style: "bg-amber-50 text-amber-800 border-amber-300",
+  },
+  og: {
+    label: "⚡ Early Supporter",
+    style: "bg-purple-50 text-purple-800 border-purple-300",
+  },
+  bug_hunter: {
+    label: "🐛 Bug Hunter",
+    style: "bg-lime-50 text-lime-800 border-lime-300",
+  },
+  verified: {
+    label: "✅ Verified",
+    style: "bg-sky-50 text-sky-800 border-sky-300",
+  },
+  dev: {
+    label: "💻 Developer",
+    style: "bg-indigo-50 text-indigo-800 border-indigo-300",
+  },
+};
 
 function parseProfileDate(raw: any): Date | null {
   if (raw === undefined || raw === null || raw === "") return null;
@@ -60,9 +90,9 @@ export default function UserProfilePopover({
 }: UserProfilePopoverProps) {
   const { client } = useChatContext() as any;
   const [friendReqState, setFriendReqState] = useState<
-  "idle" | "sending" | "sent" | "error"
->("idle");
-const [friendReqMsg, setFriendReqMsg] = useState("");
+    "idle" | "sending" | "sent" | "error"
+  >("idle");
+  const [friendReqMsg, setFriendReqMsg] = useState("");
   const discordCtx = useDiscordContext() as any;
   const activeChannel = discordCtx?.activeChannel || null;
 
@@ -89,41 +119,50 @@ const [friendReqMsg, setFriendReqMsg] = useState("");
   })();
 
   const myUserId = String(client?.user?.id || client?.userID || "")
-  .trim()
-  .toLowerCase();
-const targetProfileId = String(user?.id || "").trim().toLowerCase();
-const isViewingSelf =
-  Boolean(myUserId) && myUserId === targetProfileId;
+    .trim()
+    .toLowerCase();
+  const targetProfileId = String(user?.id || "").trim().toLowerCase();
+  const isViewingSelf = Boolean(myUserId) && myUserId === targetProfileId;
 
-const handleAddFriendFromProfile = async () => {
-  if (!myUserId || !targetProfileId || isViewingSelf) return;
-  setFriendReqState("sending");
-  setFriendReqMsg("");
-  try {
-    const res = await fetch("/api/friends", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "send",
-        userId: myUserId,
-        targetId: targetProfileId,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+  const handleAddFriendFromProfile = async () => {
+    if (!myUserId || !targetProfileId || isViewingSelf) return;
+    setFriendReqState("sending");
+    setFriendReqMsg("");
+    try {
+      const res = await fetch("/api/friends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send",
+          userId: myUserId,
+          targetId: targetProfileId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFriendReqState("error");
+        setFriendReqMsg(data?.error || "Could not send request");
+      } else {
+        setFriendReqState("sent");
+        setFriendReqMsg(
+          data?.autoAccepted ? "You are now friends!" : "Friend request sent!"
+        );
+      }
+    } catch {
       setFriendReqState("error");
-      setFriendReqMsg(data?.error || "Could not send request");
-    } else {
-      setFriendReqState("sent");
-      setFriendReqMsg(
-        data?.autoAccepted ? "You are now friends!" : "Friend request sent!"
-      );
+      setFriendReqMsg("Network error");
     }
-  } catch {
-    setFriendReqState("error");
-    setFriendReqMsg("Network error");
-  }
-};
+  };
+
+  const resolvedHandle =
+    user?.username ||
+    user?.handle ||
+    liveMemberUser?.username ||
+    liveMemberUser?.handle ||
+    user?.custom?.username ||
+    savedLocal?.username ||
+    savedLocal?.handle ||
+    user.id;
 
   const resolvedPronouns =
     user?.pronouns ||
@@ -148,6 +187,52 @@ const handleAddFriendFromProfile = async () => {
     savedLocal?.bio ||
     "";
 
+  const resolvedSocials: Record<string, string> = {
+    ...(user?.custom?.socials || {}),
+    ...(liveMemberUser?.socials || {}),
+    ...(user?.socials || {}),
+    ...(savedLocal?.socials || {}),
+  };
+
+  const resolvedBadges: string[] = Array.isArray(user?.badges)
+    ? user.badges
+    : Array.isArray(liveMemberUser?.badges)
+    ? liveMemberUser.badges
+    : Array.isArray(user?.custom?.badges)
+    ? user.custom.badges
+    : Array.isArray(savedLocal?.badges)
+    ? savedLocal.badges
+    : [];
+
+  const socialLinks = [
+    { key: "github", label: "GitHub", prefix: "https://github.com" },
+    { key: "youtube", label: "YouTube", prefix: "https://youtube.com@" },
+    { key: "discord", label: "Discord", prefix: "" },
+    { key: "twitter", label: "X", prefix: "https://x.com" },
+    { key: "instagram", label: "Instagram", prefix: "https://instagram.com" },
+    { key: "tiktok", label: "TikTok", prefix: "https://tiktok.com@" },
+    { key: "twitch", label: "Twitch", prefix: "https://twitch.tv" },
+    { key: "website", label: "Website", prefix: "https://" },
+  ]
+    .map((s) => {
+      const raw = String(resolvedSocials[s.key] || "").trim();
+      if (!raw) return null;
+      const clean = raw.replace(/^@/, "");
+      const href =
+        raw.startsWith("http://") || raw.startsWith("https://")
+          ? raw
+          : s.prefix
+          ? `${s.prefix}${clean}`
+          : "";
+      return { ...s, value: raw, href };
+    })
+    .filter(Boolean) as Array<{
+    key: string;
+    label: string;
+    value: string;
+    href: string;
+  }>;
+
   const parsedDate =
     parseProfileDate(user?.created_at) ||
     parseProfileDate(user?.createdAt) ||
@@ -162,18 +247,18 @@ const handleAddFriendFromProfile = async () => {
         year: "numeric",
       })
     : "Recently joined";
-const rawPresence: LeafstyPresence = isViewingSelf
-  ? getStoredPresence()
-  : liveMemberUser?.invisible || user?.invisible
-  ? "offline"
-  : ((liveMemberUser?.presence_status ||
-      user?.presence_status ||
-      (liveMemberUser?.online || user?.online
-        ? "online"
-        : "offline")) as LeafstyPresence);
 
-  
-    const roles = user.roles?.length
+  const rawPresence: LeafstyPresence = isViewingSelf
+    ? getStoredPresence()
+    : liveMemberUser?.invisible || user?.invisible
+    ? "offline"
+    : ((liveMemberUser?.presence_status ||
+        user?.presence_status ||
+        (liveMemberUser?.online || user?.online
+          ? "online"
+          : "offline")) as LeafstyPresence);
+
+  const roles = user.roles?.length
     ? user.roles
     : ["Leafsty Member", "E2EE Verified"];
 
@@ -218,7 +303,7 @@ const rawPresence: LeafstyPresence = isViewingSelf
                 {initial}
               </div>
             )}
-                       <span
+            <span
               title={PRESENCE_META[rawPresence]?.label || "Online"}
               className="absolute -bottom-1 -right-1"
             >
@@ -264,13 +349,13 @@ const rawPresence: LeafstyPresence = isViewingSelf
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-            <p className="text-xs text-zinc-500">@{user.id}</p>
-                     <span className="text-zinc-300">•</span>
-         <span className="text-xs font-semibold text-zinc-600">
-           {rawPresence === "offline"
-             ? "Offline"
-             : PRESENCE_META[rawPresence]?.label || "Online"}
-         </span>
+            <p className="text-xs text-zinc-500">@{resolvedHandle}</p>
+            <span className="text-zinc-300">•</span>
+            <span className="text-xs font-semibold text-zinc-600">
+              {rawPresence === "offline"
+                ? "Offline"
+                : PRESENCE_META[rawPresence]?.label || "Online"}
+            </span>
             {resolvedPronouns && (
               <>
                 <span className="text-zinc-300">•</span>
@@ -330,38 +415,97 @@ const rawPresence: LeafstyPresence = isViewingSelf
               ))}
             </div>
           </div>
+
+          {/* Admin-Assigned Badges */}
+          {resolvedBadges.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+                Badges
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {resolvedBadges.map((bId) => {
+                  const meta = BADGE_META[bId];
+                  if (!meta) return null;
+                  return (
+                    <span
+                      key={bId}
+                      className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-bold ${meta.style}`}
+                    >
+                      {meta.label}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Connected Socials */}
+          {socialLinks.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+                Socials
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {socialLinks.map((s) =>
+                  s.href ? (
+                    <a
+                      key={s.key}
+                      href={s.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white hover:bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-800 transition"
+                    >
+                      <span>{s.label}:</span>
+                      <span className="text-emerald-600 truncate max-w-[110px]">
+                        {s.value}
+                      </span>
+                    </a>
+                  ) : (
+                    <span
+                      key={s.key}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-[11px] font-bold text-emerald-800"
+                    >
+                      <span>{s.label}:</span>
+                      <span className="text-emerald-600">{s.value}</span>
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Quick DM Input */}
-               {!isViewingSelf && targetProfileId && (
-         <div className="mt-3 space-y-1.5">
-           <button
-             type="button"
-             disabled={friendReqState === "sending" || friendReqState === "sent"}
-             onClick={handleAddFriendFromProfile}
-             className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-extrabold text-xs transition cursor-pointer"
-           >
-             {friendReqState === "sending"
-               ? "Sending Friend Request..."
-               : friendReqState === "sent"
-               ? friendReqMsg || "Friend Request Sent"
-               : `+ Add Friend`}
-           </button>
-           {friendReqState === "error" && friendReqMsg && (
-             <p className="text-[11px] font-semibold text-red-600 text-center">
-               {friendReqMsg}
-             </p>
-           )}
-         </div>
-       )}
+        {/* Add Friend Button */}
+        {!isViewingSelf && targetProfileId && (
+          <div className="mt-3 space-y-1.5">
+            <button
+              type="button"
+              disabled={friendReqState === "sending" || friendReqState === "sent"}
+              onClick={handleAddFriendFromProfile}
+              className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-extrabold text-xs transition cursor-pointer"
+            >
+              {friendReqState === "sending"
+                ? "Sending Friend Request..."
+                : friendReqState === "sent"
+                ? friendReqMsg || "Friend Request Sent"
+                : "+ Add Friend"}
+            </button>
+            {friendReqState === "error" && friendReqMsg && (
+              <p className="text-[11px] font-semibold text-red-600 text-center">
+                {friendReqMsg}
+              </p>
+            )}
+          </div>
+        )}
 
+        {/* Quick DM Input */}
         {onSendQuickMessage && (
           <form onSubmit={handleQuickSubmit} className="mt-3 flex gap-1.5">
             <input
               type="text"
               value={quickMessage}
               onChange={(e) => setQuickMessage(e.target.value)}
-              placeholder={`Message @${user.id}...`}
+              placeholder={`Message @${resolvedHandle}...`}
               className="flex-1 px-3 py-1.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
             />
             <button
@@ -372,7 +516,7 @@ const rawPresence: LeafstyPresence = isViewingSelf
             >
               <Send className="w-3.5 h-3.5" />
             </button>
-          </form>
+                  </form>
         )}
       </div>
     </div>

@@ -79,6 +79,10 @@ export async function POST(req: NextRequest) {
             ...(updates.socials !== undefined
         ? { socials: updates.socials }
         : {}),
+      ...(Array.isArray(updates.badges)
+        ? { badges: updates.badges }
+        : {}),
+
     };
 
     await (serverClient as any).updateUsersPartial({
