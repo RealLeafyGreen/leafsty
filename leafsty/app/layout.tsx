@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import LeafstyContextMenu from "../components/LeafstyContextMenu";
 import LeafstyOfflineManager from "../components/LeafstyOfflineManager";
-import LeafstyOfflineMesh from "../components/LeafstyOfflineMesh";
 import LeafstyUpdateNotifier from "../components/LeafstyUpdateNotifier";
 
 export const metadata: Metadata = {
