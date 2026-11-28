@@ -552,14 +552,12 @@ export default function CustomMessageComposer({
   }
 };
 
-
     if (data?.message) {
       window.dispatchEvent(
         new CustomEvent("leafsty:message-sent", {
           detail: { ...data.message, _replaceId: tempId },
         })
       );
-    }
   } catch (err: any) {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       const currentUserId = String(
