@@ -16,11 +16,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <LeafstyContextMenu />
+                <LeafstyContextMenu />
         <LeafstyOfflineManager />
-<LeafstyOfflineMesh />
         {children}
       </body>
     </html>
   );
 }
+
