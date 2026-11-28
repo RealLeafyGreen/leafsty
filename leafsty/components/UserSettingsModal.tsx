@@ -66,7 +66,6 @@ type SettingsTab =
   youtube: sourceUser?.socials?.youtube || "",
   website: sourceUser?.socials?.website || "",
 });
-
 export default function UserSettingsModal({
   isOpen,
   user,
@@ -74,6 +73,7 @@ export default function UserSettingsModal({
   onClose,
   onSave,
   onLogout,
+
 }: UserSettingsModalProps) {
   const sourceUser = profile || user || {};
   const userId = String(sourceUser?.id || "");
@@ -140,18 +140,33 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
     } catch {}
 
     setForm({
-      name: savedLocal.name || sourceUser.name || userId || "",
-      avatarUrl: savedLocal.image || sourceUser.image || "",
-      bannerColor: savedLocal.bannerColor || sourceUser.bannerColor || "#10b981",
-      status:
-        savedLocal.status ||
-        savedLocal.statusText ||
-        sourceUser.status ||
-        sourceUser.statusText ||
-        "Encrypted • Online",
-      pronouns: savedLocal.pronouns || sourceUser.pronouns || "",
-      bio: savedLocal.bio || savedLocal.aboutMe || sourceUser.bio || sourceUser.aboutMe || "",
-    });
+   name: savedLocal.name || sourceUser.name || userId || "",
+   username:
+     savedLocal.username ||
+     savedLocal.handle ||
+     sourceUser.username ||
+     sourceUser.handle ||
+     userId ||
+     "",
+   avatarUrl: savedLocal.image || sourceUser.image || "",
+   bannerColor: savedLocal.bannerColor || sourceUser.bannerColor || "#10b981",
+   status:
+     savedLocal.status ||
+     savedLocal.statusText ||
+     sourceUser.status ||
+     sourceUser.statusText ||
+     "Encrypted • Online",
+   pronouns: savedLocal.pronouns || sourceUser.pronouns || "",
+   bio:
+     savedLocal.bio ||
+     savedLocal.aboutMe ||
+     sourceUser.bio ||
+     sourceUser.aboutMe ||
+     "",
+   github: savedLocal.socials?.github || sourceUser.socials?.github || "",
+   youtube: savedLocal.socials?.youtube || sourceUser.socials?.youtube || "",
+   website: savedLocal.socials?.website || sourceUser.socials?.website || "",
+ });
 
     try {
       const savedTheme = localStorage.getItem("leafsty_theme");
@@ -213,14 +228,20 @@ const updateSleepCurfew = (patch: Partial<{ enabled: boolean; startHour: number;
     if (saving) return;
     setSaving(true);
     try {
-      await onSave?.({
-        name: form.name.trim() || userId,
-        image: form.avatarUrl.trim(),
-        bannerColor: form.bannerColor,
-        status: form.status.trim() || "Encrypted • Online",
-        pronouns: form.pronouns.trim(),
-        bio: form.bio.trim(),
-      });
+         await onSave?.({
+     name: form.name.trim() || userId,
+     username: form.username.trim() || userId,
+     image: form.avatarUrl.trim(),
+     bannerColor: form.bannerColor,
+     status: form.status.trim() || "Encrypted • Online",
+     pronouns: form.pronouns.trim(),
+     bio: form.bio.trim(),
+     socials: {
+       github: form.github.trim(),
+       youtube: form.youtube.trim(),
+       website: form.website.trim(),
+     },
+   });
       try {
         localStorage.setItem("leafsty_prefs", JSON.stringify(prefs));
       } catch {}
