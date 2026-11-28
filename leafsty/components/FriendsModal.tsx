@@ -75,8 +75,7 @@ export default function FriendsModal({
       setLoading(false);
     }
   };
-
-    try {
+  
       setLoading(true);
       const res = await fetch("/api/friends", {
         method: "POST",
